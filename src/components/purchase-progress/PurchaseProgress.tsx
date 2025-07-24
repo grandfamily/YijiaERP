@@ -980,6 +980,28 @@ export const PurchaseProgress: React.FC = () => {
                                   </td>
                                 );
                               })}
+
+                              {/* 厂家包装订单的到货数量输入 */}
+                              {allocation?.type === 'external' && (
+                                <td className="py-4 px-4 text-center">
+                                  <div className="flex flex-col items-center space-y-2">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max={item.quantity}
+                                      value={deliveryQuantities[item.id] || item.quantity}
+                                      onChange={(e) => handleDeliveryQuantityChange(item.id, parseInt(e.target.value) || 0)}
+                                      className="w-20 border border-gray-300 rounded px-2 py-1 text-sm text-center focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                    <button
+                                      onClick={() => handleSaveDeliveryQuantity(request.id, item.id, item.quantity)}
+                                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                    >
+                                      保存
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
                             </tr>
                           );
                         })}
@@ -1067,7 +1089,7 @@ export const PurchaseProgress: React.FC = () => {
                                     <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded-full border border-gray-200 font-medium">
                                       {!isOperatable ? '等待前置节点' : '未开始'}
                                     </span>
-                                  </div>
+                                  )}
 
                                     {/* 收货确认完成按钮 */}
                                     {canEdit && isDeliveryInProgress && (
@@ -1086,7 +1108,6 @@ export const PurchaseProgress: React.FC = () => {
                                         完成
                                       </button>
                                     )}
-                                  )}
                                 </td>
                               );
                             })}
@@ -1313,6 +1334,7 @@ export const PurchaseProgress: React.FC = () => {
           </div>
         </div>
       )}
+    </div>
     </>
   );
 };
