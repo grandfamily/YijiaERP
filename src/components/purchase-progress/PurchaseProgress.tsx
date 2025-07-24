@@ -843,7 +843,13 @@ export const PurchaseProgress: React.FC = () => {
                               
                               {/* Overall Progress */}
                               <td className="py-4 px-4 text-center">
-                                    <span>催要纸卡</span>
+                                <div className="flex flex-col items-center space-y-1">
+                                  <span className="text-sm font-bold text-blue-600">{skuProgressPercentage}%</span>
+                                  <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                                    <div 
+                                      className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+                                      style={{ width: `${skuProgressPercentage}%` }}
+                                    />
                                   </div>
                                 </div>
                               </td>
