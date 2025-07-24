@@ -949,7 +949,7 @@ export const PurchaseProgress: React.FC = () => {
                                          onClick={() => handleCompleteSKUStage(request.id, item.id, stage.name)}
                                          disabled={!canOperateSKUStage(request.id, stage.name, stageIndex)}
                                          className={`px-2 py-1 text-xs rounded transition-colors ${
-                                         催要纸卡
+                                           canOperateSKUStage(request.id, stage.name, stageIndex)
                                              ? 'bg-green-600 text-white hover:bg-green-700'
                                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                          }`}
