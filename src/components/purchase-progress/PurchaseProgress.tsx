@@ -384,12 +384,12 @@ export const PurchaseProgress: React.FC = () => {
   // 新增：处理SKU收货确认
   const handleSKUReceiptConfirmation = async (requestId: string, itemId: string, deliveredQuantity?: number) => {
     try {
-      const currentRequest = allocatedRequests.find(req => req.id === requestId);
+      const request = selectedRequest || allRequests.find(r => r.id === requestId);
       const allocation = getOrderAllocation(requestId);
       
-      if (!currentRequest || !allocation) return;
+      if (!request || !allocation) return;
       
-      const item = currentRequest.items.find(i => i.id === itemId);
+      const item = request.items.find(i => i.id === itemId);
       if (!item) return;
 
       // 自己包装：直接完成收货确认
