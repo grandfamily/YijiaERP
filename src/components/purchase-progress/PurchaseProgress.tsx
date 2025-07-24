@@ -57,13 +57,6 @@ export const PurchaseProgress: React.FC = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const [editingArrivalQuantity, setEditingArrivalQuantity] = useState<{[key: string]: number}>({});
-  const [showPartialDeliveryModal, setShowPartialDeliveryModal] = useState<{
-    skuId: string;
-    requestId: string;
-    arrivalQuantity: number;
-    purchaseQuantity: number;
-  } | null>(null);
 
   // 筛选状态
   const [filters, setFilters] = useState({
@@ -441,88 +434,6 @@ export const PurchaseProgress: React.FC = () => {
     setTimeout(() => setNotificationMessage(null), 3000);
     setSelectedOrders([]);
   };
-  // 处理SKU级别的收货确认完成（自己包装）
-  const handleCompleteSKUDelivery = async (requestId: string, skuId: string) => {
-    try {
-      const progress = getRequestProgress(requestId);
-      if (!progress) return;
-
-      // 更新该SKU的收货确认节点状态
-      await updateProcurementProgressStage(progress.id, '收货确认', {
-        status: 'completed',
-        completedDate: new Date(),
-        remarks: `SKU ${skuId} 单独完成收货确认`
-      });
-
-      setNotificationMessage('SKU收货确认已完成');
-      setTimeout(() => setNotificationMessage(null), 3000);
-    } catch (error) {
-      console.error('SKU收货确认失败:', error);
-      setNotificationMessage('操作失败，请重试');
-      setTimeout(() => setNotificationMessage(null), 3000);
-    }
-  };
-
-  // 处理到货数量编辑
-  const handleArrivalQuantityChange = (skuId: string, quantity: number) => {
-    setEditingArrivalQuantity(prev => ({
-      ...prev,
-      [skuId]: quantity
-    }));
-  };
-
-  // 处理到货数量保存（厂家包装）
-  const handleSaveArrivalQuantity = async (requestId: string, skuId: string, purchaseQuantity: number) => {
-    const arrivalQuantity = editingArrivalQuantity[skuId] || purchaseQuantity;
-    
-    if (arrivalQuantity >= purchaseQuantity) {
-      // 到货数量充足，直接完成
-      await handleCompleteSKUDelivery(requestId, skuId);
-      setEditingArrivalQuantity(prev => {
-        const newState = { ...prev };
-        delete newState[skuId];
-        return newState;
-      });
-    } else {
-      // 到货数量不足，显示确认对话框
-      setShowPartialDeliveryModal({
-        skuId,
-        requestId,
-        arrivalQuantity,
-        purchaseQuantity
-      });
-    }
-  };
-
-  // 处理部分到货确认
-  const handlePartialDeliveryConfirm = async (continueProduction: boolean) => {
-    if (!showPartialDeliveryModal) return;
-
-    try {
-      const { skuId, requestId, arrivalQuantity } = showPartialDeliveryModal;
-      
-      if (continueProduction) {
-        // 继续生产剩余数量
-        setNotificationMessage(`SKU ${skuId} 部分收货完成，剩余数量继续生产`);
-      } else {
-        // 不继续生产，完成该SKU
-        await handleCompleteSKUDelivery(requestId, skuId);
-      }
-
-      setEditingArrivalQuantity(prev => {
-        const newState = { ...prev };
-        delete newState[skuId];
-        return newState;
-      });
-      setShowPartialDeliveryModal(null);
-      setTimeout(() => setNotificationMessage(null), 3000);
-    } catch (error) {
-      console.error('部分到货处理失败:', error);
-      setNotificationMessage('操作失败，请重试');
-      setTimeout(() => setNotificationMessage(null), 3000);
-    }
-  };
-
 
   // 获取统计数据
   const getTabStats = () => {
@@ -875,9 +786,6 @@ export const PurchaseProgress: React.FC = () => {
                           <th className="text-center py-3 px-4 font-medium text-gray-900">尾款支付</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">安排发货</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">收货确认</th>
-                          {allocation?.type === 'external' && (
-                            <th className="text-center py-3 px-4 font-medium text-gray-900">到货数量</th>
-                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -973,46 +881,10 @@ export const PurchaseProgress: React.FC = () => {
                                           自动跳过
                                         </div>
                                       )}
-
-                                       {/* SKU级别完成按钮 - 仅收货确认节点且为自己包装 */}
-                                       {stage.name === '收货确认' && 
-                                        allocation?.type === 'in_house' && 
-                                        stage.status === 'in_progress' && 
-                                        canEdit && (
-                                         <button
-                                           onClick={() => handleCompleteSKUDelivery(request.id, item.skuId)}
-                                           className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                                         >
-                                           完成
-                                         </button>
-                                       )}
                                     </div>
                                   </td>
                                 );
                               })}
-
-                              {/* 到货数量列 - 仅厂家包装显示 */}
-                              {allocation?.type === 'external' && (
-                                <td className="py-4 px-4 text-center">
-                                  <div className="flex flex-col items-center space-y-2">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      value={editingArrivalQuantity[item.skuId] || item.quantity}
-                                      onChange={(e) => handleArrivalQuantityChange(item.skuId, parseInt(e.target.value) || 0)}
-                                      className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                                    />
-                                    {canEdit && (
-                                      <button
-                                        onClick={() => handleSaveArrivalQuantity(request.id, item.skuId, item.quantity)}
-                                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                                      >
-                                        保存
-                                      </button>
-                                    )}
-                                  </div>
-                                </td>
-                              )}
                             </tr>
                           );
                         })}
@@ -1255,51 +1127,6 @@ export const PurchaseProgress: React.FC = () => {
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
               onClick={() => setZoomedImage(null)}
             />
-          </div>
-        </div>
-      )}
-
-      {/* 部分到货确认对话框 */}
-      {showPartialDeliveryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="border-b border-gray-200 px-6 py-4">
-              <h3 className="text-lg font-semibold text-gray-900">部分到货确认</h3>
-            </div>
-            
-            <div className="p-6">
-              <div className="mb-4">
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <div className="text-sm text-yellow-800">
-                    <p><strong>SKU:</strong> {showPartialDeliveryModal.skuId}</p>
-                    <p><strong>采购数量:</strong> {showPartialDeliveryModal.purchaseQuantity}</p>
-                    <p><strong>到货数量:</strong> {showPartialDeliveryModal.arrivalQuantity}</p>
-                    <p><strong>剩余数量:</strong> {showPartialDeliveryModal.purchaseQuantity - showPartialDeliveryModal.arrivalQuantity}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mb-4">
-                <p className="text-sm text-gray-700 mb-2">
-                  到货数量少于采购数量，剩余订单是否继续生产？
-                </p>
-              </div>
-            </div>
-            
-            <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-end space-x-3">
-              <button
-                onClick={() => handlePartialDeliveryConfirm(false)}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                否（完成该SKU）
-              </button>
-              <button
-                onClick={() => handlePartialDeliveryConfirm(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                是（继续生产）
-              </button>
-            </div>
           </div>
         </div>
       )}
