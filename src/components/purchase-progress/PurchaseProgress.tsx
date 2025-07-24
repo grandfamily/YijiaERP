@@ -58,6 +58,15 @@ export const PurchaseProgress: React.FC = () => {
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
+  // 收货确认相关状态
+  const [receivedQuantities, setReceivedQuantities] = useState<{[key: string]: number}>({});
+  const [showReceiptConfirmDialog, setShowReceiptConfirmDialog] = useState<{
+    requestId: string;
+    itemId: string;
+    receivedQty: number;
+    plannedQty: number;
+  } | null>(null);
+
   // 筛选状态
   const [filters, setFilters] = useState({
     purchaseType: 'all' as PurchaseTypeFilter,
@@ -396,6 +405,79 @@ export const PurchaseProgress: React.FC = () => {
     } catch (error) {
       console.error('催要纸卡操作失败:', error);
       setNotificationMessage('催要纸卡操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
+
+  // 处理收货确认完成（自己包装）
+  const handleReceiptConfirmationComplete = async (requestId: string, stageName: string) => {
+    try {
+      await handleCompleteStage(requestId, stageName);
+    } catch (error) {
+      console.error('收货确认完成失败:', error);
+      setNotificationMessage('收货确认完成失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
+
+  // 处理到货数量输入变化
+  const handleReceivedQuantityChange = (requestId: string, itemId: string, quantity: number) => {
+    const key = `${requestId}-${itemId}`;
+    setReceivedQuantities(prev => ({
+      ...prev,
+      [key]: quantity
+    }));
+  };
+
+  // 获取到货数量
+  const getReceivedQuantity = (requestId: string, itemId: string): number => {
+    const key = `${requestId}-${itemId}`;
+    return receivedQuantities[key] || 0;
+  };
+
+  // 处理到货数量保存（厂家包装）
+  const handleSaveReceivedQuantity = async (requestId: string, itemId: string) => {
+    const request = filteredRequests.find(r => r.id === requestId);
+    const item = request?.items.find(i => i.id === itemId);
+    if (!request || !item) return;
+
+    const receivedQty = getReceivedQuantity(requestId, itemId);
+    const plannedQty = item.quantity;
+
+    if (receivedQty >= plannedQty) {
+      // 到货数量 >= 采购数量，直接完成
+      await handleCompleteStage(requestId, '收货确认');
+    } else if (receivedQty < plannedQty) {
+      // 到货数量 < 采购数量，弹出确认对话框
+      setShowReceiptConfirmDialog({
+        requestId,
+        itemId,
+        receivedQty,
+        plannedQty
+      });
+    }
+  };
+
+  // 处理剩余订单确认对话框
+  const handleRemainingOrderConfirm = async (continueProduction: boolean) => {
+    if (!showReceiptConfirmDialog) return;
+
+    try {
+      if (continueProduction) {
+        // 选择"是"：按实际到货数量完成，剩余数量继续保留在进行中
+        await handleCompleteStage(showReceiptConfirmDialog.requestId, '收货确认');
+        setNotificationMessage(`已按实际到货数量完成收货确认，剩余数量继续生产`);
+      } else {
+        // 选择"否"：按实际到货数量完成，完全移除该SKU
+        await handleCompleteStage(showReceiptConfirmDialog.requestId, '收货确认');
+        setNotificationMessage(`已按实际到货数量完成收货确认，该SKU已完成`);
+      }
+      
+      setShowReceiptConfirmDialog(null);
+      setTimeout(() => setNotificationMessage(null), 3000);
+    } catch (error) {
+      console.error('处理剩余订单确认失败:', error);
+      setNotificationMessage('操作失败，请重试');
       setTimeout(() => setNotificationMessage(null), 3000);
     }
   };
@@ -786,6 +868,10 @@ export const PurchaseProgress: React.FC = () => {
                           <th className="text-center py-3 px-4 font-medium text-gray-900">尾款支付</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">安排发货</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">收货确认</th>
+                          {/* 厂家包装订单显示到货数量列 */}
+                          {allocation?.type === 'external' && (
+                            <th className="text-center py-3 px-4 font-medium text-gray-900">到货数量</th>
+                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -1105,6 +1191,55 @@ export const PurchaseProgress: React.FC = () => {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 发送催付
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 剩余订单确认对话框 */}
+      {showReceiptConfirmDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="border-b border-gray-200 px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">收货确认</h3>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-4">
+                <div className="text-sm text-gray-600 mb-2">
+                  <span className="font-medium">采购数量：</span>{showReceiptConfirmDialog.plannedQty.toLocaleString()}
+                </div>
+                <div className="text-sm text-gray-600 mb-4">
+                  <span className="font-medium">到货数量：</span>{showReceiptConfirmDialog.receivedQty.toLocaleString()}
+                </div>
+                <div className="text-sm text-red-600 mb-4">
+                  <span className="font-medium">缺货数量：</span>{(showReceiptConfirmDialog.plannedQty - showReceiptConfirmDialog.receivedQty).toLocaleString()}
+                </div>
+              </div>
+              
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                  <span className="text-sm font-medium text-yellow-800">
+                    剩余订单是否继续生产？
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-end space-x-3">
+              <button
+                onClick={() => handleRemainingOrderConfirm(false)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                否
+              </button>
+              <button
+                onClick={() => handleRemainingOrderConfirm(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                是
               </button>
             </div>
           </div>
