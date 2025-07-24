@@ -943,6 +943,7 @@ export const PurchaseProgress: React.FC = () => {
                                           <Bell className="h-3 w-3" />
                                           <span>催要纸卡</span>
                                         </button>
+                                      )}
 
                                     
                                       {stage.name === '尾款支付' && (
