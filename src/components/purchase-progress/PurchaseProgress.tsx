@@ -1118,6 +1118,25 @@ export const PurchaseProgress: React.FC = () => {
                 onClick={() => {
                   setNotificationMessage(`已发送${showFinanceModal.type === 'deposit' ? '定金' : '尾款'}催付通知`);
                   setShowFinanceModal(null);
+                  setTimeout(() => setNotificationMessage(null), 3000);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                发送催付
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Zoom Modal */}
+      {zoomedImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50" onClick={() => setZoomedImage(null)}>
+          <div className="relative max-w-4xl max-h-full">
+            <button
+              onClick={() => setZoomedImage(null)}
+              className="absolute -top-10 right-0 text-white hover:text-gray-300 transition-colors"
+            >
               <X className="h-6 w-6" />
             </button>
             <img
