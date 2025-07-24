@@ -150,6 +150,15 @@ export const useProcurement = () => {
     isPaymentConfirmed: (requestId: string, paymentType: 'deposit' | 'final' | 'credit_terms') => 
       procurementStore.isPaymentConfirmed(requestId, paymentType),
 
+    // 订单备注
+    getOrderNote: (requestId: string) => procurementStore.getOrderNote(requestId),
+    updateOrderNote: (requestId: string, note: string) => procurementStore.updateOrderNote(requestId, note),
+
+    // SKU完成状态
+    isSKUCompleted: (requestId: string, skuId: string) => procurementStore.isSKUCompleted(requestId, skuId),
+    completeSKU: (requestId: string, skuId: string) => procurementStore.completeSKU(requestId, skuId),
+    isOrderAllSKUsCompleted: (requestId: string) => procurementStore.isOrderAllSKUsCompleted(requestId),
+
     // Card Delivery Management
     confirmCardDelivery: (requestId: string) => procurementStore.confirmCardDelivery(requestId),
     requestCardDelivery: (requestId: string) => procurementStore.requestCardDelivery(requestId),

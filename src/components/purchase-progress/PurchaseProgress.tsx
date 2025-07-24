@@ -962,6 +962,21 @@ export const PurchaseProgress: React.FC = () => {
                                          完成
                                        </button>
                                      )}
+                                    {/* SKU级别的收货确认完成按钮 */}
+                                    {stageName === '收货确认' && stage.status !== 'completed' && stage.status !== 'skipped' && !isSKUCompleted(request.id, item.skuId) && (
+                                      <button
+                                        onClick={() => handleCompleteSKU(request.id, item.skuId)}
+                                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors ml-1"
+                                      >
+                                        完成
+                                      </button>
+                                    )}
+                                    {/* 显示SKU已完成状态 */}
+                                    {stageName === '收货确认' && isSKUCompleted(request.id, item.skuId) && (
+                                      <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded ml-1">
+                                        已完成
+                                      </span>
+                                    )}
                                         </button>
                                       )}
                                       {stage.name === '尾款支付' && (

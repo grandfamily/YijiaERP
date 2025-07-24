@@ -1741,6 +1741,36 @@ class ProcurementStore {
     return this.paymentStatus[requestId]?.[paymentType] || false;
   }
 
+
+  // 订单备注管理
+  getOrderNote(requestId: string): string {
+    return this.orderNotes[requestId] || '';
+  }
+
+  updateOrderNote(requestId: string, note: string): void {
+    this.orderNotes[requestId] = note;
+    this.notify();
+  }
+
+  // SKU完成状态管理
+  isSKUCompleted(requestId: string, skuId: string): boolean {
+    const key = `${requestId}-${skuId}`;
+    return !!this.skuCompletionStatus[key];
+  }
+
+  completeSKU(requestId: string, skuId: string): void {
+    const key = `${requestId}-${skuId}`;
+    this.skuCompletionStatus[key] = true;
+    this.notify();
+  }
+
+  // 检查订单是否所有SKU都已完成
+  isOrderAllSKUsCompleted(requestId: string): boolean {
+    const request = this.getPurchaseRequestById(requestId);
+    if (!request) return false;
+    
+    return request.items.every(item => this.isSKUCompleted(requestId, item.skuId));
+  }
   private getCurrentUser() {
     return authStore.getCurrentUser();
   }
