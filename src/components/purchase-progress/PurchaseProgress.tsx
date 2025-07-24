@@ -844,6 +844,8 @@ export const PurchaseProgress: React.FC = () => {
                               {/* Overall Progress */}
                               <td className="py-4 px-4 text-center">
                                     <span>催要纸卡</span>
+                                  </div>
+                                </div>
                               </td>
 
                               {/* Stage Status Columns */}
