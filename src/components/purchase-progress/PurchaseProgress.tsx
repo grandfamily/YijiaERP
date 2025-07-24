@@ -379,40 +379,13 @@ export const PurchaseProgress: React.FC = () => {
     }
 
     return true;
-  };
+      // 🎯 修复：SKU级别的收货确认完成
+      await updateProcurementProgressStage(progressId, '收货确认', {
+        status: 'completed',
+        completedDate: new Date()
+      });
 
-  // 新增：处理SKU收货确认
-  const handleSKUReceiptConfirmation = async (requestId: string, itemId: string, deliveredQuantity?: number) => {
-    try {
-      const currentRequest = allocatedRequests.find(req => req.id === requestId);
-      const allocation = getOrderAllocation(requestId);
-      
-      if (!currentRequest || !allocation) return;
-      
-      const item = currentRequest.items.find(i => i.id === itemId);
-      if (!item) return;
-
-      // 自己包装：直接完成收货确认
-      if (allocation.type === 'in_house') {
-        await handleCompleteSKUStage(requestId, itemId, '收货确认');
-        return;
-      }
-
-      // 厂家包装：处理到货数量
-      const actualDelivered = deliveredQuantity || item.quantity;
-      
-      if (actualDelivered >= item.quantity) {
-        // 完全到货，直接完成
-        await handleCompleteSKUStage(requestId, itemId, '收货确认');
-      } else {
-        // 部分到货，显示确认弹窗
-        setShowPartialDeliveryModal({
-          requestId,
-          itemId,
-          skuCode: item.sku.code,
-          originalQuantity: item.quantity,
-          deliveredQuantity: actualDelivered
-        });
+      console.log(`✅ SKU收货确认完成：${skuId}`);
       }
     } catch (error) {
       console.error('收货确认失败:', error);
