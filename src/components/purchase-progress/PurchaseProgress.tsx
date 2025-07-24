@@ -943,27 +943,7 @@ export const PurchaseProgress: React.FC = () => {
                                           <Bell className="h-3 w-3" />
                                           <span>催要纸卡</span>
 
-                                     {/* SKU级别完成按钮 - 仅采购人员可见且节点未完成时显示 */}
-                                     {canEdit && stage.status !== 'completed' && stage.status !== 'skipped' && (
-                                       <button
-                                         onClick={() => handleCompleteSKUStage(request.id, item.id, stage.name)}
-                                         disabled={!canOperateSKUStage(request.id, stage.name, stageIndex)}
-                                         className={`px-2 py-1 text-xs rounded transition-colors ${
-                                           canOperateSKUStage(request.id, stage.name, stageIndex)
-                                             ? 'bg-green-600 text-white hover:bg-green-700'
-                                             : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                         }`}
-                                         title={
-                                           canOperateSKUStage(request.id, stage.name, stageIndex)
-                                             ? `完成${stage.name}`
-                                             : '请先完成前置节点'
-                                         }
-                                       >
-                                         完成
-                                       </button>
-                                     )}
-                                        </button>
-                                      )}
+                                    
                                       {stage.name === '尾款支付' && (
                                         <button
                                           onClick={() => handlePaymentReminder('final', request.id)}
