@@ -379,6 +379,16 @@ export const PurchaseProgress: React.FC = () => {
     }
 
     return true;
+  };
+
+  // 处理SKU收货确认
+  const handleSKUReceiptConfirmation = async (requestId: string, skuId: string, deliveredQuantity?: number) => {
+    try {
+      const progress = getRequestProgress(requestId);
+      if (!progress) return;
+
+      const progressId = progress.id;
+
       // 🎯 修复：SKU级别的收货确认完成
       await updateProcurementProgressStage(progressId, '收货确认', {
         status: 'completed',
@@ -386,7 +396,6 @@ export const PurchaseProgress: React.FC = () => {
       });
 
       console.log(`✅ SKU收货确认完成：${skuId}`);
-      }
     } catch (error) {
       console.error('收货确认失败:', error);
       setNotificationMessage('收货确认失败，请重试');
