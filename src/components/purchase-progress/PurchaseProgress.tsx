@@ -21,7 +21,8 @@ import {
   Phone,
   Mail,
   Bell,
-  ZoomIn
+  ZoomIn,
+  Check
 } from 'lucide-react';
 import { useProcurement } from '../../hooks/useProcurement';
 import { useAuth } from '../../hooks/useAuth';
@@ -57,6 +58,13 @@ export const PurchaseProgress: React.FC = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [deliveryQuantities, setDeliveryQuantities] = useState<{[key: string]: number}>({});
+  const [showConfirmDialog, setShowConfirmDialog] = useState<{
+    requestId: string;
+    itemId: string;
+    deliveredQty: number;
+    originalQty: number;
+  } | null>(null);
 
   // 筛选状态
   const [filters, setFilters] = useState({
@@ -283,6 +291,89 @@ export const PurchaseProgress: React.FC = () => {
   const handleImageClick = (imageUrl: string) => {
     setZoomedImage(imageUrl);
   };
+
+  // 处理收货确认完成（自己包装）
+  const handleDeliveryComplete = async (requestId: string, itemId: string) => {
+    try {
+      const progress = getRequestProgress(requestId);
+      if (!progress) return;
+
+      await updateProcurementProgressStage(progress.id, '收货确认', {
+        status: 'completed',
+        completedDate: new Date(),
+        remarks: `SKU ${itemId} 收货确认完成`
+      });
+
+      setNotificationMessage('收货确认已完成');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    } catch (error) {
+      console.error('收货确认失败:', error);
+      setNotificationMessage('操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
+
+  // 处理到货数量变更
+  const handleDeliveryQuantityChange = (itemId: string, quantity: number) => {
+    setDeliveryQuantities(prev => ({
+      ...prev,
+      [itemId]: quantity
+    }));
+  };
+
+  // 处理保存到货数量（厂家包装）
+  const handleSaveDeliveryQuantity = async (requestId: string, itemId: string, originalQuantity: number) => {
+    const deliveredQuantity = deliveryQuantities[itemId] || originalQuantity;
+    
+    if (deliveredQuantity >= originalQuantity) {
+      // 到货数量 >= 采购数量，直接完成
+      await handleDeliveryComplete(requestId, itemId);
+    } else {
+      // 到货数量 < 采购数量，显示确认对话框
+      setShowConfirmDialog({
+        requestId,
+        itemId,
+        deliveredQty: deliveredQuantity,
+        originalQty: originalQuantity
+      });
+    }
+  };
+
+  // 处理确认对话框选择
+  const handleConfirmDialogChoice = async (continueProduction: boolean) => {
+    if (!showConfirmDialog) return;
+
+    try {
+      const progress = getRequestProgress(showConfirmDialog.requestId);
+      if (!progress) return;
+
+      if (continueProduction) {
+        // 选择"是"：部分完成，剩余继续
+        await updateProcurementProgressStage(progress.id, '收货确认', {
+          status: 'completed',
+          completedDate: new Date(),
+          remarks: `SKU ${showConfirmDialog.itemId} 部分收货确认完成，到货数量: ${showConfirmDialog.deliveredQty}，剩余数量: ${showConfirmDialog.originalQty - showConfirmDialog.deliveredQty} 继续生产`
+        });
+        setNotificationMessage(`部分收货确认完成，剩余 ${showConfirmDialog.originalQty - showConfirmDialog.deliveredQty} 件继续生产`);
+      } else {
+        // 选择"否"：完全移除
+        await updateProcurementProgressStage(progress.id, '收货确认', {
+          status: 'completed',
+          completedDate: new Date(),
+          remarks: `SKU ${showConfirmDialog.itemId} 收货确认完成，到货数量: ${showConfirmDialog.deliveredQty}，剩余订单已取消`
+        });
+        setNotificationMessage(`收货确认完成，剩余订单已取消`);
+      }
+
+      setShowConfirmDialog(null);
+      setTimeout(() => setNotificationMessage(null), 3000);
+    } catch (error) {
+      console.error('确认操作失败:', error);
+      setNotificationMessage('操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
+
   // 处理阶段完成
   const handleCompleteStage = async (requestId: string, stageName: string) => {
     try {
@@ -786,6 +877,10 @@ export const PurchaseProgress: React.FC = () => {
                           <th className="text-center py-3 px-4 font-medium text-gray-900">尾款支付</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">安排发货</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">收货确认</th>
+                          {/* 厂家包装订单添加到货数量列 */}
+                          {allocation?.type === 'external' && (
+                            <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">到货数量</th>
+                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -917,6 +1012,9 @@ export const PurchaseProgress: React.FC = () => {
                               const isCompleted = stage.status === 'completed' || stage.status === 'skipped';
                               const showButton = isOperatable && !isCompleted;
 
+                              const isDeliveryConfirmationStage = stage.name === '收货确认';
+                              const isDeliveryInProgress = isDeliveryConfirmationStage && stage.status === 'in_progress';
+                              
                               return (
                                 <td key={stage.id} className="py-3 px-4 text-center">
                                   {isCompleted ? (
@@ -969,10 +1067,50 @@ export const PurchaseProgress: React.FC = () => {
                                     <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded-full border border-gray-200 font-medium">
                                       {!isOperatable ? '等待前置节点' : '未开始'}
                                     </span>
+
+                                    {/* 收货确认完成按钮 */}
+                                    {canEdit && isDeliveryInProgress && (
+                                      <button
+                                        onClick={() => {
+                                          if (allocation?.type === 'in_house') {
+                                            // 自己包装：直接完成
+                                            handleDeliveryComplete(request.id, item.id);
+                                          } else {
+                                            // 厂家包装：需要输入到货数量
+                                            handleSaveDeliveryQuantity(request.id, item.id, item.quantity);
+                                          }
+                                        }}
+                                        className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                                      >
+                                        完成
+                                      </button>
+                                    )}
                                   )}
                                 </td>
                               );
                             })}
+
+                            {/* 厂家包装订单的到货数量输入 */}
+                            {allocation?.type === 'external' && (
+                              <td className="py-4 px-4 text-center">
+                                <div className="flex flex-col items-center space-y-2">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={item.quantity}
+                                    value={deliveryQuantities[item.id] || item.quantity}
+                                    onChange={(e) => handleDeliveryQuantityChange(item.id, parseInt(e.target.value) || 0)}
+                                    className="w-20 border border-gray-300 rounded px-2 py-1 text-sm text-center focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                                  />
+                                  <button
+                                    onClick={() => handleSaveDeliveryQuantity(request.id, item.id, item.quantity)}
+                                    className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                  >
+                                    保存
+                                  </button>
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         )}
                       </tbody>
