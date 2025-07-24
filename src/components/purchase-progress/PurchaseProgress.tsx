@@ -58,6 +58,16 @@ export const PurchaseProgress: React.FC = () => {
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
+  // 新增状态管理
+  const [editingQuantities, setEditingQuantities] = useState<{[key: string]: number}>({});
+  const [showPartialDeliveryModal, setShowPartialDeliveryModal] = useState<{
+    requestId: string;
+    itemId: string;
+    skuCode: string;
+    originalQuantity: number;
+    deliveredQuantity: number;
+  } | null>(null);
+
   // 筛选状态
   const [filters, setFilters] = useState({
     purchaseType: 'all' as PurchaseTypeFilter,
@@ -369,6 +379,96 @@ export const PurchaseProgress: React.FC = () => {
     }
 
     return true;
+  };
+
+  // 新增：处理SKU收货确认
+  const handleSKUReceiptConfirmation = async (requestId: string, itemId: string, deliveredQuantity?: number) => {
+    try {
+      const request = selectedRequest || allRequests.find(r => r.id === requestId);
+      const allocation = getOrderAllocation(requestId);
+      
+      if (!request || !allocation) return;
+      
+      const item = request.items.find(i => i.id === itemId);
+      if (!item) return;
+
+      // 自己包装：直接完成收货确认
+      if (allocation.type === 'in_house') {
+        await handleCompleteSKUStage(requestId, itemId, '收货确认');
+        return;
+      }
+
+      // 厂家包装：处理到货数量
+      const actualDelivered = deliveredQuantity || item.quantity;
+      
+      if (actualDelivered >= item.quantity) {
+        // 完全到货，直接完成
+        await handleCompleteSKUStage(requestId, itemId, '收货确认');
+      } else {
+        // 部分到货，显示确认弹窗
+        setShowPartialDeliveryModal({
+          requestId,
+          itemId,
+          skuCode: item.sku.code,
+          originalQuantity: item.quantity,
+          deliveredQuantity: actualDelivered
+        });
+      }
+    } catch (error) {
+      console.error('收货确认失败:', error);
+      setNotificationMessage('收货确认失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
+
+  // 新增：处理部分到货确认
+  const handlePartialDeliveryConfirm = async (continueProduction: boolean) => {
+    if (!showPartialDeliveryModal) return;
+    
+    try {
+      const { requestId, itemId, deliveredQuantity, originalQuantity } = showPartialDeliveryModal;
+      
+      if (continueProduction) {
+        // 继续生产剩余数量
+        // 这里需要更新订单项目的数量为剩余数量
+        // 实际实现中需要调用相应的API
+        setNotificationMessage(`已确认到货 ${deliveredQuantity} 件，剩余 ${originalQuantity - deliveredQuantity} 件继续生产`);
+      } else {
+        // 不继续生产，完成该SKU
+        await handleCompleteSKUStage(requestId, itemId, '收货确认');
+        setNotificationMessage(`已确认到货 ${deliveredQuantity} 件，该SKU已完成`);
+      }
+      
+      setShowPartialDeliveryModal(null);
+      setTimeout(() => setNotificationMessage(null), 3000);
+    } catch (error) {
+      console.error('部分到货处理失败:', error);
+      setNotificationMessage('操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
+
+  // 新增：处理到货数量编辑
+  const handleDeliveredQuantityChange = (itemId: string, quantity: number) => {
+    setEditingQuantities(prev => ({
+      ...prev,
+      [itemId]: quantity
+    }));
+  };
+
+  // 新增：保存到货数量
+  const handleSaveDeliveredQuantity = async (requestId: string, itemId: string) => {
+    const deliveredQuantity = editingQuantities[itemId];
+    if (deliveredQuantity === undefined) return;
+    
+    await handleSKUReceiptConfirmation(requestId, itemId, deliveredQuantity);
+    
+    // 清除编辑状态
+    setEditingQuantities(prev => {
+      const newState = { ...prev };
+      delete newState[itemId];
+      return newState;
+    });
   };
   // 处理催付款
   const handlePaymentReminder = async (type: 'deposit' | 'final', requestId: string) => {
@@ -881,6 +981,40 @@ export const PurchaseProgress: React.FC = () => {
                                           自动跳过
                                         </div>
                                       )}
+
+                                       {/* SKU级别收货确认按钮 - 仅在收货确认节点且状态为进行中时显示 */}
+                                       {stage.name === '收货确认' && stage.status === 'in_progress' && canEdit && (
+                                         <div className="flex flex-col items-center space-y-1">
+                                           {allocation?.type === 'external' ? (
+                                             // 厂家包装：显示到货数量输入框和保存按钮
+                                             <div className="flex flex-col items-center space-y-1">
+                                               <input
+                                                 type="number"
+                                                 min="0"
+                                                 max={item.quantity}
+                                                 value={editingQuantities[item.id] ?? item.quantity}
+                                                 onChange={(e) => handleDeliveredQuantityChange(item.id, parseInt(e.target.value) || 0)}
+                                                 className="w-16 text-center border border-gray-300 rounded px-1 py-0.5 text-xs"
+                                                 placeholder={item.quantity.toString()}
+                                               />
+                                               <button
+                                                 onClick={() => handleSaveDeliveredQuantity(request.id, item.id)}
+                                                 className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                                               >
+                                                 保存
+                                               </button>
+                                             </div>
+                                           ) : (
+                                             // 自己包装：显示完成按钮
+                                             <button
+                                               onClick={() => handleSKUReceiptConfirmation(request.id, item.id)}
+                                               className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                                             >
+                                               完成
+                                             </button>
+                                           )}
+                                         </div>
+                                       )}
                                     </div>
                                   </td>
                                 );
@@ -1105,6 +1239,59 @@ export const PurchaseProgress: React.FC = () => {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 发送催付
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 部分到货确认弹窗 */}
+      {showPartialDeliveryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="border-b border-gray-200 px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">部分到货确认</h3>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-4">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                    <span className="text-sm font-medium text-yellow-800">部分到货提醒</span>
+                  </div>
+                  <div className="text-sm text-yellow-700 space-y-1">
+                    <p><strong>SKU:</strong> {showPartialDeliveryModal.skuCode}</p>
+                    <p><strong>采购数量:</strong> {showPartialDeliveryModal.originalQuantity}</p>
+                    <p><strong>到货数量:</strong> {showPartialDeliveryModal.deliveredQuantity}</p>
+                    <p><strong>剩余数量:</strong> {showPartialDeliveryModal.originalQuantity - showPartialDeliveryModal.deliveredQuantity}</p>
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-gray-700 mb-4">剩余订单是否继续生产？</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-end space-x-3">
+              <button
+                onClick={() => setShowPartialDeliveryModal(null)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => handlePartialDeliveryConfirm(false)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                否，完成该SKU
+              </button>
+              <button
+                onClick={() => handlePartialDeliveryConfirm(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                是，继续生产
               </button>
             </div>
           </div>
