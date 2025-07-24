@@ -856,14 +856,6 @@ export const PurchaseProgress: React.FC = () => {
 
                               {/* Stage Status Columns */}
                               {currentProgress.stages.map((stage) => {
-                                const allocation = getOrderAllocation(request.id);
-                                const isInHouseOrder = allocation?.type === 'in_house';
-                                const isReceiptConfirmation = stage.name === '收货确认';
-                                const canShowSKUCompleteButton = isInHouseOrder && 
-                                  isReceiptConfirmation && 
-                                  stage.status === 'in_progress' &&
-                                  canOperateSKUStage(request.id, stage.name, currentProgress.stages.findIndex(s => s.name === stage.name));
-                                
                                 return (
                                   <td key={stage.id} className="py-4 px-4 text-center">
                                     <div className="flex flex-col items-center space-y-2">
@@ -888,17 +880,6 @@ export const PurchaseProgress: React.FC = () => {
                                         <div className="text-xs text-blue-600" title={stage.remarks}>
                                           自动跳过
                                         </div>
-                                      )}
-                                      
-                                      {/* 🎯 SKU级别完成按钮 - 仅在自己包装订单的收货确认节点显示 */}
-                                      {canShowSKUCompleteButton && (
-                                        <button
-                                          onClick={() => handleCompleteSKUStage(request.id, item.id, stage.name)}
-                                          className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                                          title="完成该SKU的所有流程节点"
-                                        >
-                                          完成
-                                        </button>
                                       )}
                                     </div>
                                   </td>
