@@ -1015,7 +1015,7 @@ export const PurchaseProgress: React.FC = () => {
                             {/* 为每个节点创建对应的批量操作按钮 */}
                             {currentProgress.stages.map((stage, stageIndex) => {
 
-                              // 检查是否可以操作此节点（前置节点必须已完成）
+                              {request.items.map((item) => {
                               const canOperateStage = () => {
                                 if (stageIndex === 0) return true; // 第一个节点总是可以操作
                                 
