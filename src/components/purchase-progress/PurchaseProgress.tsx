@@ -1067,6 +1067,7 @@ export const PurchaseProgress: React.FC = () => {
                                     <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded-full border border-gray-200 font-medium">
                                       {!isOperatable ? '等待前置节点' : '未开始'}
                                     </span>
+                                  </div>
 
                                     {/* 收货确认完成按钮 */}
                                     {canEdit && isDeliveryInProgress && (
