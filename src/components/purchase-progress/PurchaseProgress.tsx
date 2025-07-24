@@ -57,13 +57,6 @@ export const PurchaseProgress: React.FC = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const [editingArrivalQuantity, setEditingArrivalQuantity] = useState<{[key: string]: number}>({});
-  const [showContinueProductionDialog, setShowContinueProductionDialog] = useState<{
-    requestId: string;
-    itemId: string;
-    arrivalQuantity: number;
-    purchaseQuantity: number;
-  } | null>(null);
 
   // 筛选状态
   const [filters, setFilters] = useState({
@@ -407,93 +400,6 @@ export const PurchaseProgress: React.FC = () => {
     }
   };
 
-  // 处理SKU收货确认完成
-  const handleSKUReceiptComplete = async (requestId: string, itemId: string) => {
-    try {
-      const allocation = getOrderAllocation(requestId);
-      const request = allocatedRequests.find(r => r.id === requestId);
-      const item = request?.items.find(i => i.id === itemId);
-      
-      if (!allocation || !request || !item) return;
-      
-      if (allocation.type === 'in_house') {
-        // 自己包装：直接完成整个SKU的采购流程
-        await handleCompleteSKUStage(requestId, itemId, '收货确认');
-        setNotificationMessage(`SKU ${item.sku.code} 收货确认完成，已移入已完成子栏目`);
-        setTimeout(() => setNotificationMessage(null), 3000);
-      } else {
-        // 厂家包装：检查到货数量
-        const arrivalQuantity = editingArrivalQuantity[`${requestId}-${itemId}`] || item.quantity;
-        
-        if (arrivalQuantity >= item.quantity) {
-          // 到货数量充足，直接完成
-          await handleCompleteSKUStage(requestId, itemId, '收货确认');
-          setNotificationMessage(`SKU ${item.sku.code} 收货确认完成，已移入已完成子栏目`);
-          setTimeout(() => setNotificationMessage(null), 3000);
-        } else {
-          // 到货数量不足，弹出对话框询问是否继续生产
-          setShowContinueProductionDialog({
-            requestId,
-            itemId,
-            arrivalQuantity,
-            purchaseQuantity: item.quantity
-          });
-        }
-      }
-    } catch (error) {
-      console.error('SKU收货确认失败:', error);
-      setNotificationMessage('操作失败，请重试');
-      setTimeout(() => setNotificationMessage(null), 3000);
-    }
-  };
-
-  // 处理继续生产对话框
-  const handleContinueProductionDecision = async (continueProduction: boolean) => {
-    if (!showContinueProductionDialog) return;
-    
-    const { requestId, itemId, arrivalQuantity } = showContinueProductionDialog;
-    const request = allocatedRequests.find(r => r.id === requestId);
-    const item = request?.items.find(i => i.id === itemId);
-    
-    if (!item) return;
-    
-    try {
-      if (continueProduction) {
-        // 选择"是"：按实际到货数量完成，剩余数量继续保留在进行中
-        setNotificationMessage(`SKU ${item.sku.code} 部分收货确认完成（${arrivalQuantity}/${item.quantity}），剩余数量继续生产`);
-      } else {
-        // 选择"否"：按实际到货数量完成，不再保留剩余数量
-        await handleCompleteSKUStage(requestId, itemId, '收货确认');
-        setNotificationMessage(`SKU ${item.sku.code} 收货确认完成，按实际到货数量（${arrivalQuantity}）结束采购`);
-      }
-      
-      setShowContinueProductionDialog(null);
-      setTimeout(() => setNotificationMessage(null), 3000);
-    } catch (error) {
-      console.error('处理继续生产决策失败:', error);
-      setNotificationMessage('操作失败，请重试');
-      setTimeout(() => setNotificationMessage(null), 3000);
-    }
-  };
-
-  // 处理到货数量编辑
-  const handleArrivalQuantityChange = (requestId: string, itemId: string, quantity: number) => {
-    setEditingArrivalQuantity(prev => ({
-      ...prev,
-      [`${requestId}-${itemId}`]: quantity
-    }));
-  };
-
-  // 保存到货数量
-  const handleSaveArrivalQuantity = (requestId: string, itemId: string) => {
-    const key = `${requestId}-${itemId}`;
-    const quantity = editingArrivalQuantity[key];
-    
-    if (quantity !== undefined) {
-      setNotificationMessage('到货数量已保存');
-      setTimeout(() => setNotificationMessage(null), 3000);
-    }
-  };
   // 检查用户是否有编辑权限
   const canEdit = hasPermission('manage_procurement_progress');
 
@@ -880,10 +786,6 @@ export const PurchaseProgress: React.FC = () => {
                           <th className="text-center py-3 px-4 font-medium text-gray-900">尾款支付</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">安排发货</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">收货确认</th>
-                          {/* 厂家包装订单的到货数量列 */}
-                          {allocation?.type === 'external' && (
-                            <th className="text-center py-3 px-4 font-medium text-gray-900">到货数量</th>
-                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -894,10 +796,6 @@ export const PurchaseProgress: React.FC = () => {
                           
                           // Calculate individual SKU progress
                           const skuProgressPercentage = progressPercentage; // For now, use overall progress
-                          
-                          // 检查收货确认节点是否为进行中状态
-                          const receiptStage = currentProgress.stages.find(s => s.name === '收货确认');
-                          const isReceiptInProgress = receiptStage?.status === 'in_progress';
                           
                           return (
                             <tr key={item.id} className="hover:bg-gray-50">
@@ -1075,12 +973,6 @@ export const PurchaseProgress: React.FC = () => {
                                 </td>
                               );
                             })}
-                            {/* 厂家包装订单的到货数量列 - 批量操作行 */}
-                            {allocation?.type === 'external' && (
-                              <td className="py-3 px-4 text-center">
-                                <span className="text-xs text-gray-500">批量操作</span>
-                              </td>
-                            )}
                           </tr>
                         )}
                       </tbody>
@@ -1213,52 +1105,6 @@ export const PurchaseProgress: React.FC = () => {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 发送催付
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 继续生产确认对话框 */}
-      {showContinueProductionDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="border-b border-gray-200 px-6 py-4">
-              <h3 className="text-lg font-semibold text-gray-900">收货数量不足</h3>
-            </div>
-            
-            <div className="p-6">
-              <div className="mb-4">
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                    <span className="text-sm font-medium text-yellow-800">到货数量不足</span>
-                  </div>
-                  <div className="text-sm text-yellow-700 space-y-1">
-                    <p>采购数量: {showContinueProductionDialog.purchaseQuantity}</p>
-                    <p>到货数量: {showContinueProductionDialog.arrivalQuantity}</p>
-                    <p>缺少数量: {showContinueProductionDialog.purchaseQuantity - showContinueProductionDialog.arrivalQuantity}</p>
-                  </div>
-                </div>
-                
-                <p className="text-sm text-gray-600 mb-4">
-                  剩余订单是否继续生产？
-                </p>
-              </div>
-            </div>
-            
-            <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-end space-x-3">
-              <button
-                onClick={() => handleContinueProductionDecision(false)}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                否
-              </button>
-              <button
-                onClick={() => handleContinueProductionDecision(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                是
               </button>
             </div>
           </div>
