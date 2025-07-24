@@ -252,7 +252,6 @@ export const PurchaseProgress: React.FC = () => {
     const allocation = getOrderAllocation(requestId);
     if (!allocation) return false;
     
-    // 如果是账期付款或定金为0，则不需要显示定金支付节点
     const isCreditTerms = allocation.paymentMethod === 'credit_terms';
     const isZeroDeposit = (allocation.prepaymentAmount || 0) === 0;
     
@@ -293,6 +292,7 @@ export const PurchaseProgress: React.FC = () => {
   const handleImageClick = (imageUrl: string) => {
     setZoomedImage(imageUrl);
   };
+
   // 处理阶段完成
   const handleCompleteStage = async (requestId: string, stageName: string) => {
     try {
@@ -387,10 +387,8 @@ export const PurchaseProgress: React.FC = () => {
       const progress = getRequestProgress(requestId);
       if (!progress) return;
 
-      const progressId = progress.id;
-
       // 🎯 修复：SKU级别的收货确认完成
-      await updateProcurementProgressStage(progressId, '收货确认', {
+      await updateProcurementProgressStage(progress.id, '收货确认', {
         status: 'completed',
         completedDate: new Date()
       });
@@ -452,6 +450,7 @@ export const PurchaseProgress: React.FC = () => {
       return newState;
     });
   };
+
   // 处理催付款
   const handlePaymentReminder = async (type: 'deposit' | 'final', requestId: string) => {
     try {
