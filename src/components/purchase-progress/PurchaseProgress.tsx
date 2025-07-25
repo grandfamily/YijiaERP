@@ -881,20 +881,6 @@ export const PurchaseProgress: React.FC = () => {
                                           自动跳过
                                         </div>
                                       )}
-                                      
-                                      {/* SKU级别完成按钮 - 仅在收货确认节点且状态为进行中时显示 */}
-                                      {stage.name === '收货确认' && 
-                                       stage.status === 'in_progress' && 
-                                       allocation?.type === 'in_house' && 
-                                       canEdit && (
-                                        <button
-                                          onClick={() => handleCompleteSKUStage(request.id, item.id, stage.name)}
-                                          className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium"
-                                          title="完成该SKU的收货确认"
-                                        >
-                                          完成
-                                        </button>
-                                      )}
                                     </div>
                                   </td>
                                 );
