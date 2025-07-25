@@ -1044,7 +1044,7 @@ export const PurchaseProgress: React.FC = () => {
                                     <input
                                       type="number"
                                       min="0"
-                                      max={item.quantity}
+                                      value={getCurrentArrivalQuantity(requestId, item.id)}
                                       value={getArrivalQuantity(request.id, item.id)}
                                       onChange={(e) => handleArrivalQuantityChange(request.id, item.id, parseInt(e.target.value) || 0)}
                                       className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
