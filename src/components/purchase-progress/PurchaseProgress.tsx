@@ -74,6 +74,16 @@ export const PurchaseProgress: React.FC = () => {
   // SKU级别完成状态管理
   const [completedSKUs, setCompletedSKUs] = useState<Set<string>>(new Set());
 
+  // Check if a purchase request is completed
+  const isCompleted = (requestId: string): boolean => {
+    const progress = procurementProgressData.find(p => p.purchaseRequestId === requestId);
+    if (!progress) return false;
+    
+    return progress.stages.every(stage => 
+      stage.status === 'completed' || stage.status === 'skipped'
+    );
+  };
+
   // 获取已分配的订单
   const { data: allocatedRequests } = getPurchaseRequests(
     { status: ['allocated', 'in_production', 'quality_check', 'ready_to_ship', 'shipped', 'completed'] },
