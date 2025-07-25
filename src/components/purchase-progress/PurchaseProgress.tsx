@@ -54,9 +54,17 @@ export const PurchaseProgress: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
   const [showFinanceModal, setShowFinanceModal] = useState<{type: 'deposit' | 'final', requestId: string} | null>(null);
+  const [editingQuantities, setEditingQuantities] = useState<{[key: string]: number}>({});
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [showSplitConfirmation, setShowSplitConfirmation] = useState<{
+    requestId: string;
+    itemId: string;
+    skuCode: string;
+    purchaseQuantity: number;
+    arrivalQuantity: number;
+  } | null>(null);
 
   // 筛选状态
   const [filters, setFilters] = useState({
@@ -280,6 +288,88 @@ export const PurchaseProgress: React.FC = () => {
   const getArrivalQuantity = (requestId: string, itemId: string): number => {
     const key = `${requestId}-${itemId}`;
     return arrivalQuantities[key] ?? 0;
+  };
+
+  // 处理厂家包装的保存逻辑
+  const handleExternalPackageSave = async (requestId: string, itemId: string) => {
+    try {
+      const request = getRequestInfo(requestId);
+      if (!request) return;
+
+      // 检查是否为厂家包装
+      const allocation = getOrderAllocation(requestId);
+      if (allocation?.type !== 'external') {
+        // 非厂家包装，使用原有逻辑
+        await handleSaveArrivalQuantity(requestId, itemId);
+        return;
+      }
+
+      const item = request.items.find(i => i.id === itemId);
+      if (!item) return;
+
+      const arrivalQuantity = editingQuantities[itemId] || 0;
+      const purchaseQuantity = item.quantity;
+
+      console.log(`🎯 厂家包装保存逻辑 - SKU: ${item.sku.code}, 采购数量: ${purchaseQuantity}, 到货数量: ${arrivalQuantity}`);
+
+      if (arrivalQuantity >= purchaseQuantity) {
+        // 情况A：到货数量 ≥ 采购数量，直接移入已完成
+        console.log(`✅ 情况A：到货数量充足，直接移入已完成`);
+        await handleSaveArrivalQuantity(requestId, itemId);
+      } else {
+        // 情况B：到货数量 < 采购数量，弹出确认弹窗
+        console.log(`⚠️ 情况B：到货数量不足，弹出确认弹窗`);
+        setShowSplitConfirmation({
+          requestId,
+          itemId,
+          skuCode: item.sku.code,
+          purchaseQuantity,
+          arrivalQuantity
+        });
+      }
+    } catch (error) {
+      console.error('厂家包装保存失败:', error);
+      alert('保存失败，请重试');
+    }
+  };
+
+  // 处理拆分确认
+  const handleSplitConfirmation = async (continueProduction: boolean) => {
+    if (!showSplitConfirmation) return;
+
+    const { requestId, itemId, skuCode, purchaseQuantity, arrivalQuantity } = showSplitConfirmation;
+
+    try {
+      if (continueProduction) {
+        // 选择"是"：拆分记录
+        console.log(`🔄 拆分记录 - SKU: ${skuCode}`);
+        console.log(`📦 到货部分: ${arrivalQuantity} ➝ 移入已完成`);
+        console.log(`⏳ 剩余部分: ${purchaseQuantity - arrivalQuantity} ➝ 保留在进行中`);
+        
+        // 先保存当前到货数量
+        await handleSaveArrivalQuantity(requestId, itemId);
+        
+        // TODO: 这里需要实现拆分逻辑
+        // 1. 创建新的SKU记录（到货部分）并移入已完成
+        // 2. 更新原SKU记录的采购数量为剩余数量
+        
+        alert(`SKU ${skuCode} 已拆分：\n- 到货数量 ${arrivalQuantity} 已移入"已完成"\n- 剩余数量 ${purchaseQuantity - arrivalQuantity} 保留在"进行中"`);
+      } else {
+        // 选择"否"：按实际到货数量移入已完成
+        console.log(`❌ 不继续生产 - SKU: ${skuCode} 按实际到货数量 ${arrivalQuantity} 移入已完成`);
+        await handleSaveArrivalQuantity(requestId, itemId);
+      }
+
+      setShowSplitConfirmation(null);
+      setEditingQuantities(prev => {
+        const newState = { ...prev };
+        delete newState[itemId];
+        return newState;
+      });
+    } catch (error) {
+      console.error('拆分处理失败:', error);
+      alert('处理失败，请重试');
+    }
   };
 
   // 检查是否可以保存到货数量（厂家包装专用）
@@ -1051,7 +1141,7 @@ export const PurchaseProgress: React.FC = () => {
                                       placeholder="0"
                                     />
                                     <button
-                                      onClick={() => handleSaveArrivalQuantity(request.id, item.id)}
+                                      onClick={() => handleExternalPackageSave(request.id, item.id)}
                                       disabled={!canSaveArrivalQuantity(request.id, item.id)}
                                       className={`flex items-center space-x-1 px-2 py-1 text-xs rounded transition-colors ${
                                         canSaveArrivalQuantity(request.id, item.id)
@@ -1313,6 +1403,89 @@ export const PurchaseProgress: React.FC = () => {
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
               onClick={() => setZoomedImage(null)}
             />
+          </div>
+        </div>
+      )}
+
+      {/* 拆分确认弹窗 */}
+      {showSplitConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="flex-shrink-0">
+                  <AlertTriangle className="h-8 w-8 text-orange-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    剩余订单是否继续生产？
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    SKU {showSplitConfirmation.skuCode} 未完全到货，是否继续保留剩余采购任务？
+                  </p>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">采购数量:</span>
+                    <span className="ml-2 font-medium text-gray-900">
+                      {showSplitConfirmation.purchaseQuantity.toLocaleString()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">到货数量:</span>
+                    <span className="ml-2 font-medium text-blue-600">
+                      {showSplitConfirmation.arrivalQuantity.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-600">剩余数量:</span>
+                    <span className="ml-2 font-medium text-orange-600">
+                      {(showSplitConfirmation.purchaseQuantity - showSplitConfirmation.arrivalQuantity).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3 mb-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <CheckCircle className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-800">选择"是"</span>
+                  </div>
+                  <p className="text-xs text-blue-700">
+                    拆分为两条记录：到货部分移入"已完成"，剩余部分保留在"进行中"
+                  </p>
+                </div>
+                
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <X className="h-4 w-4 text-red-600" />
+                    <span className="text-sm font-medium text-red-800">选择"否"</span>
+                  </div>
+                  <p className="text-xs text-red-700">
+                    按实际到货数量移入"已完成"，删除剩余数量
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-end space-x-3">
+                <button
+                  onClick={() => handleSplitConfirmation(false)}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  否
+                </button>
+                <button
+                  onClick={() => handleSplitConfirmation(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  是
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
