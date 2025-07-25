@@ -57,12 +57,6 @@ export const PurchaseProgress: React.FC = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const [arrivalQuantities, setArrivalQuantities] = useState<{[key: string]: number}>({});
-  const [showConfirmDialog, setShowConfirmDialog] = useState<{
-    skuKey: string;
-    arrivalQty: number;
-    purchaseQty: number;
-  } | null>(null);
 
   // 筛选状态
   const [filters, setFilters] = useState({
@@ -265,64 +259,6 @@ export const PurchaseProgress: React.FC = () => {
       setTimeout(() => setNotificationMessage(null), 3000);
       
       console.log(`✅ SKU完成：订单 ${requestId} 的 SKU ${itemId} 已完成收货确认`);
-  // 处理到货数量变更（用于厂家包装）
-  const handleArrivalQuantityChange = (requestId: string, itemId: string, quantity: number) => {
-    const skuKey = `${requestId}-${itemId}`;
-    setArrivalQuantities(prev => ({
-      ...prev,
-      [skuKey]: quantity
-    }));
-  };
-
-  // 获取到货数量（用于厂家包装）
-  const getArrivalQuantity = (requestId: string, itemId: string, defaultQuantity: number): number => {
-    const skuKey = `${requestId}-${itemId}`;
-    return arrivalQuantities[skuKey] ?? defaultQuantity;
-  };
-
-  // 处理保存到货数量（用于厂家包装）
-  const handleSaveArrivalQuantity = async (requestId: string, itemId: string, purchaseQuantity: number) => {
-    try {
-      const skuKey = `${requestId}-${itemId}`;
-      const arrivalQty = getArrivalQuantity(requestId, itemId, purchaseQuantity);
-      
-      if (arrivalQty >= purchaseQuantity) {
-        // 情况A：到货数量 ≥ 采购数量，直接完成
-        setCompletedSKUs(prev => new Set([...prev, skuKey]));
-        console.log(`✅ 厂家包装SKU完成确认：${skuKey}，到货数量：${arrivalQty}`);
-      } else {
-        // 情况B：到货数量 < 采购数量，弹出确认对话框
-        setShowConfirmDialog({
-          skuKey,
-          arrivalQty,
-          purchaseQty: purchaseQuantity
-        });
-      }
-    } catch (error) {
-      console.error('保存到货数量失败:', error);
-    }
-  };
-
-  // 处理部分到货确认对话框
-  const handlePartialArrivalConfirm = (continueProduction: boolean) => {
-    if (!showConfirmDialog) return;
-    
-    const { skuKey, arrivalQty, purchaseQty } = showConfirmDialog;
-    
-    if (continueProduction) {
-      // 选择"是"：拆分SKU记录
-      // 已到货部分移至已完成
-      setCompletedSKUs(prev => new Set([...prev, `${skuKey}-completed`]));
-      // 剩余部分保持在进行中（这里可以通过状态管理实现）
-      console.log(`📦 SKU拆分处理：${skuKey}，已完成：${arrivalQty}，剩余：${purchaseQty - arrivalQty}`);
-    } else {
-      // 选择"否"：按实际数量完成
-      setCompletedSKUs(prev => new Set([...prev, skuKey]));
-      console.log(`✅ SKU按实际数量完成：${skuKey}，数量：${arrivalQty}`);
-    }
-    
-    setShowConfirmDialog(null);
-  };
     } catch (error) {
       console.error('SKU完成操作失败:', error);
       setNotificationMessage('操作失败，请重试');
@@ -542,14 +478,6 @@ export const PurchaseProgress: React.FC = () => {
   };
 
   const tabStats = getTabStats();
-  // 检查SKU是否可以进行收货确认（前置条件检查）
-  const canConfirmReceipt = (stages: ProcurementProgressStage[]): boolean => {
-    const requiredStages = ['定金支付', '安排生产', '纸卡提供', '包装生产', '尾款支付', '安排发货'];
-    return requiredStages.every(stageName => {
-      const stage = stages.find(s => s.name === stageName);
-      return stage && stage.status === 'completed';
-    });
-  };
 
   return (
     <>
@@ -744,10 +672,6 @@ export const PurchaseProgress: React.FC = () => {
             const allocation = getOrderAllocation(request.id);
             const progress = getRequestProgress(request.id);
             const isSelected = selectedOrders.includes(request.id);
-                          {/* 厂家包装订单新增到货数量列 */}
-                          {allocation?.type === 'external' && activeTab === 'in_progress' && (
-                            <th className="text-center py-3 px-4 font-medium text-gray-900 w-32">到货数量</th>
-                          )}
             
             // 如果没有进度记录，创建默认进度
             const defaultProgress = {
@@ -1012,36 +936,6 @@ export const PurchaseProgress: React.FC = () => {
                                       )}
                                       
                                       {/* Remarks for auto-completed stages */}
-                              {/* 厂家包装：到货数量管理列 */}
-                              {allocation?.type === 'external' && activeTab === 'in_progress' && (
-                                <td className="py-4 px-4 text-center">
-                                  <div className="flex flex-col items-center space-y-2">
-                                    {!isCompleted && canConfirmReceipt(progress.stages) ? (
-                                      <>
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          step="1"
-                                          value={getArrivalQuantity(requestId, item.id, item.quantity)}
-                                          onChange={(e) => handleArrivalQuantityChange(requestId, item.id, parseInt(e.target.value) || 0)}
-                                          className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                          placeholder={item.quantity.toString()}
-                                        />
-                                        <button
-                                          onClick={() => handleSaveArrivalQuantity(requestId, item.id, item.quantity)}
-                                          className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                                        >
-                                          保存
-                                        </button>
-                                      </>
-                                    ) : (
-                                      <div className="text-sm text-gray-500">
-                                        {isCompleted ? '已完成' : '前置未完成'}
-                                      </div>
-                                    )}
-                                  </div>
-                                </td>
-                              )}
                                       {stage.remarks && (
                                         <div className="text-xs text-blue-600" title={stage.remarks}>
                                           自动跳过
@@ -1072,12 +966,6 @@ export const PurchaseProgress: React.FC = () => {
                                 for (let i = 0; i < stageIndex; i++) {
                                   const prevStage = currentProgress.stages[i];
                                   if (prevStage.status !== 'completed' && prevStage.status !== 'skipped') {
-                            {/* 厂家包装订单的到货数量列占位 */}
-                            {allocation?.type === 'external' && (
-                              <td className="py-3 px-4 text-center">
-                                <span className="text-xs text-gray-500">-</span>
-                              </td>
-                            )}
                                     return false;
                                   }
                                 }
@@ -1190,55 +1078,6 @@ export const PurchaseProgress: React.FC = () => {
                           return (
                             <div className="text-sm text-orange-600">
                               <span className="font-medium">定金催付时间:</span> 
-      {/* 部分到货确认对话框 */}
-      {showConfirmDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="flex-shrink-0">
-                  <AlertTriangle className="h-8 w-8 text-orange-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">部分到货确认</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    到货数量({showConfirmDialog.arrivalQty})少于采购数量({showConfirmDialog.purchaseQty})
-                  </p>
-                </div>
-              </div>
-              
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                <p className="text-sm text-yellow-800 font-medium mb-2">剩余订单是否继续生产？</p>
-                <div className="text-xs text-yellow-700 space-y-1">
-                  <p>• 选择"是"：拆分SKU记录，剩余数量继续生产</p>
-                  <p>• 选择"否"：按实际到货数量完成，取消剩余订单</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-end space-x-3">
-                <button
-                  onClick={() => setShowConfirmDialog(null)}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={() => handlePartialArrivalConfirm(false)}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  否，按实际完成
-                </button>
-                <button
-                  onClick={() => handlePartialArrivalConfirm(true)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  是，继续生产
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
                               {depositReminderTime.toLocaleDateString('zh-CN')} {depositReminderTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                             </div>
                           );
