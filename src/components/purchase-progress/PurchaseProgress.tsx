@@ -1271,16 +1271,6 @@ export const PurchaseProgress: React.FC = () => {
                   <span className="text-sm font-medium text-yellow-800">
                     催付记录将自动同步至财务管理系统
                   </span>
-                  {activeTab === 'in_progress' && (
-                    <div className="flex items-center space-x-2">
-                      <label className="text-sm text-gray-600">订单备注:</label>
-                      <input
-                        type="text"
-                        placeholder="输入订单备注..."
-                        className="flex-1 max-w-xs px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
