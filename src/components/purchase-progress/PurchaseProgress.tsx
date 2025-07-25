@@ -1166,23 +1166,24 @@ export const PurchaseProgress: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 催付时间显示 - 参照纸卡催要样式，显示在订单右下角 */}
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm flex-1">
+                {/* Order Summary - 紧凑化布局 */}
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <div className="flex items-start justify-between gap-4">
+                    {/* 左侧：紧凑化的订单信息 */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs flex-1">
                       <div>
-                        <span className="text-gray-600">申请人:</span>
-                        <span className="ml-2 font-medium text-gray-900">{request?.requester.name}</span>
+                        <span className="text-gray-500">申请人:</span>
+                        <span className="ml-1 font-medium text-gray-800 text-sm">{request?.requester.name}</span>
                       </div>
                       <div>
-                        <span className="text-gray-600">创建时间:</span>
-                        <span className="ml-2 font-medium text-gray-900">
+                        <span className="text-gray-500">创建时间:</span>
+                        <span className="ml-1 font-medium text-gray-800 text-sm">
                           {request?.createdAt ? new Date(request.createdAt).toLocaleDateString('zh-CN') : '-'}
                         </span>
                       </div>
                       <div className="text-sm text-gray-600">
-                        <span className="font-medium">交货日期:</span> 
-                        {allocation?.deliveryDate ? new Date(allocation.deliveryDate).toLocaleDateString('zh-CN') : '-'}
+                        <span className="text-gray-500">交货日期:</span>
+                        <span className="ml-1 font-medium text-gray-800 text-sm">
                       </div>
                       {(() => {
                         const cardReminderTime = getCardDeliveryReminderTime(request.id);
@@ -1190,10 +1191,10 @@ export const PurchaseProgress: React.FC = () => {
                         const finalReminderTime = getPaymentReminderTime(request.id, 'final');
                         
                         // 显示纸卡催要时间
-                        if (cardReminderTime) {
-                          return (
+                        <span className="text-gray-500">纸卡催要:</span>
+                        <span className="ml-1">
                             <div className="text-sm text-orange-600">
-                              <span className="font-medium">纸卡催要时间:</span> 
+                            <span className="text-orange-600 font-medium text-sm">
                               {cardReminderTime.toLocaleDateString('zh-CN')} {cardReminderTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                             </div>
                           );
@@ -1217,10 +1218,31 @@ export const PurchaseProgress: React.FC = () => {
                               {finalReminderTime.toLocaleDateString('zh-CN')} {finalReminderTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                             </div>
                           );
-                        }
+                            <span className="text-gray-400 text-sm">-</span>
                         
                         return null;
                       })()}
+                    </div>
+                    
+                    {/* 右侧：新增订单备注文本框 */}
+                    <div className="w-80 flex-shrink-0">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        订单备注
+                      </label>
+                      {canPurchasingOfficer ? (
+                        <textarea
+                          value={orderRemarks[requestId] || request?.remarks || ''}
+                          onChange={(e) => handleOrderRemarksChange(requestId, e.target.value)}
+                          onBlur={() => handleSaveOrderRemarks(requestId)}
+                          rows={2}
+                          className="w-full text-xs border border-gray-300 rounded-md px-2 py-1.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                          placeholder="请输入订单状态说明和备注信息..."
+                        />
+                      ) : (
+                        <div className="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-gray-50 text-gray-700 min-h-[3rem] whitespace-pre-wrap">
+                          {request?.remarks || '暂无备注'}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
