@@ -65,6 +65,9 @@ export const PurchaseProgress: React.FC = () => {
     finalPayment: 'all' as FinalPaymentFilter
   });
 
+  // SKU级别完成状态管理
+  const [completedSKUs, setCompletedSKUs] = useState<Set<string>>(new Set());
+
   // 获取已分配的订单
   const { data: allocatedRequests } = getPurchaseRequests(
     { status: ['allocated', 'in_production', 'quality_check', 'ready_to_ship', 'shipped', 'completed'] },
@@ -183,9 +186,16 @@ export const PurchaseProgress: React.FC = () => {
           item.sku.name.toLowerCase().includes(searchTerm.toLowerCase())
         );
       
-      // 基于标签页过滤
-      const isCompleted = isProcurementCompleted(request.id);
-      return matchesSearch && ((activeTab === 'completed' && isCompleted) || (activeTab === 'in_progress' && !isCompleted));
+      // 基于标签页过滤 - 支持SKU级别判断
+      if (activeTab === 'completed') {
+        // 已完成栏目：检查是否有任何SKU已完成
+        const hasCompletedSKUs = request.items.some(item => isSKUCompleted(request.id, item.id));
+        return matchesSearch && hasCompletedSKUs;
+      } else {
+        // 进行中栏目：检查是否有任何SKU未完成
+        const hasInProgressSKUs = request.items.some(item => !isSKUCompleted(request.id, item.id));
+        return matchesSearch && hasInProgressSKUs;
+      }
     });
 
     // 应用筛选条件
@@ -231,6 +241,30 @@ export const PurchaseProgress: React.FC = () => {
     const progress = procurementProgressData.find(p => p.purchaseRequestId === requestId);
     return progress ? progress.stages.every(s => s.status === 'completed' || s.status === 'skipped') : false;
   }
+
+  // 检查单个SKU是否已完成（新增）
+  function isSKUCompleted(requestId: string, itemId: string): boolean {
+    return completedSKUs.has(`${requestId}-${itemId}`);
+  }
+
+  // 处理SKU级别完成（新增）
+  const handleSKUComplete = async (requestId: string, itemId: string) => {
+    try {
+      // 将SKU标记为已完成
+      const skuKey = `${requestId}-${itemId}`;
+      setCompletedSKUs(prev => new Set([...prev, skuKey]));
+      
+      // 显示成功提示
+      setNotificationMessage('SKU收货确认已完成，已移至已完成栏目');
+      setTimeout(() => setNotificationMessage(null), 3000);
+      
+      console.log(`✅ SKU完成：订单 ${requestId} 的 SKU ${itemId} 已完成收货确认`);
+    } catch (error) {
+      console.error('SKU完成操作失败:', error);
+      setNotificationMessage('操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
 
   // 获取订单的采购进度
   function getRequestProgress(requestId: string): ProcurementProgress | undefined {
@@ -794,8 +828,17 @@ export const PurchaseProgress: React.FC = () => {
                             cp.purchaseRequestId === request.id && cp.skuId === item.skuId
                           );
                           
-                          // Calculate individual SKU progress
-                          const skuProgressPercentage = progressPercentage; // For now, use overall progress
+                          // 计算单个SKU进度 - 如果SKU已完成则显示100%
+                          const skuProgressPercentage = isSKUCompleted(request.id, item.id) ? 100 : progressPercentage;
+                          
+                          // 检查SKU是否应该显示在当前栏目
+                          const skuCompleted = isSKUCompleted(request.id, item.id);
+                          const shouldShowInCurrentTab = activeTab === 'completed' ? skuCompleted : !skuCompleted;
+                          
+                          // 如果SKU不应该在当前栏目显示，则跳过
+                          if (!shouldShowInCurrentTab) {
+                            return null;
+                          }
                           
                           return (
                             <tr key={item.id} className="hover:bg-gray-50">
@@ -856,23 +899,40 @@ export const PurchaseProgress: React.FC = () => {
 
                               {/* Stage Status Columns */}
                               {currentProgress.stages.map((stage) => {
+                                // 如果SKU已完成，所有阶段显示为已完成
+                                const effectiveStageStatus = skuCompleted ? 'completed' : stage.status;
+                                const effectiveCompletedDate = skuCompleted ? new Date() : stage.completedDate;
+                                
                                 return (
                                   <td key={stage.id} className="py-4 px-4 text-center">
                                     <div className="flex flex-col items-center space-y-2">
                                       <div className={`text-xs px-2 py-1 rounded-full ${
-                                        stage.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                        stage.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                                        stage.status === 'skipped' ? 'bg-blue-100 text-blue-800' :
+                                        effectiveStageStatus === 'completed' ? 'bg-green-100 text-green-800' :
+                                        effectiveStageStatus === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                                        effectiveStageStatus === 'skipped' ? 'bg-blue-100 text-blue-800' :
                                         'bg-gray-100 text-gray-800'
                                       }`}>
-                                        {getStatusText(stage.status)}
+                                        {getStatusText(effectiveStageStatus)}
                                       </div>
                                       
                                       {/* Completion Date */}
-                                      {stage.completedDate && (
+                                      {effectiveCompletedDate && (
                                         <div className="text-xs text-gray-500">
-                                          {stage.completedDate.toLocaleDateString('zh-CN')}
+                                          {effectiveCompletedDate.toLocaleDateString('zh-CN')}
                                         </div>
+                                      )}
+                                      
+                                      {/* SKU级别完成按钮 - 仅在收货确认节点且状态为进行中时显示 */}
+                                      {stage.name === '收货确认' && 
+                                       effectiveStageStatus === 'in_progress' && 
+                                       !skuCompleted &&
+                                       activeTab === 'in_progress' && (
+                                        <button
+                                          onClick={() => handleSKUComplete(request.id, item.id)}
+                                          className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium"
+                                        >
+                                          完成
+                                        </button>
                                       )}
                                       
                                       {/* Remarks for auto-completed stages */}
@@ -888,6 +948,9 @@ export const PurchaseProgress: React.FC = () => {
                             </tr>
                           );
                         })}
+                        
+                        {/* 过滤掉null值，确保表格渲染正常 */}
+                        ).filter(Boolean)}
                         
                         {/* Batch Complete Row */}
                         {canEdit && activeTab === 'in_progress' && (
