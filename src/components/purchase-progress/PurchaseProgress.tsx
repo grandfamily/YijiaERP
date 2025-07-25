@@ -57,6 +57,7 @@ export const PurchaseProgress: React.FC = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [orderRemarks, setOrderRemarks] = useState<{[key: string]: string}>({});
 
   // 筛选状态
   const [filters, setFilters] = useState({
@@ -93,6 +94,31 @@ export const PurchaseProgress: React.FC = () => {
       }
     });
   }, [allocatedRequests, procurementProgressData]);
+
+  // 处理订单备注变更
+  const handleOrderRemarksChange = (requestId: string, remarks: string) => {
+    setOrderRemarks(prev => ({
+      ...prev,
+      [requestId]: remarks
+    }));
+  };
+
+  // 保存订单备注
+  const handleSaveOrderRemarks = async (requestId: string) => {
+    try {
+      const remarks = orderRemarks[requestId];
+      if (remarks !== undefined) {
+        await updatePurchaseRequest(requestId, {
+          remarks: remarks.trim(),
+          updatedAt: new Date()
+        });
+        console.log(`✅ 订单备注已保存: ${requestId}`);
+      }
+    } catch (error) {
+      console.error('保存订单备注失败:', error);
+      alert('保存订单备注失败，请重试');
+    }
+  };
 
   // 获取订单分配信息
   const getOrderAllocation = (requestId: string): OrderAllocation | undefined => {
@@ -1184,6 +1210,8 @@ export const PurchaseProgress: React.FC = () => {
                       <div className="text-sm text-gray-600">
                         <span className="text-gray-500">交货日期:</span>
                         <span className="ml-1 font-medium text-gray-800 text-sm">
+                          {request?.deliveryDate ? new Date(request.deliveryDate).toLocaleDateString('zh-CN') : '-'}
+                        </span>
                       </div>
                       {(() => {
                         const cardReminderTime = getCardDeliveryReminderTime(request.id);
@@ -1191,11 +1219,13 @@ export const PurchaseProgress: React.FC = () => {
                         const finalReminderTime = getPaymentReminderTime(request.id, 'final');
                         
                         // 显示纸卡催要时间
-                        <span className="text-gray-500">纸卡催要:</span>
-                        <span className="ml-1">
+                        if (cardReminderTime) {
+                          return (
                             <div className="text-sm text-orange-600">
-                            <span className="text-orange-600 font-medium text-sm">
-                              {cardReminderTime.toLocaleDateString('zh-CN')} {cardReminderTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                              <span className="text-gray-500">纸卡催要:</span>
+                              <span className="ml-1 text-orange-600 font-medium text-sm">
+                                {cardReminderTime.toLocaleDateString('zh-CN')} {cardReminderTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
                             </div>
                           );
                         }
@@ -1218,9 +1248,13 @@ export const PurchaseProgress: React.FC = () => {
                               {finalReminderTime.toLocaleDateString('zh-CN')} {finalReminderTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                             </div>
                           );
-                            <span className="text-gray-400 text-sm">-</span>
+                        }
                         
-                        return null;
+                        return (
+                          <div>
+                            <span className="text-gray-400 text-sm">-</span>
+                          </div>
+                        );
                       })()}
                     </div>
                     
@@ -1229,11 +1263,11 @@ export const PurchaseProgress: React.FC = () => {
                       <label className="block text-xs font-medium text-gray-600 mb-1">
                         订单备注
                       </label>
-                      {canPurchasingOfficer ? (
+                      {user?.role === 'purchasing_officer' ? (
                         <textarea
-                          value={orderRemarks[requestId] || request?.remarks || ''}
-                          onChange={(e) => handleOrderRemarksChange(requestId, e.target.value)}
-                          onBlur={() => handleSaveOrderRemarks(requestId)}
+                          value={orderRemarks[request.id] || request?.remarks || ''}
+                          onChange={(e) => handleOrderRemarksChange(request.id, e.target.value)}
+                          onBlur={() => handleSaveOrderRemarks(request.id)}
                           rows={2}
                           className="w-full text-xs border border-gray-300 rounded-md px-2 py-1.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none"
                           placeholder="请输入订单状态说明和备注信息..."
