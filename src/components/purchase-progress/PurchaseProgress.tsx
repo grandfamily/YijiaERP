@@ -52,6 +52,7 @@ export const PurchaseProgress: React.FC = () => {
   const { user, hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('in_progress');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
   const [showFinanceModal, setShowFinanceModal] = useState<{type: 'deposit' | 'final', requestId: string} | null>(null);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
@@ -70,13 +71,33 @@ export const PurchaseProgress: React.FC = () => {
   // 获取已分配的订单
   const { data: allocatedRequests } = getPurchaseRequests(
     { status: ['allocated', 'in_production', 'quality_check', 'ready_to_ship', 'shipped', 'completed'] },
+    { field: 'updatedAt', direction: 'desc' }
+  );
+
+  // 获取所有订单分配信息
+  const orderAllocations = getOrderAllocations();
+
+  // 获取所有纸卡进度
+  const cardProgressData = getCardProgress();
+
+  // 获取所有采购进度
+  const procurementProgressData = getProcurementProgress();
+
+  // 为没有采购进度的订单创建进度记录
+  React.useEffect(() => {
+    allocatedRequests.forEach(request => {
+      const existingProgress = procurementProgressData.find(pp => pp.purchaseRequestId === request.id);
       if (!existingProgress) {
         createProcurementProgressForRequest(request);
       }
     });
   }, [allocatedRequests, procurementProgressData]);
 
-    return progress.stages.every(stage => stage.status === 'completed' || stage.status === 'skipped');
+  // 获取订单分配信息
+  const getOrderAllocation = (requestId: string): OrderAllocation | undefined => {
+    return orderAllocations.find(a => a.purchaseRequestId === requestId);
+  };
+
   // 检查定金支付状态
   const getDepositPaymentStatus = (requestId: string): DepositPaymentFilter => {
     const allocation = getOrderAllocation(requestId);
@@ -804,7 +825,14 @@ export const PurchaseProgress: React.FC = () => {
                       <tbody className="divide-y divide-gray-200">
                         {request.items.map((item) => {
                           const cardProgress = cardProgressData.find(cp => 
-                      {request.items.map((item) => {
+                            cp.purchaseRequestId === request.id && cp.skuId === item.skuId
+                          );
+                          
+                          // 计算单个SKU进度 - 如果SKU已完成则显示100%
+                          const skuProgressPercentage = isSKUCompleted(request.id, item.id) ? 100 : progressPercentage;
+                          
+                          // 检查SKU是否应该显示在当前栏目
+                          const skuCompleted = isSKUCompleted(request.id, item.id);
                           const shouldShowInCurrentTab = activeTab === 'completed' ? skuCompleted : !skuCompleted;
                           
                           // 如果SKU不应该在当前栏目显示，则跳过
@@ -828,9 +856,8 @@ export const PurchaseProgress: React.FC = () => {
                                       }}
                                     />
                                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
-                                const isCompleted = stage.status === 'completed';
-                                const isInProgress = stage.status === 'in_progress';
-                                const isSkipped = stage.status === 'skipped';
+                                         onClick={() => handleImageClick(item.sku.imageUrl!)}>
+                                      <ZoomIn className="h-3 w-3 text-white" />
                                     </div>
                                   </div>
                                 ) : (
@@ -880,18 +907,18 @@ export const PurchaseProgress: React.FC = () => {
                                   <td key={stage.id} className="py-4 px-4 text-center">
                                     <div className="flex flex-col items-center space-y-2">
                                       <div className={`text-xs px-2 py-1 rounded-full ${
-                                        status={isCompleted ? '已完成' : 
-                                               isInProgress ? '进行中' : 
-                                               isSkipped ? '已跳过' : '未开始'}
-                                        color={isCompleted ? 'green' : 
-                                               isInProgress ? 'yellow' : 
-                                               isSkipped ? 'gray' : 'gray'}
+                                        effectiveStageStatus === 'completed' ? 'bg-green-100 text-green-800' :
+                                        effectiveStageStatus === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                                        effectiveStageStatus === 'skipped' ? 'bg-blue-100 text-blue-800' :
+                                        'bg-gray-100 text-gray-800'
+                                      }`}>
+                                        {getStatusText(effectiveStageStatus)}
                                       </div>
                                       
                                       {/* Completion Date */}
-                                      {stage.completedDate && (
+                                      {effectiveCompletedDate && (
                                         <div className="text-xs text-gray-500">
-                                          {stage.completedDate.toLocaleDateString('zh-CN')}
+                                          {effectiveCompletedDate.toLocaleDateString('zh-CN')}
                                         </div>
                                       )}
                                       
