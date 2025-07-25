@@ -57,8 +57,6 @@ export const PurchaseProgress: React.FC = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const [arrivalQuantities, setArrivalQuantities] = useState<{[key: string]: number}>({});
-  const [editingArrivalQuantity, setEditingArrivalQuantity] = useState<{[key: string]: boolean}>({});
 
   // 筛选状态
   const [filters, setFilters] = useState({
@@ -402,82 +400,6 @@ export const PurchaseProgress: React.FC = () => {
     }
   };
 
-  // 处理SKU级别的收货确认完成
-  const handleCompleteSKUReceiving = async (requestId: string, itemId: string) => {
-    try {
-      const progress = getRequestProgress(requestId);
-      if (!progress) return;
-
-      // 将该SKU的所有流程节点标记为已完成
-      const updatedStages = progress.stages.map(stage => ({
-        ...stage,
-        status: 'completed' as const,
-        completedDate: new Date(),
-        remarks: `SKU ${itemId} 收货确认完成，所有节点自动完成`
-      }));
-
-      await updateProcurementProgressStage(progress.id, '收货确认', {
-        status: 'completed',
-        completedDate: new Date(),
-        remarks: `SKU ${itemId} 收货确认完成`
-      });
-
-      setNotificationMessage(`SKU项目收货确认已完成，该SKU已移至已完成栏目`);
-      setTimeout(() => setNotificationMessage(null), 3000);
-    } catch (error) {
-      console.error('完成SKU收货确认失败:', error);
-      setNotificationMessage('操作失败，请重试');
-      setTimeout(() => setNotificationMessage(null), 3000);
-    }
-  };
-
-  // 处理到货数量变更
-  const handleArrivalQuantityChange = (itemId: string, quantity: number) => {
-    setArrivalQuantities(prev => ({
-      ...prev,
-      [itemId]: quantity
-    }));
-  };
-
-  // 保存到货数量
-  const handleSaveArrivalQuantity = async (itemId: string) => {
-    try {
-      // 这里可以调用API保存到货数量
-      // await updateItemArrivalQuantity(itemId, arrivalQuantities[itemId]);
-      
-      setEditingArrivalQuantity(prev => ({
-        ...prev,
-        [itemId]: false
-      }));
-      
-      setNotificationMessage('到货数量已保存');
-      setTimeout(() => setNotificationMessage(null), 3000);
-    } catch (error) {
-      console.error('保存到货数量失败:', error);
-      setNotificationMessage('保存失败，请重试');
-      setTimeout(() => setNotificationMessage(null), 3000);
-    }
-  };
-
-  // 开始编辑到货数量
-  const handleStartEditArrivalQuantity = (itemId: string, currentQuantity: number) => {
-    setArrivalQuantities(prev => ({
-      ...prev,
-      [itemId]: currentQuantity
-    }));
-    setEditingArrivalQuantity(prev => ({
-      ...prev,
-      [itemId]: true
-    }));
-  };
-
-  // 取消编辑到货数量
-  const handleCancelEditArrivalQuantity = (itemId: string) => {
-    setEditingArrivalQuantity(prev => ({
-      ...prev,
-      [itemId]: false
-    }));
-  };
   // 检查用户是否有编辑权限
   const canEdit = hasPermission('manage_procurement_progress');
 
@@ -864,9 +786,6 @@ export const PurchaseProgress: React.FC = () => {
                           <th className="text-center py-3 px-4 font-medium text-gray-900">尾款支付</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">安排发货</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">收货确认</th>
-                          {allocation?.type === 'external' && (
-                            <th className="text-center py-3 px-4 font-medium text-gray-900">到货数量</th>
-                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -949,19 +868,6 @@ export const PurchaseProgress: React.FC = () => {
                                         {getStatusText(stage.status)}
                                       </div>
                                       
-                                      {/* SKU级别完成按钮 - 仅在收货确认节点且状态为进行中时显示 */}
-                                      {stage.name === '收货确认' && 
-                                       stage.status === 'in_progress' && 
-                                       allocation?.type === 'in_house' && 
-                                       canEdit && (
-                                        <button
-                                          onClick={() => handleCompleteSKUReceiving(request.id, item.id)}
-                                          className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                                        >
-                                          完成
-                                        </button>
-                                      )}
-
                                       {/* Completion Date */}
                                       {stage.completedDate && (
                                         <div className="text-xs text-gray-500">
@@ -979,51 +885,6 @@ export const PurchaseProgress: React.FC = () => {
                                   </td>
                                 );
                               })}
-
-                              {/* 到货数量列 - 仅厂家包装订单显示 */}
-                              {allocation?.type === 'external' && (
-                                <td className="py-4 px-4 text-center">
-                                  {editingArrivalQuantity[item.id] ? (
-                                    <div className="flex flex-col items-center space-y-2">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        value={arrivalQuantities[item.id] || item.quantity}
-                                        onChange={(e) => handleArrivalQuantityChange(item.id, parseInt(e.target.value) || 0)}
-                                        className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                                      />
-                                      <div className="flex space-x-1">
-                                        <button
-                                          onClick={() => handleSaveArrivalQuantity(item.id)}
-                                          className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                                        >
-                                          保存
-                                        </button>
-                                        <button
-                                          onClick={() => handleCancelEditArrivalQuantity(item.id)}
-                                          className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
-                                        >
-                                          取消
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="flex flex-col items-center space-y-2">
-                                      <span className="text-sm font-medium text-gray-900">
-                                        {arrivalQuantities[item.id] || item.quantity}
-                                      </span>
-                                      {canEdit && (
-                                        <button
-                                          onClick={() => handleStartEditArrivalQuantity(item.id, arrivalQuantities[item.id] || item.quantity)}
-                                          className="px-2 py-1 text-xs text-blue-600 border border-blue-600 rounded hover:bg-blue-50 transition-colors"
-                                        >
-                                          编辑
-                                        </button>
-                                      )}
-                                    </div>
-                                  )}
-                                </td>
-                              )}
                             </tr>
                           );
                         })}
@@ -1112,15 +973,6 @@ export const PurchaseProgress: React.FC = () => {
                                 </td>
                               );
                             })}
-
-                            {/* 到货数量批量操作列 - 仅厂家包装订单显示 */}
-                            {allocation?.type === 'external' && (
-                              <td className="py-3 px-4 text-center">
-                                <span className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded-full border border-blue-200 font-medium">
-                                  批量编辑
-                                </span>
-                              </td>
-                            )}
                           </tr>
                         )}
                       </tbody>
