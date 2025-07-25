@@ -566,20 +566,6 @@ export const PurchaseProgress: React.FC = () => {
 
   const tabStats = getTabStats();
 
-  // 获取SKU的采购数量作为默认值
-  const getDefaultArrivalQuantity = (item: any): number => {
-    return item.quantity || 0;
-  };
-
-  // 获取当前到货数量（编辑值或默认值）
-  const getCurrentArrivalQuantity = (item: any): number => {
-    const editingKey = `${item.id}-arrival`;
-    if (editingArrivalQuantities[editingKey] !== undefined) {
-      return editingArrivalQuantities[editingKey];
-    }
-    return getDefaultArrivalQuantity(item);
-  };
-
   return (
     <>
       <div className="p-6 space-y-6">
