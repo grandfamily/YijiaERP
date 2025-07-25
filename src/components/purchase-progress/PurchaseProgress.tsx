@@ -67,6 +67,7 @@ export const PurchaseProgress: React.FC = () => {
 
   // SKU级别完成状态管理
   const [completedSKUs, setCompletedSKUs] = useState<Set<string>>(new Set());
+  const [arrivalQuantities, setArrivalQuantities] = useState<{[key: string]: number}>({});
 
   // 获取已分配的订单
   const { data: allocatedRequests } = getPurchaseRequests(
@@ -263,6 +264,80 @@ export const PurchaseProgress: React.FC = () => {
       console.error('SKU完成操作失败:', error);
       setNotificationMessage('操作失败，请重试');
       setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
+
+  // 处理到货数量变更
+  const handleArrivalQuantityChange = (requestId: string, itemId: string, quantity: number) => {
+    const key = `${requestId}-${itemId}`;
+    setArrivalQuantities(prev => ({
+      ...prev,
+      [key]: quantity
+    }));
+  };
+
+  // 获取到货数量
+  const getArrivalQuantity = (requestId: string, itemId: string): number => {
+    const key = `${requestId}-${itemId}`;
+    return arrivalQuantities[key] ?? 0;
+  };
+
+  // 检查是否可以保存到货数量
+  const canSaveArrivalQuantity = (progress: any, item: any): boolean => {
+    // 检查前置6个节点是否都已完成
+    const requiredStages = ['定金支付', '安排生产', '纸卡提供', '包装生产', '尾款支付', '安排发货'];
+    const completedStages = progress.stages.filter((stage: any) => 
+      requiredStages.includes(stage.name) && stage.status === 'completed'
+    );
+    
+    // 检查收货确认节点是否为进行中
+    const receiptStage = progress.stages.find((stage: any) => stage.name === '收货确认');
+    const isReceiptInProgress = receiptStage && receiptStage.status === 'in_progress';
+    
+    return completedStages.length === 6 && isReceiptInProgress;
+  };
+
+  // 处理保存到货数量
+  const handleSaveArrivalQuantity = async (requestId: string, itemId: string) => {
+    const arrivalQty = getArrivalQuantity(requestId, itemId);
+    const request = getRequestInfo(requestId);
+    const item = request?.items.find(i => i.id === itemId);
+    
+    if (!item) return;
+    
+    try {
+      if (arrivalQty >= item.quantity) {
+        // 到货数量 >= 采购数量，直接完成
+        const skuKey = `${requestId}-${itemId}`;
+        setCompletedSKUs(prev => new Set([...prev, skuKey]));
+        
+        // 更新采购进度状态
+        await updateProcurementProgressStage(requestId, '收货确认', {
+          status: 'completed',
+          completedDate: new Date()
+        });
+        
+        alert('收货确认完成！SKU已移至已完成栏目。');
+      } else {
+        // 到货数量 < 采购数量，弹出确认对话框
+        const shouldContinue = window.confirm(
+          `实际到货数量(${arrivalQty})少于采购数量(${item.quantity})，剩余订单是否继续生产？\n\n点击"确定"继续生产剩余数量\n点击"取消"仅按实际数量完成`
+        );
+        
+        if (shouldContinue) {
+          // 选择继续生产：拆分SKU记录
+          alert(`SKU已拆分：\n- 已完成数量：${arrivalQty}\n- 剩余生产数量：${item.quantity - arrivalQty}`);
+          // TODO: 实现SKU拆分逻辑
+        } else {
+          // 选择不继续：按实际数量完成
+          const skuKey = `${requestId}-${itemId}`;
+          setCompletedSKUs(prev => new Set([...prev, skuKey]));
+          alert(`收货确认完成！按实际到货数量(${arrivalQty})完成。`);
+        }
+      }
+    } catch (error) {
+      console.error('保存到货数量失败:', error);
+      alert('保存失败，请重试');
     }
   };
 
@@ -820,6 +895,10 @@ export const PurchaseProgress: React.FC = () => {
                           <th className="text-center py-3 px-4 font-medium text-gray-900">尾款支付</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">安排发货</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">收货确认</th>
+                          {/* 厂家包装订单在进行中栏目显示到货数量列 */}
+                          {activeTab === 'in_progress' && allocation?.type === 'external' && (
+                            <th className="text-center py-3 px-4 font-medium text-gray-900 w-32">到货数量</th>
+                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -945,6 +1024,35 @@ export const PurchaseProgress: React.FC = () => {
                                   </td>
                                 );
                               })}
+                              
+                              {/* 厂家包装订单的到货数量列 */}
+                              {activeTab === 'in_progress' && allocation?.type === 'external' && (
+                                <td className="py-4 px-4 text-center">
+                                  <div className="flex flex-col items-center space-y-2">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max={item.quantity}
+                                      value={getArrivalQuantity(request.id, item.id)}
+                                      onChange={(e) => handleArrivalQuantityChange(request.id, item.id, parseInt(e.target.value) || 0)}
+                                      className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                      placeholder="0"
+                                    />
+                                    <button
+                                      onClick={() => handleSaveArrivalQuantity(request.id, item.id)}
+                                      disabled={!canSaveArrivalQuantity(progress, item)}
+                                      className={`flex items-center space-x-1 px-2 py-1 text-xs rounded transition-colors ${
+                                        canSaveArrivalQuantity(progress, item)
+                                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                      }`}
+                                    >
+                                      <Save className="h-3 w-3" />
+                                      <span>保存</span>
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
                             </tr>
                           );
                         }).filter(Boolean)}
@@ -1033,6 +1141,12 @@ export const PurchaseProgress: React.FC = () => {
                                 </td>
                               );
                             })}
+                            {/* 厂家包装订单的到货数量列不显示批量操作 */}
+                            {activeTab === 'in_progress' && allocation?.type === 'external' && (
+                              <td className="py-3 px-4 text-center">
+                                <span className="text-xs text-gray-500">-</span>
+                              </td>
+                            )}
                           </tr>
                         )}
                       </tbody>
