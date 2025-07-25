@@ -1,16 +1,27 @@
 import React, { useState } from 'react';
-import { CheckSquare, Square, Check, AlertTriangle, Package, Truck, Box, Tag, FileText, Download, Upload, Save, X, Edit, Search, ZoomIn,
+import { 
+  FileText, 
   Calendar, 
   DollarSign, 
   User, 
+  Package, 
+  Search, 
   Eye, 
+  Edit, 
   CheckCircle,
   Clock,
+  AlertTriangle,
+  Save,
+  X,
   Filter,
+  Square,
+  CheckSquare,
+  Download,
   Send,
   Phone,
   Mail,
-  Bell
+  Bell,
+  ZoomIn
 } from 'lucide-react';
 import { useProcurement } from '../../hooks/useProcurement';
 import { useAuth } from '../../hooks/useAuth';
