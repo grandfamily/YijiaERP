@@ -2,49 +2,102 @@ import React, { useState } from 'react';
 import { 
   FileText, 
   Calendar, 
-  AlertTriangle, 
-  CheckCircle, 
-  Clock, 
+  DollarSign, 
+  User, 
+  Package, 
   Search, 
-  Package,
-  Upload,
-  Eye,
-  Download,
-  User,
-  Camera,
-  ZoomIn,
-  X,
-  TrendingUp,
-  BarChart3,
+  Eye, 
+  Edit, 
+  CheckCircle,
+  Clock,
+  AlertTriangle,
   Save,
-  Edit
+  X,
+  Filter,
+  Square,
+  CheckSquare,
+  Download,
+  Send,
+  Phone,
+  Mail,
+  Bell,
+  ZoomIn
 } from 'lucide-react';
 import { useProcurement } from '../../hooks/useProcurement';
 import { useAuth } from '../../hooks/useAuth';
+import { PurchaseRequest, OrderAllocation, ProcurementProgress, PaymentMethod } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
 import { ProgressBar } from '../ui/ProgressBar';
 
 type TabType = 'in_progress' | 'completed';
 
+// 筛选选项类型
+type PurchaseTypeFilter = 'all' | 'external' | 'in_house';
+type DepositPaymentFilter = 'all' | 'no_deposit' | 'deposit_paid' | 'deposit_unpaid';
+type FinalPaymentFilter = 'all' | 'no_final' | 'final_paid' | 'final_unpaid';
+
 export const PurchaseProgress: React.FC = () => {
   const { 
     getPurchaseRequests, 
-    getProcurementProgress, 
-    getOrderAllocations,
+    getOrderAllocations, 
+    getCardProgress,
+    getProcurementProgress,
+    createProcurementProgressForRequest,
     updateProcurementProgressStage,
-    getOrderAllocationByRequestId
+    addPaymentReminder,
+    requestCardDelivery,
+    getCardDeliveryReminderTime,
+    getPaymentReminderTime
   } = useProcurement();
   const { user, hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('in_progress');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
+  const [showFinanceModal, setShowFinanceModal] = useState<{type: 'deposit' | 'final', requestId: string} | null>(null);
+  const [editingQuantities, setEditingQuantities] = useState<{[key: string]: number}>({});
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [editingArrivalQuantities, setEditingArrivalQuantities] = useState<{[key: string]: number}>({});
   const [showShortageDialog, setShowShortageDialog] = useState<{
+    show: boolean;
     progressId: string;
-    skuId: string;
+    itemId: string;
+    plannedQuantity: number;
     arrivalQuantity: number;
-    purchaseQuantity: number;
   } | null>(null);
-  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+
+  // 初始化到货数量为采购数量
+  const getInitialArrivalQuantity = (progressId: string, itemId: string): number => {
+    const key = `${progressId}-${itemId}`;
+    if (editingArrivalQuantities[key] !== undefined) {
+      return editingArrivalQuantities[key];
+    }
+    
+    // 查找对应的采购申请项目
+    const progress = procurementProgressData.find(p => p.id === progressId);
+    if (progress) {
+      const request = getRequestInfo(progress.purchaseRequestId);
+      if (request) {
+        const item = request.items.find(i => i.id === itemId);
+        if (item) {
+          return item.quantity; // 返回采购数量作为初始值
+        }
+      }
+    }
+    return 0;
+  };
+
+  // 筛选状态
+  const [filters, setFilters] = useState({
+    purchaseType: 'all' as PurchaseTypeFilter,
+    depositPayment: 'all' as DepositPaymentFilter,
+    finalPayment: 'all' as FinalPaymentFilter
+  });
+
+  // SKU级别完成状态管理
+  const [completedSKUs, setCompletedSKUs] = useState<Set<string>>(new Set());
+  const [arrivalQuantities, setArrivalQuantities] = useState<{[key: string]: number}>({});
 
   // 获取已分配的订单
   const { data: allocatedRequests } = getPurchaseRequests(
@@ -52,205 +105,472 @@ export const PurchaseProgress: React.FC = () => {
     { field: 'updatedAt', direction: 'desc' }
   );
 
-  // 获取进度数据
-  const procurementProgressData = getProcurementProgress() || [];
-  const orderAllocations = getOrderAllocations() || [];
+  // 获取所有订单分配信息
+  const orderAllocations = getOrderAllocations();
 
-  // 按订单分组进度数据
-  const progressByRequest = React.useMemo(() => {
-    const grouped: { [key: string]: any[] } = {};
-    
-    procurementProgressData.forEach(progress => {
-      if (progress?.purchaseRequestId) {
-        if (!grouped[progress.purchaseRequestId]) {
-          grouped[progress.purchaseRequestId] = [];
-        }
-        grouped[progress.purchaseRequestId].push(progress);
+  // 获取所有纸卡进度
+  const cardProgressData = getCardProgress();
+
+  // 获取所有采购进度
+  const procurementProgressData = getProcurementProgress();
+
+  // 为没有采购进度的订单创建进度记录
+  React.useEffect(() => {
+    allocatedRequests.forEach(request => {
+      const existingProgress = procurementProgressData.find(pp => pp.purchaseRequestId === request.id);
+      if (!existingProgress) {
+        createProcurementProgressForRequest(request);
       }
     });
-    
-    return grouped;
-  }, [procurementProgressData]);
+  }, [allocatedRequests, procurementProgressData]);
 
-  // 检查订单是否已完成
-  const isOrderCompleted = (requestId: string): boolean => {
-    const progressList = progressByRequest[requestId] || [];
-    if (progressList.length === 0) return false;
-    
-    return progressList.every(progress => {
-      if (!progress?.stages) return false;
-      return progress.stages.every((stage: any) => stage?.status === 'completed' || stage?.status === 'skipped');
-    });
-  };
-
-  // 根据搜索条件过滤订单
-  const filteredProgressByRequest = React.useMemo(() => {
-    const filtered: { [key: string]: any[] } = {};
-    
-    Object.entries(progressByRequest).forEach(([requestId, progressList]) => {
-      if (requestId && progressList) {
-        const isCompleted = isOrderCompleted(requestId);
-        
-        // 根据标签页过滤
-        if ((activeTab === 'completed' && isCompleted) || (activeTab === 'in_progress' && !isCompleted)) {
-          // 如果有搜索条件，进一步过滤
-          if (!searchTerm) {
-            filtered[requestId] = progressList;
-          } else {
-            const request = getRequestInfo(requestId);
-            const matchesSearch = request?.requestNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              progressList.some(progress => 
-                progress?.sku?.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                progress?.sku?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-              );
-            
-            if (matchesSearch) {
-              filtered[requestId] = progressList;
-            }
-          }
-        }
-      }
-    });
-    
-    return filtered;
-  }, [progressByRequest, activeTab, searchTerm, allocatedRequests]);
-
+  // 获取订单信息
   const getRequestInfo = (requestId: string) => {
-    return allocatedRequests?.find(req => req?.id === requestId);
+    return allocatedRequests.find(r => r.id === requestId);
   };
 
-  const getOrderAllocation = (requestId: string) => {
-    return getOrderAllocationByRequestId(requestId);
+  // 获取订单分配信息
+  const getOrderAllocation = (requestId: string): OrderAllocation | undefined => {
+    return orderAllocations.find(a => a.purchaseRequestId === requestId);
   };
 
-  // 获取到货数量的初始值
-  const getInitialArrivalQuantity = (progressId: string, skuId: string): number => {
-    // 如果用户已经编辑过，返回编辑值
-    if (editingArrivalQuantities[`${progressId}-${skuId}`] !== undefined) {
-      return editingArrivalQuantities[`${progressId}-${skuId}`];
+  // 检查定金支付状态
+  const getDepositPaymentStatus = (requestId: string): DepositPaymentFilter => {
+    const allocation = getOrderAllocation(requestId);
+    if (!allocation) return 'no_deposit';
+
+    // 无需支付定金：账期付款或定金金额为0
+    if (allocation.paymentMethod === 'credit_terms' || (allocation.prepaymentAmount || 0) === 0) {
+      return 'no_deposit';
     }
-    
-    // 否则返回采购数量作为初始值
-    const progress = procurementProgressData.find(p => p?.id === progressId);
-    if (!progress) return 0;
-    
-    const request = getRequestInfo(progress.purchaseRequestId);
-    if (!request) return 0;
-    
-    const item = request.items?.find(item => item?.skuId === skuId);
-    return item?.quantity || 0;
+
+    // 检查定金支付流程节点状态
+    const progress = procurementProgressData.find(p => p.purchaseRequestId === requestId);
+    if (progress) {
+      const depositStage = progress.stages.find(s => s.name === '定金支付');
+      if (depositStage && depositStage.status === 'completed') {
+        return 'deposit_paid';
+      }
+    }
+
+    return 'deposit_unpaid';
   };
 
-  // 处理到货数量编辑
-  const handleArrivalQuantityChange = (progressId: string, skuId: string, quantity: number) => {
-    setEditingArrivalQuantities(prev => ({
+  // 检查尾款支付状态
+  const getFinalPaymentStatus = (requestId: string): FinalPaymentFilter => {
+    const allocation = getOrderAllocation(requestId);
+    if (!allocation) return 'no_final';
+
+    // 无需支付尾款：账期付款
+    if (allocation.paymentMethod === 'credit_terms') {
+      return 'no_final';
+    }
+
+    // 检查尾款支付流程节点状态
+    const progress = procurementProgressData.find(p => p.purchaseRequestId === requestId);
+    if (progress) {
+      const finalStage = progress.stages.find(s => s.name === '尾款支付');
+      if (finalStage && finalStage.status === 'completed') {
+        return 'final_paid';
+      }
+    }
+
+    return 'final_unpaid';
+  };
+
+  // 应用筛选条件
+  const applyFilters = (requests: typeof allocatedRequests) => {
+    return requests.filter(request => {
+      const allocation = getOrderAllocation(request.id);
+      
+      // 采购类型筛选
+      if (filters.purchaseType !== 'all') {
+        if (!allocation || allocation.type !== filters.purchaseType) {
+          return false;
+        }
+      }
+
+      // 定金支付筛选
+      if (filters.depositPayment !== 'all') {
+        const depositStatus = getDepositPaymentStatus(request.id);
+        if (depositStatus !== filters.depositPayment) {
+          return false;
+        }
+      }
+
+      // 尾款支付筛选
+      if (filters.finalPayment !== 'all') {
+        const finalStatus = getFinalPaymentStatus(request.id);
+        if (finalStatus !== filters.finalPayment) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  };
+
+  // 根据标签页过滤订单
+  const getTabFilteredRequests = () => {
+    let tabFiltered = allocatedRequests.filter(request => {
+      // 基于搜索条件过滤
+      const matchesSearch = 
+        !searchTerm || 
+        request.requestNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        request.items.some(item => 
+          item.sku.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.sku.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      
+      // 基于标签页过滤 - 支持SKU级别判断
+      if (activeTab === 'completed') {
+        // 已完成栏目：检查是否有任何SKU已完成
+        const hasCompletedSKUs = request.items.some(item => isSKUCompleted(request.id, item.id));
+        return matchesSearch && hasCompletedSKUs;
+      } else {
+        // 进行中栏目：检查是否有任何SKU未完成
+        const hasInProgressSKUs = request.items.some(item => !isSKUCompleted(request.id, item.id));
+        return matchesSearch && hasInProgressSKUs;
+      }
+    });
+
+    // 应用筛选条件
+    return applyFilters(tabFiltered);
+  };
+
+  const filteredRequests = getTabFilteredRequests();
+
+  // 重置筛选条件
+  const resetFilters = () => {
+    setFilters({
+      purchaseType: 'all',
+      depositPayment: 'all',
+      finalPayment: 'all'
+    });
+  };
+
+  // 检查是否有筛选条件激活
+  const hasActiveFilters = () => {
+    return filters.purchaseType !== 'all' || 
+           filters.depositPayment !== 'all' || 
+           filters.finalPayment !== 'all';
+  };
+
+  // 原有的过滤逻辑保持不变，但现在通过 getTabFilteredRequests 处理
+  const originalFilteredRequests = allocatedRequests.filter(request => {
+    // 基于搜索条件过滤
+    const matchesSearch = 
+      !searchTerm || 
+      request.requestNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.items.some(item => 
+        item.sku.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.sku.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    
+    // 基于标签页过滤
+    const isCompleted = isProcurementCompleted(request.id);
+    return matchesSearch && ((activeTab === 'completed' && isCompleted) || (activeTab === 'in_progress' && !isCompleted));
+  });
+
+  // 检查采购是否已完成
+  function isProcurementCompleted(requestId: string): boolean {
+    const progress = procurementProgressData.find(p => p.purchaseRequestId === requestId);
+    return progress ? progress.stages.every(s => s.status === 'completed' || s.status === 'skipped') : false;
+  }
+
+  // 检查单个SKU是否已完成（新增）
+  function isSKUCompleted(requestId: string, itemId: string): boolean {
+    return completedSKUs.has(`${requestId}-${itemId}`);
+  }
+
+  // 处理SKU级别完成（新增）
+  const handleSKUComplete = async (requestId: string, itemId: string) => {
+    try {
+      // 将SKU标记为已完成
+      const skuKey = `${requestId}-${itemId}`;
+      setCompletedSKUs(prev => new Set([...prev, skuKey]));
+      
+      // 显示成功提示
+      setNotificationMessage('SKU收货确认已完成，已移至已完成栏目');
+      setTimeout(() => setNotificationMessage(null), 3000);
+      
+      console.log(`✅ SKU完成：订单 ${requestId} 的 SKU ${itemId} 已完成收货确认`);
+    } catch (error) {
+      console.error('SKU完成操作失败:', error);
+      setNotificationMessage('操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
+
+  // 处理到货数量变更
+  const handleArrivalQuantityChange = (requestId: string, itemId: string, quantity: number) => {
+    const key = `${requestId}-${itemId}`;
+    setArrivalQuantities(prev => ({
       ...prev,
-      [`${progressId}-${skuId}`]: quantity
+      [key]: quantity
     }));
   };
 
-  // 保存到货数量
-  const handleSaveArrivalQuantity = async (progressId: string, skuId: string, arrivalQuantity?: number) => {
+  // 获取到货数量
+  const getArrivalQuantity = (requestId: string, itemId: string): number => {
+    const key = `${requestId}-${itemId}`;
+    return arrivalQuantities[key] ?? 0;
+  };
+
+  // 🎯 新增：处理厂家包装的保存逻辑
+  const handleExternalPackagingSave = async (progressId: string, itemId: string) => {
     try {
-      const progress = procurementProgressData.find(p => p?.id === progressId);
+      const progress = allProcurementProgress.find(p => p.id === progressId);
       if (!progress) return;
 
-      const request = getRequestInfo(progress.purchaseRequestId);
-      if (!request) return;
+      const item = progress.request?.items.find((i: any) => i.id === itemId);
+      if (!item) return;
 
-      const allocation = getOrderAllocation(progress.purchaseRequestId);
+      const arrivedQuantity = editingQuantities[`${progressId}-${itemId}`] || 0;
+      const plannedQuantity = item.quantity;
+
+      console.log(`🎯 厂家包装保存逻辑 - SKU: ${item.sku.code}, 计划: ${plannedQuantity}, 到货: ${arrivedQuantity}`);
+
+      if (arrivedQuantity >= plannedQuantity) {
+        // 情况1：到货数量 ≥ 采购数量，直接完成
+        await handleCompleteStage(progressId, '收货确认');
+        console.log(`✅ 到货充足，SKU ${item.sku.code} 直接移入已完成`);
+      } else {
+        // 情况2：到货数量 < 采购数量，显示确认对话框
+        setShowShortageDialog({
+          progressId,
+          itemId,
+          skuCode: item.sku.code,
+          plannedQuantity,
+          arrivedQuantity
+        });
+      }
+    } catch (error) {
+      console.error('厂家包装保存失败:', error);
+      alert('保存失败，请重试');
+    }
+  };
+
+  // 🎯 处理数量不足的确认对话框
+  const handleShortageConfirm = async (continueProduction: boolean) => {
+    if (!showShortageDialog) return;
+
+    try {
+      const { progressId, itemId, skuCode, plannedQuantity, arrivedQuantity } = showShortageDialog;
       
-      // 获取实际到货数量
-      const actualArrivalQuantity = arrivalQuantity !== undefined 
-        ? arrivalQuantity 
-        : getInitialArrivalQuantity(progressId, skuId);
-      
-      const item = request.items?.find(item => item?.skuId === skuId);
-      const purchaseQuantity = item?.quantity || 0;
-
-      console.log(`🎯 保存到货数量 - SKU: ${skuId}, 到货: ${actualArrivalQuantity}, 采购: ${purchaseQuantity}`);
-
-      // 仅对厂家包装应用新的流转逻辑
-      if (allocation?.type === 'external') {
-        if (actualArrivalQuantity >= purchaseQuantity) {
-          // 情况1：到货数量 >= 采购数量，直接完成
+      if (continueProduction) {
+        // 用户选择"是"：拆分SKU
+        console.log(`✂️ 拆分SKU ${skuCode}: 到货部分(${arrivedQuantity}) + 剩余部分(${plannedQuantity - arrivedQuantity})`);
+        
+        // 1. 创建到货部分的新SKU记录（移入已完成）
+        const progress = allProcurementProgress.find(p => p.id === progressId);
+        const originalItem = progress?.request?.items.find((i: any) => i.id === itemId);
+        
+        if (progress && originalItem) {
+          // 创建新的已完成SKU记录
+          const completedSKU = {
+            ...progress,
+            id: `${progressId}-completed-${Date.now()}`,
+            request: {
+              ...progress.request,
+              items: [{
+                ...originalItem,
+                id: `${itemId}-completed`,
+                quantity: arrivedQuantity
+              }]
+            },
+            stages: progress.stages.map((stage: any) => ({
+              ...stage,
+              status: stage.name === '收货确认' ? 'completed' : stage.status,
+              completedDate: stage.name === '收货确认' ? new Date() : stage.completedDate
+            })),
+            overallProgress: 100
+          };
+          
+          // 2. 更新原SKU为剩余数量（保持在进行中）
           await updateProcurementProgressStage(progressId, '收货确认', {
-            status: 'completed',
-            completedDate: new Date(),
-            remarks: `到货数量: ${actualArrivalQuantity}`
+            status: 'in_progress', // 保持进行中状态
+            arrivedQuantity: 0, // 重置到货数量
+            remarks: `已拆分：到货${arrivedQuantity}件已完成，剩余${plannedQuantity - arrivedQuantity}件继续生产`
           });
-          console.log(`✅ 厂家包装 - 到货充足，SKU直接完成`);
-        } else {
-          // 情况2：到货数量 < 采购数量，显示拆分对话框
-          setShowShortageDialog({
-            progressId,
-            skuId,
-            arrivalQuantity: actualArrivalQuantity,
-            purchaseQuantity
+          
+          // 更新原订单项目数量为剩余数量
+          const updatedItems = progress.request.items.map((i: any) => 
+            i.id === itemId ? { ...i, quantity: plannedQuantity - arrivedQuantity } : i
+          );
+          
+          await updatePurchaseRequest(progress.request.id, {
+            items: updatedItems
           });
-          return; // 等待用户选择
+          
+          console.log(`✅ SKU拆分完成：${skuCode} 到货部分已完成，剩余部分继续生产`);
         }
       } else {
-        // 自己包装保持原有逻辑
-        await updateProcurementProgressStage(progressId, '收货确认', {
-          status: 'completed',
-          completedDate: new Date(),
-          remarks: `到货数量: ${actualArrivalQuantity}`
-        });
-        console.log(`✅ 自己包装 - 使用原有逻辑完成`);
+        // 用户选择"否"：以到货数量为准，完成订单
+        console.log(`🚚 以到货数量为准，SKU ${skuCode} 完成订单`);
+        
+        // 更新订单项目数量为实际到货数量
+        const progress = allProcurementProgress.find(p => p.id === progressId);
+        if (progress) {
+          const updatedItems = progress.request.items.map((i: any) => 
+            i.id === itemId ? { ...i, quantity: arrivedQuantity } : i
+          );
+          
+          await updatePurchaseRequest(progress.request.id, {
+            items: updatedItems
+          });
+        }
+        
+        // 完成收货确认节点
+        await handleCompleteStage(progressId, '收货确认');
+        console.log(`✅ SKU ${skuCode} 以实际到货数量完成`);
       }
+      
+      // 清空编辑状态
+      setEditingQuantities(prev => {
+        const newState = { ...prev };
+        delete newState[`${progressId}-${itemId}`];
+        return newState;
+      });
+      
+      setShowShortageDialog(null);
+    } catch (error) {
+      console.error('处理数量不足确认失败:', error);
+      alert('操作失败，请重试');
+    }
+  };
 
+  // 检查是否可以保存到货数量（厂家包装专用）
+  const canSaveArrivalQuantity = (requestId: string, itemId: string): boolean => {
+    const progress = procurementProgressData.find(p => p.purchaseRequestId === requestId);
+    if (!progress || !progress.stages) {
+      return false;
+    }
+    
+    const allocation = getOrderAllocation(requestId);
+    
+    // 只有厂家包装订单才显示到货数量功能
+    if (!allocation || allocation.type !== 'external') {
+      return false;
+    }
+    
+    // 检查收货确认节点是否为进行中
+    const receiptStage = progress.stages.find((stage: any) => stage.name === '收货确认');
+    
+    // 首先检查progress和stages是否存在
+    if (!progress || !progress.stages) {
+      return false;
+    }
+
+    return receiptStage && receiptStage.status === 'in_progress';
+  };
+
+  // 处理保存到货数量
+  const handleSaveArrivalQuantity = async (progressId: string, itemId: string, arrivalQuantity?: number) => {
+    try {
+      const finalArrivalQuantity = arrivalQuantity !== undefined ? arrivalQuantity : getInitialArrivalQuantity(progressId, itemId);
+      
+      // 获取对应的采购申请和项目信息
+      const progress = procurementProgressData.find(p => p.id === progressId);
+      if (!progress) return;
+      
+      const request = getRequestInfo(progress.purchaseRequestId);
+      if (!request) return;
+      
+      const item = request.items.find(i => i.id === itemId);
+      if (!item) return;
+      
+      console.log(`🎯 保存到货数量 - SKU: ${item.sku.code}, 采购数量: ${item.quantity}, 到货数量: ${finalArrivalQuantity}`);
+      
+      // 检查是否为厂家包装
+      const allocation = getOrderAllocation(progress.purchaseRequestId);
+      const isExternalPackaging = allocation?.type === 'external';
+      
+      if (isExternalPackaging) {
+        console.log(`🏭 厂家包装逻辑 - 到货数量: ${finalArrivalQuantity}, 采购数量: ${item.quantity}`);
+        
+        if (finalArrivalQuantity < item.quantity) {
+          // 到货数量少于采购数量，显示确认对话框
+          setShowShortageDialog({
+            show: true,
+            progressId,
+            itemId,
+            plannedQuantity: item.quantity,
+            arrivalQuantity: finalArrivalQuantity
+          });
+          return;
+        }
+      }
+      
+      // 到货数量充足或非厂家包装，直接完成收货确认节点
+      await updateProcurementProgressStage(progressId, '收货确认', { 
+        status: 'completed',
+        completedDate: new Date(),
+        remarks: `到货数量: ${finalArrivalQuantity}`
+      });
+      
+      console.log(`✅ 收货确认完成 - SKU: ${item.sku.code}`);
+      
+      // 显示成功提示
+      setNotificationMessage('收货确认已完成！');
+      setTimeout(() => setNotificationMessage(null), 3000);
+      
       // 清除编辑状态
       setEditingArrivalQuantities(prev => {
         const newState = { ...prev };
-        delete newState[`${progressId}-${skuId}`];
+        delete newState[`${progressId}-${itemId}`];
         return newState;
       });
-
+      
     } catch (error) {
       console.error('保存到货数量失败:', error);
       alert('保存到货数量失败，请重试');
     }
   };
 
-  // 处理缺货确认
-  const handleShortageConfirm = async (continueProduction: boolean) => {
-    if (!showShortageDialog) return;
+  // 获取订单的采购进度
+  function getRequestProgress(requestId: string): ProcurementProgress | undefined {
+    return procurementProgressData.find(p => p.purchaseRequestId === requestId);
+  }
 
-    const { progressId, skuId, arrivalQuantity, purchaseQuantity } = showShortageDialog;
+  // 检查是否需要显示定金支付节点
+  function shouldShowDepositPayment(requestId: string): boolean {
+    const allocation = getOrderAllocation(requestId);
+    if (!allocation) return false;
+    
+    // 如果是账期付款或定金为0，则不需要显示定金支付节点
+    const isCreditTerms = allocation.paymentMethod === 'credit_terms';
+    const isZeroDeposit = (allocation.prepaymentAmount || 0) === 0;
+    
+    return !(isCreditTerms || isZeroDeposit);
+  }
 
-    try {
-      if (continueProduction) {
-        // 用户选择"是"：拆分SKU
-        console.log(`🔄 拆分SKU - 到货: ${arrivalQuantity}, 剩余: ${purchaseQuantity - arrivalQuantity}`);
-        
-        // TODO: 实现SKU拆分逻辑
-        // 1. 创建新的SKU记录（到货部分）并移入已完成
-        // 2. 更新原SKU数量为剩余部分，保持在进行中
-        
-        alert(`SKU拆分功能开发中...\n到货部分: ${arrivalQuantity}\n剩余部分: ${purchaseQuantity - arrivalQuantity}`);
-      } else {
-        // 用户选择"否"：以到货数量为准完成
-        await updateProcurementProgressStage(progressId, '收货确认', {
-          status: 'completed',
-          completedDate: new Date(),
-          remarks: `实际到货: ${arrivalQuantity}, 放弃剩余: ${purchaseQuantity - arrivalQuantity}`
-        });
-        console.log(`🚚 以到货数量为准完成，放弃剩余数量`);
-      }
+  // 检查纸卡是否已完成
+  function isCardProgressCompleted(requestId: string): boolean {
+    const cardProgress = cardProgressData.filter(cp => cp.purchaseRequestId === requestId);
+    return cardProgress.every(cp => cp.stages.every(stage => stage.status === 'completed'));
+  }
 
-      // 清除编辑状态和对话框
-      setEditingArrivalQuantities(prev => {
-        const newState = { ...prev };
-        delete newState[`${progressId}-${skuId}`];
-        return newState;
-      });
-      setShowShortageDialog(null);
+  // 获取状态颜色
+  const getStatusColor = (status: string) => {
+    const colors = {
+      'not_started': 'gray',
+      'in_progress': 'yellow',
+      'completed': 'green',
+      'skipped': 'blue'
+    };
+    return colors[status as keyof typeof colors] || 'gray';
+  };
 
-    } catch (error) {
-      console.error('处理缺货确认失败:', error);
-      alert('操作失败，请重试');
-    }
+  // 获取状态文本
+  const getStatusText = (status: string) => {
+    const statusMap = {
+      'not_started': '未开始',
+      'in_progress': '进行中',
+      'completed': '已完成',
+      'skipped': '已跳过'
+    };
+    return statusMap[status as keyof typeof statusMap] || status;
   };
 
   // 处理图片点击放大
@@ -258,260 +578,662 @@ export const PurchaseProgress: React.FC = () => {
     setZoomedImage(imageUrl);
   };
 
+  // 处理阶段完成
+  const handleCompleteStage = async (requestId: string, stageName: string) => {
+    try {
+      const progress = getRequestProgress(requestId);
+      if (!progress) return;
+
+      // 检查是否可以完成此阶段（前置阶段必须已完成）
+      const stageIndex = progress.stages.findIndex(s => s.name === stageName);
+      if (stageIndex > 0) {
+        // 检查前面所有节点是否都已完成或跳过
+        for (let i = 0; i < stageIndex; i++) {
+          const prevStage = progress.stages[i];
+          if (prevStage.status !== 'completed' && prevStage.status !== 'skipped') {
+            setNotificationMessage(`请先完成前置节点："${prevStage.name}"`);
+            setTimeout(() => setNotificationMessage(null), 3000);
+            return;
+          }
+        }
+      }
+      await updateProcurementProgressStage(progress.id, stageName, {
+        status: 'completed',
+        completedDate: new Date()
+      });
+
+      setNotificationMessage(`已完成"${stageName}"阶段`);
+      setTimeout(() => setNotificationMessage(null), 3000);
+    } catch (error) {
+      console.error('完成阶段失败:', error);
+      setNotificationMessage('操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
+
+  // 处理单个SKU的阶段完成
+  const handleCompleteSKUStage = async (requestId: string, itemId: string, stageName: string) => {
+    try {
+      const progress = getRequestProgress(requestId);
+      if (!progress) return;
+
+      // 检查是否可以完成此阶段（前置阶段必须已完成）
+      const stageIndex = progress.stages.findIndex(s => s.name === stageName);
+      if (stageIndex > 0) {
+        // 检查前面所有节点是否都已完成或跳过
+        for (let i = 0; i < stageIndex; i++) {
+          const prevStage = progress.stages[i];
+          if (prevStage.status !== 'completed' && prevStage.status !== 'skipped') {
+            setNotificationMessage(`请先完成前置节点："${prevStage.name}"`);
+            setTimeout(() => setNotificationMessage(null), 3000);
+            return;
+          }
+        }
+      }
+
+      // 更新单个SKU的阶段状态
+      await updateProcurementProgressStage(progress.id, stageName, {
+        status: 'completed',
+        completedDate: new Date(),
+        remarks: `SKU ${itemId} 单独完成`
+      });
+
+      setNotificationMessage(`SKU项目的"${stageName}"阶段已完成`);
+      setTimeout(() => setNotificationMessage(null), 3000);
+    } catch (error) {
+      console.error('完成SKU阶段失败:', error);
+      setNotificationMessage('操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
+
+  // 检查是否可以操作单个SKU的阶段
+  const canOperateSKUStage = (requestId: string, stageName: string, stageIndex: number): boolean => {
+    const progress = getRequestProgress(requestId);
+    if (!progress) return false;
+
+    // 第一个节点总是可以操作
+    if (stageIndex === 0) return true;
+
+    // 检查前面所有节点是否都已完成或跳过
+    for (let i = 0; i < stageIndex; i++) {
+      const prevStage = progress.stages[i];
+      if (prevStage.status !== 'completed' && prevStage.status !== 'skipped') {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  // 处理催付款
+  const handlePaymentReminder = async (type: 'deposit' | 'final', requestId: string) => {
+    try {
+      // 记录催付时间，传入具体的催付类型
+      addPaymentReminder(requestId, type);
+      
+      const paymentTypeName = type === 'deposit' ? '定金' : '尾款';
+      setNotificationMessage(`催付${paymentTypeName}通知已发送，财务管理模块将显示催付时间`);
+      
+      setTimeout(() => setNotificationMessage(null), 3000);
+    } catch (error) {
+      console.error('催付操作失败:', error);
+      setNotificationMessage('催付操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
+
+  // 处理催要纸卡
+  const handleRequestCardDelivery = async (requestId: string) => {
+    try {
+      requestCardDelivery(requestId);
+      setNotificationMessage('催要纸卡通知已发送，纸卡设计人员将收到提醒');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    } catch (error) {
+      console.error('催要纸卡操作失败:', error);
+      setNotificationMessage('催要纸卡操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
+
+  // 检查用户是否有编辑权限
+  const canEdit = hasPermission('manage_procurement_progress');
+
+  // 处理全选/取消全选
+  const handleSelectAll = () => {
+    if (selectedOrders.length === filteredRequests.length) {
+      setSelectedOrders([]);
+    } else {
+      setSelectedOrders(filteredRequests.map(r => r.id));
+    }
+  };
+
+  // 处理单个订单选择
+  const handleSelectOrder = (requestId: string) => {
+    if (selectedOrders.includes(requestId)) {
+      setSelectedOrders(selectedOrders.filter(id => id !== requestId));
+    } else {
+      setSelectedOrders([...selectedOrders, requestId]);
+    }
+  };
+
+  // 导出选中订单
+  const handleExportSelected = () => {
+    if (selectedOrders.length === 0) {
+      setNotificationMessage('请先选择要导出的订单');
+      setTimeout(() => setNotificationMessage(null), 3000);
+      return;
+    }
+
+    // 模拟导出功能
+    setNotificationMessage(`已导出${selectedOrders.length}个订单的采购进度数据`);
+    setTimeout(() => setNotificationMessage(null), 3000);
+    setSelectedOrders([]);
+  };
+
   // 获取统计数据
   const getTabStats = () => {
-    const allRequestIds = Object.keys(progressByRequest);
-    const completedCount = allRequestIds.filter(requestId => isOrderCompleted(requestId)).length;
-    const inProgressCount = allRequestIds.length - completedCount;
+    const inProgress = allocatedRequests.filter(r => !isProcurementCompleted(r.id)).length;
+    const completed = allocatedRequests.filter(r => isProcurementCompleted(r.id)).length;
     
-    return { inProgressCount, completedCount };
+    return {
+      inProgress,
+      completed
+    };
   };
 
   const tabStats = getTabStats();
-  const canPurchasingOfficer = user?.role === 'purchasing_officer';
 
   return (
     <>
       <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">采购进度</h1>
+          <p className="text-gray-600">管理采购订单的执行进度和状态</p>
+        </div>
+        <div className="flex items-center space-x-4">
+          {selectedOrders.length > 0 && (
+            <button
+              onClick={handleExportSelected}
+              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Download className="h-5 w-5" />
+              <span>导出选中 ({selectedOrders.length})</span>
+            </button>
+          )}
+          <div className="flex-1 relative max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="搜索订单号或SKU..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div className="flex items-center space-x-2">
+            <FileText className="h-5 w-5 text-blue-500" />
+            <span className="text-sm text-gray-600">
+              订单: {filteredRequests.length}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('in_progress')}
+            className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'in_progress'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Clock className="h-5 w-5" />
+            <span>进行中</span>
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              activeTab === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+            }`}>
+              {tabStats.inProgress}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('completed')}
+            className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'completed'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <CheckCircle className="h-5 w-5" />
+            <span>已完成</span>
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              activeTab === 'completed' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+            }`}>
+              {tabStats.completed}
+            </span>
+          </button>
+        </nav>
+      </div>
+
+      {/* Batch Operations */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">采购进度</h1>
-            <p className="text-gray-600">按订单管理采购流程和进度</p>
-          </div>
           <div className="flex items-center space-x-4">
-            <div className="flex-1 relative max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="搜索订单号或SKU..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <FileText className="h-5 w-5 text-blue-500" />
-              <span className="text-sm text-gray-600">
-                订单: {Object.keys(filteredProgressByRequest).length}
+            <button
+              onClick={handleSelectAll}
+              className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-800"
+            >
+              {selectedOrders.length === filteredRequests.length && filteredRequests.length > 0 ? (
+                <CheckSquare className="h-4 w-4 text-blue-600" />
+              ) : (
+                <Square className="h-4 w-4" />
+              )}
+              <span>全选订单</span>
+            </button>
+            {selectedOrders.length > 0 && (
+              <span className="text-sm text-blue-600">
+                已选择 {selectedOrders.length} 个订单
               </span>
-            </div>
+            )}
+            
+            {/* 筛选下拉框 - 仅采购人员可见 */}
+            {user?.role === 'purchasing_officer' && (
+              <div className="flex items-center space-x-3 ml-6">
+                {/* 采购类型筛选 */}
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium text-gray-700">采购类型:</label>
+                  <select
+                    value={filters.purchaseType}
+                    onChange={(e) => setFilters({...filters, purchaseType: e.target.value as PurchaseTypeFilter})}
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">全部</option>
+                    <option value="external">厂家包装</option>
+                    <option value="in_house">自己包装</option>
+                  </select>
+                </div>
+
+                {/* 定金支付筛选 */}
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium text-gray-700">定金支付:</label>
+                  <select
+                    value={filters.depositPayment}
+                    onChange={(e) => setFilters({...filters, depositPayment: e.target.value as DepositPaymentFilter})}
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">全部</option>
+                    <option value="no_deposit">无需支付定金</option>
+                    <option value="deposit_paid">定金已支付</option>
+                    <option value="deposit_unpaid">定金未支付</option>
+                  </select>
+                </div>
+
+                {/* 尾款支付筛选 */}
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium text-gray-700">尾款支付:</label>
+                  <select
+                    value={filters.finalPayment}
+                    onChange={(e) => setFilters({...filters, finalPayment: e.target.value as FinalPaymentFilter})}
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">全部</option>
+                    <option value="no_final">无需支付尾款</option>
+                    <option value="final_paid">尾款已支付</option>
+                    <option value="final_unpaid">尾款未支付</option>
+                  </select>
+                </div>
+
+                {/* 重置筛选按钮 */}
+                {hasActiveFilters() && (
+                  <button
+                    onClick={resetFilters}
+                    className="text-sm text-blue-600 hover:text-blue-800 underline"
+                  >
+                    重置筛选
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="text-sm text-gray-500">
+            {activeTab === 'in_progress' ? '进行中订单：采购流程尚未全部完成' : '已完成订单：采购流程已全部完成'}
+            {user?.role === 'purchasing_officer' && hasActiveFilters() && (
+              <span className="ml-2 text-blue-600">
+                (已应用筛选条件，显示 {filteredRequests.length} / {originalFilteredRequests.length} 个订单)
+              </span>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Tab Navigation */}
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setActiveTab('in_progress')}
-              className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'in_progress'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <Clock className="h-5 w-5" />
-              <span>进行中</span>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                activeTab === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-              }`}>
-                {tabStats.inProgressCount}
-              </span>
-            </button>
-            <button
-              onClick={() => setActiveTab('completed')}
-              className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'completed'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <CheckCircle className="h-5 w-5" />
-              <span>已完成</span>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                activeTab === 'completed' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-              }`}>
-                {tabStats.completedCount}
-              </span>
-            </button>
-          </nav>
-        </div>
-
-        {Object.keys(filteredProgressByRequest).length === 0 ? (
-          <div className="text-center py-12">
-            <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {activeTab === 'in_progress' ? '暂无进行中订单' : '暂无已完成订单'}
-            </h3>
-            <p className="text-gray-500">
-              {activeTab === 'in_progress' ? '所有订单都已完成采购' : '还没有完成的采购订单'}
-            </p>
+      {/* Notification Message */}
+      {notificationMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded shadow-lg">
+          <div className="flex items-center space-x-2">
+            <CheckCircle className="h-5 w-5" />
+            <span>{notificationMessage}</span>
           </div>
-        ) : (
-          <div className="space-y-6">
-            {Object.entries(filteredProgressByRequest).map(([requestId, progressList]) => {
-              const request = getRequestInfo(requestId);
-              const allocation = getOrderAllocation(requestId);
-              const orderCompleted = isOrderCompleted(requestId);
-              
-              if (!request || !progressList) return null;
-              
-              return (
-                <div key={requestId} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  {/* Order Header */}
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center space-x-3">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {request.requestNumber || requestId}
-                      </h3>
-                      <StatusBadge
-                        status={allocation?.type === 'external' ? '厂家包装' : '自己包装'}
-                        color={allocation?.type === 'external' ? 'blue' : 'green'}
-                      />
-                      {orderCompleted && (
-                        <StatusBadge
-                          status="已完成"
-                          color="green"
-                        />
+        </div>
+      )}
+
+      {/* Orders List */}
+      {filteredRequests.length === 0 ? (
+        <div className="text-center py-12">
+          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            {activeTab === 'in_progress' ? '没有进行中的采购订单' : '没有已完成的采购订单'}
+          </h3>
+          <p className="text-gray-600">
+            {activeTab === 'in_progress' ? '所有采购订单都已完成' : '还没有完成的采购订单'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {filteredRequests.map((request) => {
+            const allocation = getOrderAllocation(request.id);
+            const progress = getRequestProgress(request.id);
+            const isSelected = selectedOrders.includes(request.id);
+            
+            // 如果没有进度记录，创建默认进度
+            const defaultProgress = {
+              stages: [
+                { 
+                  id: '1', 
+                  name: shouldShowDepositPayment(request.id) ? '定金支付' : '无需定金', 
+                  status: shouldShowDepositPayment(request.id) ? 'in_progress' : 'completed', 
+                  order: 1,
+                  completedDate: shouldShowDepositPayment(request.id) ? undefined : new Date(),
+                  remarks: shouldShowDepositPayment(request.id) ? undefined : '账期付款或无需定金，自动跳过'
+                },
+                { 
+                  id: '2', 
+                  name: '安排生产', 
+                  status: shouldShowDepositPayment(request.id) ? 'not_started' : 'in_progress', 
+                  order: 2 
+                },
+                { id: '3', name: '纸卡提供', status: isCardProgressCompleted(request.id) ? 'completed' : 'not_started', order: 3 },
+                { id: '4', name: '包装生产', status: 'not_started', order: 4 },
+                { id: '5', name: '尾款支付', status: 'not_started', order: 5 },
+                { id: '6', name: '安排发货', status: 'not_started', order: 6 },
+                { id: '7', name: '收货确认', status: 'not_started', order: 7 }
+              ],
+              currentStage: shouldShowDepositPayment(request.id) ? 0 : 1, // 如果跳过定金，当前阶段为安排生产
+              overallProgress: 0
+            };
+            
+            const currentProgress = progress || defaultProgress;
+            const completedStages = currentProgress.stages.filter(s => s.status === 'completed').length;
+            const totalStages = currentProgress.stages.filter(s => s.status !== 'skipped').length;
+            const progressPercentage = totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0;
+            
+            return (
+              <div 
+                key={request.id} 
+                className={`bg-white rounded-lg shadow-sm border-2 transition-colors ${
+                  isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                } p-6`}
+              >
+                {/* Order Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => handleSelectOrder(request.id)}
+                      className="flex items-center"
+                    >
+                      {isSelected ? (
+                        <CheckSquare className="h-5 w-5 text-blue-600" />
+                      ) : (
+                        <Square className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                      )}
+                    </button>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {request.requestNumber}
+                    </h3>
+                    <StatusBadge
+                      status={allocation?.type === 'external' ? '厂家包装' : '自己包装'}
+                      color={allocation?.type === 'external' ? 'blue' : 'green'}
+                    />
+                    <StatusBadge
+                      status={isProcurementCompleted(request.id) ? '已完成' : '进行中'}
+                      color={isProcurementCompleted(request.id) ? 'green' : 'yellow'}
+                    />
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    {/* 纸卡类型、付款方式、定金金额字段 */}
+                    <div className="flex items-center space-x-6 text-sm">
+                      <div>
+                        <span className="text-gray-600">纸卡类型:</span>
+                        <span className="ml-2 font-medium text-gray-900">
+                          {allocation?.cardType === 'finished' ? '纸卡成品' :
+                           allocation?.cardType === 'design' ? '设计稿' :
+                           allocation?.cardType === 'none' ? '不需要' : '-'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">付款方式:</span>
+                        <span className="ml-2 font-medium text-gray-900">
+                          {allocation?.paymentMethod === 'payment_on_delivery' ? '付款发货' : 
+                           allocation?.paymentMethod === 'cash_on_delivery' ? '货到付款' : 
+                           allocation?.paymentMethod === 'credit_terms' ? '账期' : '-'}
+                        </span>
+                      </div>
+                      
+                      {/* 账期日期 */}
+                      {allocation?.creditDate && (
+                        <div>
+                          <span className="text-gray-600">账期:</span>
+                          <span className="ml-1 font-medium text-gray-900">
+                            {new Date(allocation.creditDate).toLocaleDateString('zh-CN')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* 右侧：金额和操作按钮 */}
+                    <div className="flex items-center space-x-4">
+                      {/* 定金金额字段 - 仅当定金金额大于0时显示 */}
+                      {allocation?.prepaymentAmount && allocation.prepaymentAmount > 0 && (
+                        <div>
+                          <span className="text-gray-600">定金金额:</span>
+                          <span className="ml-2 font-medium text-blue-600">
+                            ¥{allocation.prepaymentAmount.toLocaleString()}
+                          </span>
+                        </div>
                       )}
                     </div>
                     <div className="text-sm text-gray-600">
-                      {progressList.length} 个SKU
+                      <span className="font-medium">供应商:</span> {allocation?.supplierName || '未指定'}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium">总金额:</span> ¥{request.totalAmount.toLocaleString()}
                     </div>
                   </div>
+                </div>
 
-                  {/* Progress Table */}
+                {/* Overall Progress Bar */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">采购进度</span>
+                    <span className="text-sm text-gray-600">{progressPercentage}%</span>
+                  </div>
+                  <ProgressBar 
+                    progress={progressPercentage}
+                    color={progressPercentage === 100 ? 'green' : 'blue'}
+                  />
+                </div>
+
+                {/* SKU Table - Single Row per SKU */}
+                <div className="mb-6">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">采购项目</h4>
                   <div className="overflow-x-auto">
                     <table className="w-full border border-gray-200 rounded-lg">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="text-left py-3 px-4 font-medium text-gray-900 w-16">图片</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-900 w-32">SKU</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-900 w-40">产品名称</th>
-                          <th className="text-center py-3 px-4 font-medium text-gray-900 w-24">采购数量</th>
-                          {activeTab === 'in_progress' && (
-                            <th className="text-center py-3 px-4 font-medium text-gray-900 w-20">整体进度</th>
-                          )}
-                          <th className="text-center py-3 px-4 font-medium text-gray-900 w-24">供应商确认</th>
-                          <th className="text-center py-3 px-4 font-medium text-gray-900 w-24">定金支付</th>
-                          <th className="text-center py-3 px-4 font-medium text-gray-900 w-24">纸卡提供</th>
-                          <th className="text-center py-3 px-4 font-medium text-gray-900 w-24">生产制作</th>
-                          <th className="text-center py-3 px-4 font-medium text-gray-900 w-24">尾款支付</th>
-                          <th className="text-center py-3 px-4 font-medium text-gray-900 w-24">收货确认</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">图片</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">SKU</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">产品名称</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">采购数量</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">整体进度</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">定金支付</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">安排生产</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">纸卡提供</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">包装生产</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">尾款支付</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">安排发货</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">收货确认</th>
+                          {/* 厂家包装订单在进行中栏目显示到货数量列 */}
                           {activeTab === 'in_progress' && allocation?.type === 'external' && (
                             <th className="text-center py-3 px-4 font-medium text-gray-900 w-32">到货数量</th>
                           )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {progressList.map((progress) => {
-                          if (!progress || !progress.id) return null;
+                        {request.items.map((item) => {
+                          const cardProgress = cardProgressData.find(cp => 
+                            cp.purchaseRequestId === request.id && cp.skuId === item.skuId
+                          );
                           
-                          const sku = progress.sku;
-                          if (!sku || !sku.id) return null;
+                          // 计算单个SKU进度 - 如果SKU已完成则显示100%
+                          const skuProgressPercentage = isSKUCompleted(request.id, item.id) ? 100 : progressPercentage;
                           
-                          const stages = progress.stages || [];
+                          // 检查SKU是否应该显示在当前栏目
+                          const skuCompleted = isSKUCompleted(request.id, item.id);
+                          const shouldShowInCurrentTab = activeTab === 'completed' ? skuCompleted : !skuCompleted;
+                          
+                          // 如果SKU不应该在当前栏目显示，则跳过
+                          if (!shouldShowInCurrentTab) {
+                            return null;
+                          }
                           
                           return (
-                            <tr key={progress.id} className="hover:bg-gray-50">
+                            <tr key={item.id} className="hover:bg-gray-50">
                               {/* Product Image */}
                               <td className="py-4 px-4">
-                                {sku.imageUrl ? (
+                                {item.sku.imageUrl ? (
                                   <div className="relative group">
                                     <img 
-                                      src={sku.imageUrl} 
-                                      alt={sku.name || 'N/A'}
-                                      className="w-10 h-10 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
-                                      onClick={() => handleImageClick(sku.imageUrl!)}
+                                      src={item.sku.imageUrl} 
+                                      alt={item.sku.name}
+                                      className="w-12 h-12 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                                      onClick={() => handleImageClick(item.sku.imageUrl!)}
                                       onError={(e) => {
                                         e.currentTarget.style.display = 'none';
                                       }}
                                     />
                                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
-                                         onClick={() => handleImageClick(sku.imageUrl!)}>
+                                         onClick={() => handleImageClick(item.sku.imageUrl!)}>
                                       <ZoomIn className="h-3 w-3 text-white" />
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="w-10 h-10 bg-gradient-to-br from-gray-100 to-gray-200 rounded border flex items-center justify-center">
-                                    <Package className="h-5 w-5 text-gray-400" />
+                                  <div className="w-12 h-12 bg-gray-200 rounded border flex items-center justify-center">
+                                    <Package className="h-6 w-6 text-gray-400" />
                                   </div>
                                 )}
                               </td>
                               
                               {/* SKU Info */}
                               <td className="py-4 px-4">
-                                <div className="font-medium text-gray-900">{sku.code || 'N/A'}</div>
+                                <div className="font-medium text-gray-900">{item.sku.code}</div>
+                                <div className="text-xs text-gray-500">{item.sku.category}</div>
                               </td>
                               <td className="py-4 px-4">
-                                <div className="text-gray-900">{sku.name || 'N/A'}</div>
-                                <div className="text-xs text-gray-500">{sku.category || 'N/A'}</div>
+                                <div className="text-gray-900">{item.sku.name}</div>
+                                <div className="text-xs text-gray-500">{item.sku.englishName}</div>
                               </td>
                               
                               {/* Purchase Quantity */}
                               <td className="py-4 px-4 text-center">
                                 <span className="text-sm font-medium text-gray-900">
-                                  {(() => {
-                                    const item = request.items?.find(item => item?.skuId === sku.id);
-                                    return item?.quantity?.toLocaleString() || 0;
-                                  })()}
+                                  {item.quantity.toLocaleString()}
                                 </span>
                               </td>
                               
-                              {/* Overall Progress for In Progress */}
-                              {activeTab === 'in_progress' && (
-                                <td className="py-4 px-4 text-center">
-                                  <div className="flex flex-col items-center space-y-1">
-                                    <span className="text-sm font-bold text-blue-600">{progress.overallProgress || 0}%</span>
-                                    <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                                      <div 
-                                        className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
-                                        style={{ width: `${progress.overallProgress || 0}%` }}
-                                      />
-                                    </div>
+                              {/* Overall Progress */}
+                              <td className="py-4 px-4 text-center">
+                                <div className="flex flex-col items-center space-y-1">
+                                  <span className="text-sm font-bold text-blue-600">{skuProgressPercentage}%</span>
+                                  <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                                    <div 
+                                      className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+                                      style={{ width: `${skuProgressPercentage}%` }}
+                                    />
                                   </div>
-                                </td>
-                              )}
+                                </div>
+                              </td>
 
-                              {/* Stage Progress */}
-                              {['供应商确认', '定金支付', '纸卡提供', '生产制作', '尾款支付', '收货确认'].map((stageName) => {
-                                const stage = stages.find((s: any) => s?.name === stageName);
-                                const isCompleted = stage?.status === 'completed';
-                                const isSkipped = stage?.status === 'skipped';
+                              {/* Stage Status Columns */}
+                              {currentProgress.stages.map((stage) => {
+                                // 如果SKU已完成，所有阶段显示为已完成
+                                const effectiveStageStatus = skuCompleted ? 'completed' : stage.status;
+                                const effectiveCompletedDate = skuCompleted ? new Date() : stage.completedDate;
                                 
                                 return (
-                                  <td key={stageName} className="py-4 px-4 text-center">
+                                  <td key={stage.id} className="py-4 px-4 text-center">
                                     <div className="flex flex-col items-center space-y-2">
-                                      <StatusBadge
-                                        status={isCompleted ? '已完成' : isSkipped ? '已跳过' : '未完成'}
-                                        color={isCompleted ? 'green' : isSkipped ? 'gray' : 'yellow'}
-                                        size="sm"
-                                      />
-                                      {stage?.completedDate && (
+                                      <div className={`text-xs px-2 py-1 rounded-full ${
+                                        effectiveStageStatus === 'completed' ? 'bg-green-100 text-green-800' :
+                                        effectiveStageStatus === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                                        effectiveStageStatus === 'skipped' ? 'bg-blue-100 text-blue-800' :
+                                        'bg-gray-100 text-gray-800'
+                                      }`}>
+                                        {getStatusText(effectiveStageStatus)}
+                                      </div>
+                                      
+                                      {/* Completion Date */}
+                                      {effectiveCompletedDate && (
                                         <div className="text-xs text-gray-500">
-                                          {stage.completedDate.toLocaleDateString('zh-CN')}
+                                          {effectiveCompletedDate.toLocaleDateString('zh-CN')}
+                                        </div>
+                                      )}
+                                      
+                                      {/* SKU级别完成按钮 - 仅在收货确认节点且状态为进行中时显示 */}
+                                      {stage.name === '收货确认' && 
+                                       effectiveStageStatus === 'in_progress' && 
+                                       !skuCompleted &&
+                                       activeTab === 'in_progress' && (
+                                        <button
+                                          onClick={() => handleSKUComplete(request.id, item.id)}
+                                          className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium"
+                                        >
+                                          完成
+                                        </button>
+                                      )}
+                                      
+                                      {/* Remarks for auto-completed stages */}
+                                      {stage.remarks && (
+                                        <div className="text-xs text-blue-600" title={stage.remarks}>
+                                          自动跳过
                                         </div>
                                       )}
                                     </div>
                                   </td>
                                 );
                               })}
-
-                              {/* Arrival Quantity Input for External Packaging */}
+                              
+                              {/* 厂家包装订单的到货数量列 */}
                               {activeTab === 'in_progress' && allocation?.type === 'external' && (
                                 <td className="py-4 px-4 text-center">
                                   <div className="flex flex-col items-center space-y-2">
                                     <input
                                       type="number"
                                       min="0"
-                                      value={getInitialArrivalQuantity(progress.id, sku.id)}
-                                      onChange={(e) => handleArrivalQuantityChange(progress.id, sku.id, parseInt(e.target.value) || 0)}
-                                      className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                      value={getInitialArrivalQuantity(progress.id, item.id)}
+                                      onChange={(e) => handleArrivalQuantityChange(progress.id, item.id, parseInt(e.target.value) || 0)}
+                                      className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                                       placeholder="数量"
                                     />
-                                    {canPurchasingOfficer && (
+                                    {canSaveArrivalQuantity(progress, item) && (
                                       <button
-                                        onClick={() => handleSaveArrivalQuantity(progress.id, sku.id)}
-                                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                        onClick={() => {
+                                          const arrivalQuantity = getInitialArrivalQuantity(progress.id, item.id);
+                                          handleSaveArrivalQuantity(progress.id, item.id, arrivalQuantity);
+                                        }}
+                                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors ml-2"
                                       >
                                         保存
                                       </button>
@@ -521,107 +1243,231 @@ export const PurchaseProgress: React.FC = () => {
                               )}
                             </tr>
                           );
-                        })}
+                        }).filter(Boolean)}
+                        
+                        {/* Batch Complete Row */}
+                        {canEdit && activeTab === 'in_progress' && (
+                          <tr className="bg-gray-50">
+                            <td className="py-3 px-4 text-sm font-medium text-gray-700" colSpan={5}>
+                              批量操作
+                            </td>
+                            {/* 为每个节点创建对应的批量操作按钮 */}
+                            {currentProgress.stages.map((stage, stageIndex) => {
+
+                              // 检查是否可以操作此节点（前置节点必须已完成）
+                              const canOperateStage = () => {
+                                if (stageIndex === 0) return true; // 第一个节点总是可以操作
+                                
+                                // 检查前面所有节点是否都已完成或跳过
+                                for (let i = 0; i < stageIndex; i++) {
+                                  const prevStage = currentProgress.stages[i];
+                                  if (prevStage.status !== 'completed' && prevStage.status !== 'skipped') {
+                                    return false;
+                                  }
+                                }
+                                return true;
+                              };
+
+                              const isOperatable = canOperateStage();
+                              const isInProgress = stage.status === 'in_progress';
+                              const isCompleted = stage.status === 'completed' || stage.status === 'skipped';
+                              const showButton = isOperatable && !isCompleted;
+
+                              return (
+                                <td key={stage.id} className="py-3 px-4 text-center">
+                                  {isCompleted ? (
+                                    <span className="px-3 py-1.5 text-xs bg-green-100 text-green-800 rounded-full border border-green-200 font-medium">
+                                      已完成
+                                    </span>
+                                  ) : showButton ? (
+                                    <>
+                                      {/* 催付类按钮 */}
+                                      {stage.name === '定金支付' && (
+                                        <button
+                                          onClick={() => handlePaymentReminder('deposit', request.id)}
+                                          className="px-2 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors flex items-center space-x-1 mx-auto"
+                                        >
+                                          <Bell className="h-3 w-3" />
+                                          <span>催付定金</span>
+                                        </button>
+                                      )}
+                                      {stage.name === '纸卡提供' && (
+                                        <button
+                                          onClick={() => handleRequestCardDelivery(request.id)}
+                                          className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors flex items-center space-x-1 mx-auto"
+                                        >
+                                          <Bell className="h-3 w-3" />
+                                          <span>催要纸卡</span>
+                                        </button>
+                                      )}
+
+                                    
+                                      {stage.name === '尾款支付' && (
+                                        <button
+                                          onClick={() => handlePaymentReminder('final', request.id)}
+                                          className="px-2 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors flex items-center space-x-1 mx-auto"
+                                        >
+                                          <Bell className="h-3 w-3" />
+                                          <span>催付尾款</span>
+                                        </button>
+                                      )}
+                                      {/* 批量完成按钮 */}
+                                      {!['定金支付', '纸卡提供', '尾款支付'].includes(stage.name) && (
+                                        <button
+                                          onClick={() => handleCompleteStage(request.id, stage.name)}
+                                          className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                                        >
+                                          批量完成
+                                        </button>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded-full border border-gray-200 font-medium">
+                                      {!isOperatable ? '等待前置节点' : '未开始'}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            {/* 厂家包装订单的到货数量列不显示批量操作 */}
+                            {activeTab === 'in_progress' && allocation?.type === 'external' && (
+                              <td className="py-3 px-4 text-center">
+                                <span className="text-xs text-gray-500">-</span>
+                              </td>
+                            )}
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
+                </div>
 
-                  {/* Order Summary */}
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm flex-1">
-                        <div>
-                          <span className="text-gray-600">申请人:</span>
-                          <span className="ml-2 font-medium text-gray-900">{request.requester?.name || 'N/A'}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">总金额:</span>
-                          <span className="ml-2 font-medium text-gray-900">¥{request.totalAmount?.toLocaleString() || 0}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">创建时间:</span>
-                          <span className="ml-2 font-medium text-gray-900">
-                            {request.createdAt ? new Date(request.createdAt).toLocaleDateString('zh-CN') : '-'}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">订单状态:</span>
-                          <span className="ml-2">
-                            <StatusBadge
-                              status={orderCompleted ? '已完成' : '进行中'}
-                              color={orderCompleted ? 'green' : 'yellow'}
-                              size="sm"
-                            />
-                          </span>
-                        </div>
+                {/* 催付时间显示 - 参照纸卡催要样式，显示在订单右下角 */}
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm flex-1">
+                      <div>
+                        <span className="text-gray-600">申请人:</span>
+                        <span className="ml-2 font-medium text-gray-900">{request?.requester.name}</span>
                       </div>
+                      <div>
+                        <span className="text-gray-600">创建时间:</span>
+                        <span className="ml-2 font-medium text-gray-900">
+                          {request?.createdAt ? new Date(request.createdAt).toLocaleDateString('zh-CN') : '-'}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        <span className="font-medium">交货日期:</span> 
+                        {allocation?.deliveryDate ? new Date(allocation.deliveryDate).toLocaleDateString('zh-CN') : '-'}
+                      </div>
+                      {(() => {
+                        const cardReminderTime = getCardDeliveryReminderTime(request.id);
+                        const depositReminderTime = getPaymentReminderTime(request.id, 'deposit');
+                        const finalReminderTime = getPaymentReminderTime(request.id, 'final');
+                        
+                        // 显示纸卡催要时间
+                        if (cardReminderTime) {
+                          return (
+                            <div className="text-sm text-orange-600">
+                              <span className="font-medium">纸卡催要时间:</span> 
+                              {cardReminderTime.toLocaleDateString('zh-CN')} {cardReminderTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          );
+                        }
+                        
+                        // 显示定金催付时间（仅采购人员可见）
+                        if (user?.role === 'purchasing_officer' && depositReminderTime) {
+                          return (
+                            <div className="text-sm text-orange-600">
+                              <span className="font-medium">定金催付时间:</span> 
+                              {depositReminderTime.toLocaleDateString('zh-CN')} {depositReminderTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          );
+                        }
+                        
+                        // 显示尾款催付时间（仅采购人员可见）
+                        if (user?.role === 'purchasing_officer' && finalReminderTime) {
+                          return (
+                            <div className="text-sm text-orange-600">
+                              <span className="font-medium">尾款催付时间:</span> 
+                              {finalReminderTime.toLocaleDateString('zh-CN')} {finalReminderTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          );
+                        }
+                        
+                        return null;
+                      })()}
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Shortage Confirmation Dialog */}
-      {showShortageDialog && (
+      {/* Payment Reminder Modal */}
+      {showFinanceModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="border-b border-gray-200 px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {showFinanceModal.type === 'deposit' ? '催付定金' : '催付尾款'}
+              </h3>
+            </div>
+            
             <div className="p-6">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="flex-shrink-0">
-                  <AlertTriangle className="h-8 w-8 text-orange-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">到货数量少于采购计划</h3>
-                  <p className="text-sm text-gray-600 mt-1">剩余订单是否继续生产？</p>
-                </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  催付方式
+                </label>
+                <select
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="email">邮件</option>
+                  <option value="sms">短信</option>
+                  <option value="phone">电话</option>
+                </select>
               </div>
               
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <div className="grid grid-cols-3 gap-4 text-sm">
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-blue-600">
-                      {showShortageDialog.purchaseQuantity}
-                    </div>
-                    <div className="text-gray-600">采购计划</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-green-600">
-                      {showShortageDialog.arrivalQuantity}
-                    </div>
-                    <div className="text-gray-600">实际到货</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-red-600">
-                      {showShortageDialog.purchaseQuantity - showShortageDialog.arrivalQuantity}
-                    </div>
-                    <div className="text-gray-600">缺货数量</div>
-                  </div>
-                </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  催付备注
+                </label>
+                <textarea
+                  rows={3}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="请输入催付备注..."
+                />
               </div>
               
-              <div className="flex items-center justify-end space-x-3">
-                <button
-                  onClick={() => handleShortageConfirm(false)}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="text-center">
-                    <div className="font-medium">否</div>
-                    <div className="text-xs text-gray-500">以到货数量为准完成</div>
-                  </div>
-                </button>
-                <button
-                  onClick={() => handleShortageConfirm(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <div className="text-center">
-                    <div className="font-medium">是</div>
-                    <div className="text-xs">拆分订单继续生产</div>
-                  </div>
-                </button>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                  <span className="text-sm font-medium text-yellow-800">
+                    催付记录将自动同步至财务管理系统
+                  </span>
+                </div>
               </div>
+            </div>
+            
+            <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-end space-x-3">
+              <button
+                onClick={() => setShowFinanceModal(null)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  setNotificationMessage(`已发送${showFinanceModal.type === 'deposit' ? '定金' : '尾款'}催付通知`);
+                  setShowFinanceModal(null);
+                  setTimeout(() => setNotificationMessage(null), 3000);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                发送催付
+              </button>
             </div>
           </div>
         </div>
@@ -629,11 +1475,11 @@ export const PurchaseProgress: React.FC = () => {
 
       {/* Image Zoom Modal */}
       {zoomedImage && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-[60]">
-          <div className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center">
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50" onClick={() => setZoomedImage(null)}>
+          <div className="relative max-w-4xl max-h-full">
             <button
               onClick={() => setZoomedImage(null)}
-              className="absolute top-4 right-4 p-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full text-white transition-colors z-10"
+              className="absolute -top-10 right-0 text-white hover:text-gray-300 transition-colors"
             >
               <X className="h-6 w-6" />
             </button>
@@ -646,6 +1492,70 @@ export const PurchaseProgress: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 🎯 数量不足确认对话框 */}
+      {showShortageDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="flex-shrink-0">
+                  <AlertTriangle className="h-8 w-8 text-orange-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">到货数量少于采购计划</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    SKU: {showShortageDialog.skuCode}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">采购计划:</span>
+                    <div className="font-medium text-gray-900">{showShortageDialog.plannedQuantity.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">实际到货:</span>
+                    <div className="font-medium text-orange-600">{showShortageDialog.arrivedQuantity.toLocaleString()}</div>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-600">缺货数量:</span>
+                    <div className="font-medium text-red-600">
+                      {(showShortageDialog.plannedQuantity - showShortageDialog.arrivedQuantity).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <p className="text-gray-700 text-center">
+                  剩余订单是否继续生产？
+                </p>
+              </div>
+              
+              <div className="flex items-center justify-center space-x-4">
+                <button
+                  onClick={() => handleShortageConfirm(false)}
+                  className="px-6 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  否
+                  <div className="text-xs text-gray-500 mt-1">以到货数量为准完成</div>
+                </button>
+                <button
+                  onClick={() => handleShortageConfirm(true)}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  是
+                  <div className="text-xs text-blue-100 mt-1">拆分SKU继续生产</div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
     </>
   );
 };
