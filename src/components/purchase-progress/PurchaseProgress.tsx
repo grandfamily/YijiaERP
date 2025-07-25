@@ -573,7 +573,7 @@ export const PurchaseProgress: React.FC = () => {
 
   // 获取当前到货数量（编辑值或默认值）
   const getCurrentArrivalQuantity = (item: any): number => {
-    const progress = procurementProgressData.find(p => p.purchaseRequestId === item.purchaseRequestId);
+    const editingKey = `${item.id}-arrival`;
     if (editingArrivalQuantities[editingKey] !== undefined) {
       return editingArrivalQuantities[editingKey];
     }
