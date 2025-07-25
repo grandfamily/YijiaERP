@@ -58,35 +58,13 @@ export const PurchaseProgress: React.FC = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const [editingArrivalQuantities, setEditingArrivalQuantities] = useState<{[key: string]: number}>({});
   const [showShortageDialog, setShowShortageDialog] = useState<{
-    show: boolean;
     progressId: string;
     itemId: string;
+    skuCode: string;
     plannedQuantity: number;
-    arrivalQuantity: number;
+    arrivedQuantity: number;
   } | null>(null);
-
-  // 初始化到货数量为采购数量
-  const getInitialArrivalQuantity = (progressId: string, itemId: string): number => {
-    const key = `${progressId}-${itemId}`;
-    if (editingArrivalQuantities[key] !== undefined) {
-      return editingArrivalQuantities[key];
-    }
-    
-    // 查找对应的采购申请项目
-    const progress = procurementProgressData.find(p => p.id === progressId);
-    if (progress) {
-      const request = getRequestInfo(progress.purchaseRequestId);
-      if (request) {
-        const item = request.items.find(i => i.id === itemId);
-        if (item) {
-          return item.quantity; // 返回采购数量作为初始值
-        }
-      }
-    }
-    return 0;
-  };
 
   // 筛选状态
   const [filters, setFilters] = useState({
@@ -123,11 +101,6 @@ export const PurchaseProgress: React.FC = () => {
       }
     });
   }, [allocatedRequests, procurementProgressData]);
-
-  // 获取订单信息
-  const getRequestInfo = (requestId: string) => {
-    return allocatedRequests.find(r => r.id === requestId);
-  };
 
   // 获取订单分配信息
   const getOrderAllocation = (requestId: string): OrderAllocation | undefined => {
@@ -465,66 +438,46 @@ export const PurchaseProgress: React.FC = () => {
     return receiptStage && receiptStage.status === 'in_progress';
   };
 
-  // 处理保存到货数量
-  const handleSaveArrivalQuantity = async (progressId: string, itemId: string, arrivalQuantity?: number) => {
+  const handleSaveArrivalQuantity = async (requestId: string, itemId: string) => {
+    const arrivalQty = getArrivalQuantity(requestId, itemId);
+    const request = allocatedRequests.find(r => r.id === requestId);
+    const item = request?.items.find(i => i.id === itemId);
+    
+    if (!item) return;
+    
     try {
-      const finalArrivalQuantity = arrivalQuantity !== undefined ? arrivalQuantity : getInitialArrivalQuantity(progressId, itemId);
-      
-      // 获取对应的采购申请和项目信息
-      const progress = procurementProgressData.find(p => p.id === progressId);
-      if (!progress) return;
-      
-      const request = getRequestInfo(progress.purchaseRequestId);
-      if (!request) return;
-      
-      const item = request.items.find(i => i.id === itemId);
-      if (!item) return;
-      
-      console.log(`🎯 保存到货数量 - SKU: ${item.sku.code}, 采购数量: ${item.quantity}, 到货数量: ${finalArrivalQuantity}`);
-      
-      // 检查是否为厂家包装
-      const allocation = getOrderAllocation(progress.purchaseRequestId);
-      const isExternalPackaging = allocation?.type === 'external';
-      
-      if (isExternalPackaging) {
-        console.log(`🏭 厂家包装逻辑 - 到货数量: ${finalArrivalQuantity}, 采购数量: ${item.quantity}`);
+      if (arrivalQty >= item.quantity) {
+        // 到货数量 >= 采购数量，直接完成
+        const skuKey = `${requestId}-${itemId}`;
+        setCompletedSKUs(prev => new Set([...prev, skuKey]));
         
-        if (finalArrivalQuantity < item.quantity) {
-          // 到货数量少于采购数量，显示确认对话框
-          setShowShortageDialog({
-            show: true,
-            progressId,
-            itemId,
-            plannedQuantity: item.quantity,
-            arrivalQuantity: finalArrivalQuantity
-          });
-          return;
+        // 更新采购进度状态
+        await updateProcurementProgressStage(requestId, '收货确认', {
+          status: 'completed',
+          completedDate: new Date()
+        });
+        
+        alert('收货确认完成！SKU已移至已完成栏目。');
+      } else {
+        // 到货数量 < 采购数量，弹出确认对话框
+        const shouldContinue = window.confirm(
+          `实际到货数量(${arrivalQty})少于采购数量(${item.quantity})，剩余订单是否继续生产？\n\n点击"确定"继续生产剩余数量\n点击"取消"仅按实际数量完成`
+        );
+        
+        if (shouldContinue) {
+          // 选择继续生产：拆分SKU记录
+          alert(`SKU已拆分：\n- 已完成数量：${arrivalQty}\n- 剩余生产数量：${item.quantity - arrivalQty}`);
+          // TODO: 实现SKU拆分逻辑
+        } else {
+          // 选择不继续：按实际数量完成
+          const skuKey = `${requestId}-${itemId}`;
+          setCompletedSKUs(prev => new Set([...prev, skuKey]));
+          alert(`收货确认完成！按实际到货数量(${arrivalQty})完成。`);
         }
       }
-      
-      // 到货数量充足或非厂家包装，直接完成收货确认节点
-      await updateProcurementProgressStage(progressId, '收货确认', { 
-        status: 'completed',
-        completedDate: new Date(),
-        remarks: `到货数量: ${finalArrivalQuantity}`
-      });
-      
-      console.log(`✅ 收货确认完成 - SKU: ${item.sku.code}`);
-      
-      // 显示成功提示
-      setNotificationMessage('收货确认已完成！');
-      setTimeout(() => setNotificationMessage(null), 3000);
-      
-      // 清除编辑状态
-      setEditingArrivalQuantities(prev => {
-        const newState = { ...prev };
-        delete newState[`${progressId}-${itemId}`];
-        return newState;
-      });
-      
     } catch (error) {
       console.error('保存到货数量失败:', error);
-      alert('保存到货数量失败，请重试');
+      alert('保存失败，请重试');
     }
   };
 
@@ -1222,18 +1175,26 @@ export const PurchaseProgress: React.FC = () => {
                                     <input
                                       type="number"
                                       min="0"
-                                      value={getInitialArrivalQuantity(progress.id, item.id)}
-                                      onChange={(e) => handleArrivalQuantityChange(progress.id, item.id, parseInt(e.target.value) || 0)}
-                                      className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                                      placeholder="数量"
+                                      max={item.quantity}
+                                      value={getArrivalQuantity(request.id, item.id)}
+                                      onChange={(e) => handleArrivalQuantityChange(request.id, item.id, parseInt(e.target.value) || 0)}
+                                      className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                      placeholder="0"
                                     />
                                     {canSaveArrivalQuantity(progress, item) && (
                                       <button
                                         onClick={() => {
-                                          const arrivalQuantity = getInitialArrivalQuantity(progress.id, item.id);
-                                          handleSaveArrivalQuantity(progress.id, item.id, arrivalQuantity);
+                                          // 🎯 根据采购类型选择不同的保存逻辑
+                                          const allocation = getOrderAllocation(progress.request.id);
+                                          if (allocation?.type === 'external') {
+                                            // 厂家包装：使用新的智能流转逻辑
+                                            handleExternalPackagingSave(progress.id, item.id);
+                                          } else {
+                                            // 自己包装：保持原有逻辑
+                                            handleSaveArrivalQuantity(progress.id, item.id);
+                                          }
                                         }}
-                                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors ml-2"
+                                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                                       >
                                         保存
                                       </button>
