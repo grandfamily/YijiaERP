@@ -570,30 +570,6 @@ export const PurchaseProgress: React.FC = () => {
     }
   };
 
-  // 检查是否可以保存到货数量（厂家包装专用）
-  const canSaveArrivalQuantity = (requestId: string, itemId: string): boolean => {
-    const progress = procurementProgressData.find(p => p.purchaseRequestId === requestId);
-    if (!progress || !progress.stages) {
-      return false;
-    }
-    
-    const allocation = getOrderAllocation(requestId);
-    
-    // 只有厂家包装订单才显示到货数量功能
-    if (!allocation || allocation.type !== 'external') {
-      return false;
-    }
-    
-    // 检查收货确认节点是否为进行中
-    const receiptStage = progress.stages.find((stage: any) => stage.name === '收货确认');
-    
-    // 首先检查progress和stages是否存在
-    if (!progress || !progress.stages) {
-      return false;
-    }
-
-    return receiptStage && receiptStage.status === 'in_progress';
-  };
 
   const handleSaveArrivalQuantity = async (requestId: string, itemId: string) => {
     const arrivalQty = getArrivalQuantity(requestId, itemId);
