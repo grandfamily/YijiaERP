@@ -291,37 +291,21 @@ export const PurchaseProgress: React.FC = () => {
 
   // 检查SKU是否已完成
   const isSKUCompleted = (requestId: string, itemId: string): boolean => {
-    const skuProgress = skuLevelProgress[`${requestId}-${itemId}`];
-    return skuProgress?.isCompleted || false;
+    return skuLevelProgress[requestId]?.[itemId]?.completed || false;
   };
-  
-  // 处理自己包装SKU完成
-  const handleInHouseSKUComplete = async (requestId: string, itemId: string) => {
-    try {
-      console.log(`🎯 自己包装SKU完成: 订单${requestId}, SKU${itemId}`);
-      
-      // 更新SKU级别进度状态
-      setSkuLevelProgress(prev => ({
-        ...prev,
-        [`${requestId}-${itemId}`]: {
-          isCompleted: true,
-          completedDate: new Date(),
-          stageStatuses: {
-            '定金支付': 'completed',
-            '采购下单': 'completed', 
-            '生产制作': 'completed',
-            '质量检验': 'completed',
-            '收货确认': 'completed',
-            '尾款支付': 'completed'
-          }
+
+  // 处理自己包装的SKU完成
+  const handleInHouseSKUComplete = (requestId: string, itemId: string) => {
+    setSkuLevelProgress(prev => ({
+      ...prev,
+      [requestId]: {
+        ...prev[requestId],
+        [itemId]: {
+          ...prev[requestId]?.[itemId],
+          completed: true
         }
-      }));
-      
-      alert('SKU收货确认完成！该SKU已移至已完成栏目。');
-    } catch (error) {
-      console.error('SKU完成操作失败:', error);
-      alert('操作失败，请重试');
-    }
+      }
+    }));
   };
 
   // 处理到货数量保存
