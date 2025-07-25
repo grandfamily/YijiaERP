@@ -949,7 +949,8 @@ export const PurchaseProgress: React.FC = () => {
                           );
                         }).filter(Boolean)
                         
-                        {/* Batch Complete Row */}
+                        <>
+                          {/* Batch Complete Row */}
                         {canEdit && activeTab === 'in_progress' && (
                           <tr className="bg-gray-50">
                             <td className="py-3 px-4 text-sm font-medium text-gray-700" colSpan={5}>
@@ -1035,6 +1036,7 @@ export const PurchaseProgress: React.FC = () => {
                             })}
                           </tr>
                         )}
+                        </>
                       </tbody>
                     </table>
                   </div>
