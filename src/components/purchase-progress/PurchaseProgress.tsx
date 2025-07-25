@@ -54,17 +54,9 @@ export const PurchaseProgress: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
   const [showFinanceModal, setShowFinanceModal] = useState<{type: 'deposit' | 'final', requestId: string} | null>(null);
-  const [editingQuantities, setEditingQuantities] = useState<{[key: string]: number}>({});
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const [showShortageDialog, setShowShortageDialog] = useState<{
-    progressId: string;
-    itemId: string;
-    skuCode: string;
-    plannedQuantity: number;
-    arrivedQuantity: number;
-  } | null>(null);
 
   // 筛选状态
   const [filters, setFilters] = useState({
@@ -288,129 +280,6 @@ export const PurchaseProgress: React.FC = () => {
   const getArrivalQuantity = (requestId: string, itemId: string): number => {
     const key = `${requestId}-${itemId}`;
     return arrivalQuantities[key] ?? 0;
-  };
-
-  // 🎯 新增：处理厂家包装的保存逻辑
-  const handleExternalPackagingSave = async (progressId: string, itemId: string) => {
-    try {
-      const progress = allProcurementProgress.find(p => p.id === progressId);
-      if (!progress) return;
-
-      const item = progress.request?.items.find((i: any) => i.id === itemId);
-      if (!item) return;
-
-      const arrivedQuantity = editingQuantities[`${progressId}-${itemId}`] || 0;
-      const plannedQuantity = item.quantity;
-
-      console.log(`🎯 厂家包装保存逻辑 - SKU: ${item.sku.code}, 计划: ${plannedQuantity}, 到货: ${arrivedQuantity}`);
-
-      if (arrivedQuantity >= plannedQuantity) {
-        // 情况1：到货数量 ≥ 采购数量，直接完成
-        await handleCompleteStage(progressId, '收货确认');
-        console.log(`✅ 到货充足，SKU ${item.sku.code} 直接移入已完成`);
-      } else {
-        // 情况2：到货数量 < 采购数量，显示确认对话框
-        setShowShortageDialog({
-          progressId,
-          itemId,
-          skuCode: item.sku.code,
-          plannedQuantity,
-          arrivedQuantity
-        });
-      }
-    } catch (error) {
-      console.error('厂家包装保存失败:', error);
-      alert('保存失败，请重试');
-    }
-  };
-
-  // 🎯 处理数量不足的确认对话框
-  const handleShortageConfirm = async (continueProduction: boolean) => {
-    if (!showShortageDialog) return;
-
-    try {
-      const { progressId, itemId, skuCode, plannedQuantity, arrivedQuantity } = showShortageDialog;
-      
-      if (continueProduction) {
-        // 用户选择"是"：拆分SKU
-        console.log(`✂️ 拆分SKU ${skuCode}: 到货部分(${arrivedQuantity}) + 剩余部分(${plannedQuantity - arrivedQuantity})`);
-        
-        // 1. 创建到货部分的新SKU记录（移入已完成）
-        const progress = allProcurementProgress.find(p => p.id === progressId);
-        const originalItem = progress?.request?.items.find((i: any) => i.id === itemId);
-        
-        if (progress && originalItem) {
-          // 创建新的已完成SKU记录
-          const completedSKU = {
-            ...progress,
-            id: `${progressId}-completed-${Date.now()}`,
-            request: {
-              ...progress.request,
-              items: [{
-                ...originalItem,
-                id: `${itemId}-completed`,
-                quantity: arrivedQuantity
-              }]
-            },
-            stages: progress.stages.map((stage: any) => ({
-              ...stage,
-              status: stage.name === '收货确认' ? 'completed' : stage.status,
-              completedDate: stage.name === '收货确认' ? new Date() : stage.completedDate
-            })),
-            overallProgress: 100
-          };
-          
-          // 2. 更新原SKU为剩余数量（保持在进行中）
-          await updateProcurementProgressStage(progressId, '收货确认', {
-            status: 'in_progress', // 保持进行中状态
-            arrivedQuantity: 0, // 重置到货数量
-            remarks: `已拆分：到货${arrivedQuantity}件已完成，剩余${plannedQuantity - arrivedQuantity}件继续生产`
-          });
-          
-          // 更新原订单项目数量为剩余数量
-          const updatedItems = progress.request.items.map((i: any) => 
-            i.id === itemId ? { ...i, quantity: plannedQuantity - arrivedQuantity } : i
-          );
-          
-          await updatePurchaseRequest(progress.request.id, {
-            items: updatedItems
-          });
-          
-          console.log(`✅ SKU拆分完成：${skuCode} 到货部分已完成，剩余部分继续生产`);
-        }
-      } else {
-        // 用户选择"否"：以到货数量为准，完成订单
-        console.log(`🚚 以到货数量为准，SKU ${skuCode} 完成订单`);
-        
-        // 更新订单项目数量为实际到货数量
-        const progress = allProcurementProgress.find(p => p.id === progressId);
-        if (progress) {
-          const updatedItems = progress.request.items.map((i: any) => 
-            i.id === itemId ? { ...i, quantity: arrivedQuantity } : i
-          );
-          
-          await updatePurchaseRequest(progress.request.id, {
-            items: updatedItems
-          });
-        }
-        
-        // 完成收货确认节点
-        await handleCompleteStage(progressId, '收货确认');
-        console.log(`✅ SKU ${skuCode} 以实际到货数量完成`);
-      }
-      
-      // 清空编辑状态
-      setEditingQuantities(prev => {
-        const newState = { ...prev };
-        delete newState[`${progressId}-${itemId}`];
-        return newState;
-      });
-      
-      setShowShortageDialog(null);
-    } catch (error) {
-      console.error('处理数量不足确认失败:', error);
-      alert('操作失败，请重试');
-    }
   };
 
   // 检查是否可以保存到货数量（厂家包装专用）
@@ -1181,24 +1050,18 @@ export const PurchaseProgress: React.FC = () => {
                                       className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                       placeholder="0"
                                     />
-                                    {canSaveArrivalQuantity(progress, item) && (
-                                      <button
-                                        onClick={() => {
-                                          // 🎯 根据采购类型选择不同的保存逻辑
-                                          const allocation = getOrderAllocation(progress.request.id);
-                                          if (allocation?.type === 'external') {
-                                            // 厂家包装：使用新的智能流转逻辑
-                                            handleExternalPackagingSave(progress.id, item.id);
-                                          } else {
-                                            // 自己包装：保持原有逻辑
-                                            handleSaveArrivalQuantity(progress.id, item.id);
-                                          }
-                                        }}
-                                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                                      >
-                                        保存
-                                      </button>
-                                    )}
+                                    <button
+                                      onClick={() => handleSaveArrivalQuantity(request.id, item.id)}
+                                      disabled={!canSaveArrivalQuantity(request.id, item.id)}
+                                      className={`flex items-center space-x-1 px-2 py-1 text-xs rounded transition-colors ${
+                                        canSaveArrivalQuantity(request.id, item.id)
+                                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                      }`}
+                                    >
+                                      <Save className="h-3 w-3" />
+                                      <span>保存</span>
+                                    </button>
                                   </div>
                                 </td>
                               )}
@@ -1450,69 +1313,6 @@ export const PurchaseProgress: React.FC = () => {
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
               onClick={() => setZoomedImage(null)}
             />
-          </div>
-        </div>
-      )}
-
-      {/* 🎯 数量不足确认对话框 */}
-      {showShortageDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="flex-shrink-0">
-                  <AlertTriangle className="h-8 w-8 text-orange-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">到货数量少于采购计划</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    SKU: {showShortageDialog.skuCode}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">采购计划:</span>
-                    <div className="font-medium text-gray-900">{showShortageDialog.plannedQuantity.toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">实际到货:</span>
-                    <div className="font-medium text-orange-600">{showShortageDialog.arrivedQuantity.toLocaleString()}</div>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-gray-600">缺货数量:</span>
-                    <div className="font-medium text-red-600">
-                      {(showShortageDialog.plannedQuantity - showShortageDialog.arrivedQuantity).toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <p className="text-gray-700 text-center">
-                  剩余订单是否继续生产？
-                </p>
-              </div>
-              
-              <div className="flex items-center justify-center space-x-4">
-                <button
-                  onClick={() => handleShortageConfirm(false)}
-                  className="px-6 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  否
-                  <div className="text-xs text-gray-500 mt-1">以到货数量为准完成</div>
-                </button>
-                <button
-                  onClick={() => handleShortageConfirm(true)}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  是
-                  <div className="text-xs text-blue-100 mt-1">拆分SKU继续生产</div>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}
