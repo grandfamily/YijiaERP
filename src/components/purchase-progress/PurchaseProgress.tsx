@@ -296,20 +296,8 @@ export const PurchaseProgress: React.FC = () => {
       return false;
     }
     
-    // 检查前置6个节点是否都已完成
-    const requiredStages = ['定金支付', '安排生产', '纸卡提供', '包装生产', '尾款支付', '安排发货'];
-    const completedStages = progress.stages.filter((stage: any) => 
-      requiredStages.includes(stage.name) && (stage.status === 'completed' || stage.status === 'skipped')
-    );
-    
     // 检查收货确认节点是否为进行中
     const receiptStage = progress.stages.find((stage: any) => stage.name === '收货确认');
-    const isReceiptInProgress = receiptStage && receiptStage.status === 'in_progress';
-    
-    return completedStages.length === 6 && isReceiptInProgress;
-  };
-
-  // 检查是否可以保存到货数量
   // 处理保存到货数量
     // 首先检查progress和stages是否存在
     if (!progress || !progress.stages) {
