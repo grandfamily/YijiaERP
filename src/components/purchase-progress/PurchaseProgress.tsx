@@ -947,10 +947,7 @@ export const PurchaseProgress: React.FC = () => {
                               })}
                             </tr>
                           );
-                        })}
-                        
-                        {/* 过滤掉null值，确保表格渲染正常 */}
-                        ).filter(Boolean)}
+                        }).filter(Boolean)
                         
                         {/* Batch Complete Row */}
                         {canEdit && activeTab === 'in_progress' && (
