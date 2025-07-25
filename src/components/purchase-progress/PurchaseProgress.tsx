@@ -282,28 +282,22 @@ export const PurchaseProgress: React.FC = () => {
     return arrivalQuantities[key] ?? 0;
   };
 
-  // 检查是否可以保存到货数量（厂家包装专用）
-  const canSaveArrivalQuantity = (requestId: string, itemId: string): boolean => {
-    const progress = procurementProgressData.find(p => p.purchaseRequestId === requestId);
-    if (!progress || !progress.stages) {
-      return false;
-    }
-    
-    const allocation = getOrderAllocation(requestId);
-    
-    // 只有厂家包装订单才显示到货数量功能
-    if (!allocation || allocation.type !== 'external') {
-      return false;
-    }
+  // 检查是否可以保存到货数量
+  const canSaveArrivalQuantity = (progress: any, item: any): boolean => {
+    // 检查前置6个节点是否都已完成
+    const requiredStages = ['定金支付', '安排生产', '纸卡提供', '包装生产', '尾款支付', '安排发货'];
+    const completedStages = progress.stages.filter((stage: any) => 
+      requiredStages.includes(stage.name) && stage.status === 'completed'
+    );
     
     // 检查收货确认节点是否为进行中
     const receiptStage = progress.stages.find((stage: any) => stage.name === '收货确认');
-  // 处理保存到货数量
-    // 首先检查progress和stages是否存在
-    if (!progress || !progress.stages) {
-      return false;
-    }
+    const isReceiptInProgress = receiptStage && receiptStage.status === 'in_progress';
+    
+    return completedStages.length === 6 && isReceiptInProgress;
+  };
 
+  // 处理保存到货数量
   const handleSaveArrivalQuantity = async (requestId: string, itemId: string) => {
     const arrivalQty = getArrivalQuantity(requestId, itemId);
     const request = getRequestInfo(requestId);
@@ -367,7 +361,7 @@ export const PurchaseProgress: React.FC = () => {
   // 检查纸卡是否已完成
   function isCardProgressCompleted(requestId: string): boolean {
     const cardProgress = cardProgressData.filter(cp => cp.purchaseRequestId === requestId);
-    const completedStages = progress.stages?.filter((stage: any) =>
+    return cardProgress.length > 0 && cardProgress.every(cp => 
       cp.stages.every(stage => stage.status === 'completed')
     );
   }
@@ -553,23 +547,9 @@ export const PurchaseProgress: React.FC = () => {
   // 获取统计数据
   const getTabStats = () => {
     const inProgress = allocatedRequests.filter(r => !isProcurementCompleted(r.id)).length;
-    const receivingStage = progress.stages?.find((stage: any) => stage.name === '收货确认');
+    const completed = allocatedRequests.filter(r => isProcurementCompleted(r.id)).length;
     
-    // 修复逻辑：前6个节点完成 且 收货确认节点为进行中
-    const allRequiredCompleted = completedStages?.length === 6;
-    const receivingInProgress = receivingStage?.status === 'in_progress';
-    
-    console.log('🔍 保存按钮激活检查:', {
-      itemSku: item?.sku?.code,
-      completedStagesCount: completedStages?.length,
-      requiredStagesCount: 6,
-      receivingStageStatus: receivingStage?.status,
-      allRequiredCompleted,
-      receivingInProgress,
-      canSave: allRequiredCompleted && receivingInProgress
-    });
-    
-    return allRequiredCompleted && receivingInProgress;
+    return { inProgress, completed };
   };
 
   const tabStats = getTabStats();
