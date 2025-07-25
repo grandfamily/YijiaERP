@@ -58,6 +58,11 @@ export const PurchaseProgress: React.FC = () => {
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
+  // 新增：SKU级别状态管理
+  const [skuLevelProgress, setSkuLevelProgress] = useState<{[key: string]: {[itemId: string]: {completed: boolean, arrivalQuantity?: number}}}>({}); 
+  const [editingArrivalQuantity, setEditingArrivalQuantity] = useState<{[key: string]: number}>({});
+  const [showSplitConfirmation, setShowSplitConfirmation] = useState<{requestId: string, itemId: string, arrivalQuantity: number} | null>(null);
+
   // 筛选状态
   const [filters, setFilters] = useState({
     purchaseType: 'all' as PurchaseTypeFilter,
