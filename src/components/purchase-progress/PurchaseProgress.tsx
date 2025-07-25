@@ -288,6 +288,50 @@ export const PurchaseProgress: React.FC = () => {
   const handleImageClick = (imageUrl: string) => {
     setZoomedImage(imageUrl);
   };
+
+  // 检查SKU是否已完成
+  const isSKUCompleted = (requestId: string, itemId: string): boolean => {
+    return skuLevelProgress[requestId]?.[itemId]?.completed || false;
+  };
+
+  // 处理自己包装的SKU完成
+  const handleInHouseSKUComplete = (requestId: string, itemId: string) => {
+    setSkuLevelProgress(prev => ({
+      ...prev,
+      [requestId]: {
+        ...prev[requestId],
+        [itemId]: {
+          ...prev[requestId]?.[itemId],
+          completed: true
+        }
+      }
+    }));
+  };
+
+  // 处理到货数量保存
+  const handleSaveArrivalQuantity = (requestId: string, itemId: string, arrivalQuantity: number, totalQuantity: number) => {
+    if (arrivalQuantity < totalQuantity) {
+      setShowSplitConfirmation({ requestId, itemId, arrivalQuantity });
+    } else {
+      // 全部到货，直接完成
+      setSkuLevelProgress(prev => ({
+        ...prev,
+        [requestId]: {
+          ...prev[requestId],
+          [itemId]: {
+            completed: true,
+            arrivalQuantity
+          }
+        }
+      }));
+      setEditingArrivalQuantity(prev => {
+        const newState = { ...prev };
+        delete newState[`${requestId}-${itemId}`];
+        return newState;
+      });
+    }
+  };
+
   // 处理阶段完成
   const handleCompleteStage = async (requestId: string, stageName: string) => {
     try {
@@ -858,38 +902,127 @@ export const PurchaseProgress: React.FC = () => {
                                   </div>
                                 </div>
                               </td>
-
+                              
                               {/* Stage Status Columns */}
-                              {currentProgress.stages.map((stage) => {
+                              {currentProgress.stages.map((stage, stageIndex) => {
                                 return (
                                   <td key={stage.id} className="py-4 px-4 text-center">
-                                    <div className="flex flex-col items-center space-y-2">
-                                      <div className={`text-xs px-2 py-1 rounded-full ${
-                                        stage.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                        stage.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                                        stage.status === 'skipped' ? 'bg-blue-100 text-blue-800' :
-                                        'bg-gray-100 text-gray-800'
-                                      }`}>
-                                        {getStatusText(stage.status)}
+                                    {stage.name === '收货确认' ? (
+                                      // 收货确认节点特殊处理
+                                      <div className="flex flex-col items-center space-y-2">
+                                        <div className={`text-xs px-2 py-1 rounded-full ${
+                                          isSKUCompleted(request.id, item.id) ? 'bg-green-100 text-green-800' :
+                                          stage.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                                          'bg-gray-100 text-gray-800'
+                                        }`}>
+                                          {isSKUCompleted(request.id, item.id) ? '已完成' : getStatusText(stage.status)}
+                                        </div>
+                                        
+                                        {/* Completion Date */}
+                                        {stage.completedDate && (
+                                          <div className="text-xs text-gray-500">
+                                            {stage.completedDate.toLocaleDateString('zh-CN')}
+                                          </div>
+                                        )}
+                                        
+                                        {/* Remarks for auto-completed stages */}
+                                        {stage.remarks && (
+                                          <div className="text-xs text-blue-600" title={stage.remarks}>
+                                            自动跳过
+                                          </div>
+                                        )}
                                       </div>
-                                      
-                                      {/* Completion Date */}
-                                      {stage.completedDate && (
-                                        <div className="text-xs text-gray-500">
-                                          {stage.completedDate.toLocaleDateString('zh-CN')}
+                                    ) : (
+                                      // 其他节点保持原有显示逻辑
+                                      <div className="flex flex-col items-center space-y-2">
+                                        <div className={`text-xs px-2 py-1 rounded-full ${
+                                          stage.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                          stage.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                                          stage.status === 'skipped' ? 'bg-blue-100 text-blue-800' :
+                                          'bg-gray-100 text-gray-800'
+                                        }`}>
+                                          {getStatusText(stage.status)}
                                         </div>
-                                      )}
-                                      
-                                      {/* Remarks for auto-completed stages */}
-                                      {stage.remarks && (
-                                        <div className="text-xs text-blue-600" title={stage.remarks}>
-                                          自动跳过
-                                        </div>
-                                      )}
-                                    </div>
+                                        
+                                        {/* 自己包装：显示完成按钮 */}
+                                        {allocation?.type === 'in_house' && 
+                                         stage.status === 'in_progress' && 
+                                         !isSKUCompleted(request.id, item.id) && (
+                                          <button
+                                            onClick={() => handleInHouseSKUComplete(request.id, item.id)}
+                                            className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                                          >
+                                            完成
+                                          </button>
+                                        )}
+                                        
+                                        {/* 完成日期显示 */}
+                                        {(stage.completedDate || isSKUCompleted(request.id, item.id)) && (
+                                          <div className="text-xs text-gray-500">
+                                            {stage.completedDate ? 
+                                              stage.completedDate.toLocaleDateString('zh-CN') :
+                                              new Date().toLocaleDateString('zh-CN')
+                                            }
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </td>
                                 );
                               })}
+                              
+                              {/* 厂家包装：新增到货数量列 */}
+                              {allocation?.type === 'external' && (
+                                <td className="py-4 px-4 text-center">
+                                  <div className="flex flex-col items-center space-y-2">
+                                    {editingArrivalQuantity[`${request.id}-${item.id}`] !== undefined ? (
+                                      // 编辑模式
+                                      <div className="flex items-center space-x-2">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max={item.quantity}
+                                          value={editingArrivalQuantity[`${request.id}-${item.id}`]}
+                                          onChange={(e) => setEditingArrivalQuantity(prev => ({
+                                            ...prev,
+                                            [`${request.id}-${item.id}`]: parseInt(e.target.value) || 0
+                                          }))}
+                                          className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                                        />
+                                        <button
+                                          onClick={() => handleSaveArrivalQuantity(
+                                            request.id, 
+                                            item.id, 
+                                            editingArrivalQuantity[`${request.id}-${item.id}`], 
+                                            item.quantity
+                                          )}
+                                          className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                        >
+                                          保存
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      // 显示模式
+                                      <div className="flex flex-col items-center space-y-1">
+                                        <span className="text-sm font-medium text-gray-900">
+                                          {skuLevelProgress[request.id]?.[item.id]?.arrivalQuantity || item.quantity}
+                                        </span>
+                                        {!isSKUCompleted(request.id, item.id) && (
+                                          <button
+                                            onClick={() => setEditingArrivalQuantity(prev => ({
+                                              ...prev,
+                                              [`${request.id}-${item.id}`]: skuLevelProgress[request.id]?.[item.id]?.arrivalQuantity || item.quantity
+                                            }))}
+                                            className="px-2 py-1 text-xs text-blue-600 border border-blue-600 rounded hover:bg-blue-50 transition-colors"
+                                          >
+                                            编辑
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              )}
                             </tr>
                           );
                         })}
@@ -966,12 +1099,12 @@ export const PurchaseProgress: React.FC = () => {
                                           onClick={() => handleCompleteStage(request.id, stage.name)}
                                           className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                                         >
-                                          批量完成
+                                          完成
                                         </button>
                                       )}
                                     </>
                                   ) : (
-                                    <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded-full border border-gray-200 font-medium">
+                                    <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-600 rounded-full border border-gray-200 font-medium">
                                       {!isOperatable ? '等待前置节点' : '未开始'}
                                     </span>
                                   )}
@@ -1116,6 +1249,66 @@ export const PurchaseProgress: React.FC = () => {
         </div>
       )}
 
+      {/* Split Confirmation Modal */}
+      {showSplitConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="border-b border-gray-200 px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                确认分批到货
+              </h3>
+            </div>
+            
+            <div className="p-6">
+              <p className="text-gray-700 mb-4">
+                到货数量少于采购数量，是否确认分批到货？
+              </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="text-sm text-blue-800">
+                  <div>到货数量: {showSplitConfirmation.arrivalQuantity}</div>
+                  <div>剩余数量: {request.items.find(item => item.id === showSplitConfirmation.itemId)?.quantity - showSplitConfirmation.arrivalQuantity}</div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-end space-x-3">
+              <button
+                onClick={() => setShowSplitConfirmation(null)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  // 确认分批到货
+                  setSkuLevelProgress(prev => ({
+                    ...prev,
+                    [showSplitConfirmation.requestId]: {
+                      ...prev[showSplitConfirmation.requestId],
+                      [showSplitConfirmation.itemId]: {
+                        completed: false, // 部分到货，未完成
+                        arrivalQuantity: showSplitConfirmation.arrivalQuantity
+                      }
+                    }
+                  }));
+                  setEditingArrivalQuantity(prev => {
+                    const newState = { ...prev };
+                    delete newState[`${showSplitConfirmation.requestId}-${showSplitConfirmation.itemId}`];
+                    return newState;
+                  });
+                  setShowSplitConfirmation(null);
+                  setNotificationMessage('已确认分批到货');
+                  setTimeout(() => setNotificationMessage(null), 3000);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                确认分批到货
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Image Zoom Modal */}
       {zoomedImage && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50" onClick={() => setZoomedImage(null)}>
@@ -1132,66 +1325,6 @@ export const PurchaseProgress: React.FC = () => {
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
               onClick={() => setZoomedImage(null)}
             />
-          </div>
-        </div>
-      )}
-
-      {/* SKU拆分确认对话框 */}
-      {showSplitConfirmation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="border-b border-gray-200 px-6 py-4">
-              <h3 className="text-lg font-semibold text-gray-900">收货数量确认</h3>
-            </div>
-            
-            <div className="p-6">
-              <div className="mb-4">
-                <p className="text-sm text-gray-700 mb-2">
-                  实际到货数量（{showSplitConfirmation.arrivalQuantity}）小于采购数量，剩余订单是否继续生产？
-                </p>
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                  <div className="text-sm text-yellow-800">
-                    <div>采购数量：{(() => {
-                      const request = allocatedRequests.find(r => r.id === showSplitConfirmation.requestId);
-                      const item = request?.items.find(i => i.id === showSplitConfirmation.itemId);
-                      return item?.quantity || 0;
-                    })()}</div>
-                    <div>到货数量：{showSplitConfirmation.arrivalQuantity}</div>
-                    <div>剩余数量：{(() => {
-                      const request = allocatedRequests.find(r => r.id === showSplitConfirmation.requestId);
-                      const item = request?.items.find(i => i.id === showSplitConfirmation.itemId);
-                      return (item?.quantity || 0) - showSplitConfirmation.arrivalQuantity;
-                    })()}</div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="text-sm text-gray-600 mb-4">
-                <p><strong>选择"是"</strong>：将按到货数量完成部分订单，剩余数量继续保留在进行中</p>
-                <p><strong>选择"否"</strong>：按实际到货数量完成整个SKU订单</p>
-              </div>
-            </div>
-            
-            <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-end space-x-3">
-              <button
-                onClick={() => setShowSplitConfirmation(null)}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={() => handleSplitConfirmation(false)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                否
-              </button>
-              <button
-                onClick={() => handleSplitConfirmation(true)}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                是
-              </button>
-            </div>
           </div>
         </div>
       )}
