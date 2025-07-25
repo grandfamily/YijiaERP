@@ -570,6 +570,68 @@ export const PurchaseProgress: React.FC = () => {
     }
   };
 
+
+  const handleSaveArrivalQuantity = async (requestId: string, itemId: string) => {
+    const arrivalQty = getArrivalQuantity(requestId, itemId);
+    const request = allocatedRequests.find(r => r.id === requestId);
+    const item = request?.items.find(i => i.id === itemId);
+    
+    if (!item) return;
+    
+    try {
+      if (arrivalQty >= item.quantity) {
+        // 到货数量 >= 采购数量，直接完成
+        const skuKey = `${requestId}-${itemId}`;
+        setCompletedSKUs(prev => new Set([...prev, skuKey]));
+        
+        // 更新采购进度状态
+        await updateProcurementProgressStage(requestId, '收货确认', {
+          status: 'completed',
+          completedDate: new Date()
+        });
+        
+        alert('收货确认完成！SKU已移至已完成栏目。');
+      } else {
+        // 到货数量 < 采购数量，弹出确认对话框
+        const shouldContinue = window.confirm(
+          `实际到货数量(${arrivalQty})少于采购数量(${item.quantity})，剩余订单是否继续生产？\n\n点击"确定"继续生产剩余数量\n点击"取消"仅按实际数量完成`
+        );
+        
+        if (shouldContinue) {
+          // 选择继续生产：拆分SKU记录
+          alert(`SKU已拆分：\n- 已完成数量：${arrivalQty}\n- 剩余生产数量：${item.quantity - arrivalQty}`);
+          // TODO: 实现SKU拆分逻辑
+        } else {
+          // 选择不继续：按实际数量完成
+          const skuKey = `${requestId}-${itemId}`;
+          setCompletedSKUs(prev => new Set([...prev, skuKey]));
+          alert(`收货确认完成！按实际到货数量(${arrivalQty})完成。`);
+        }
+      }
+    } catch (error) {
+      console.error('保存到货数量失败:', error);
+      alert('保存失败，请重试');
+    }
+  };
+
+  // 获取订单的采购进度
+  function getRequestProgress(requestId: string): ProcurementProgress | undefined {
+    return procurementProgressData.find(p => p.purchaseRequestId === requestId);
+  }
+
+  // 检查是否需要显示定金支付节点
+  function shouldShowDepositPayment(requestId: string): boolean {
+    const allocation = getOrderAllocation(requestId);
+    if (!allocation) return false;
+    
+    // 如果是账期付款或定金为0，则不需要显示定金支付节点
+    const isCreditTerms = allocation.paymentMethod === 'credit_terms';
+    const isZeroDeposit = (allocation.prepaymentAmount || 0) === 0;
+    
+    return !(isCreditTerms || isZeroDeposit);
+  }
+
+  // 检查纸卡是否已完成
   function isCardProgressCompleted(requestId: string): boolean {
     const cardProgress = cardProgressData.filter(cp => cp.purchaseRequestId === requestId);
     return cardProgress.every(cp => cp.stages.every(stage => stage.status === 'completed'));
