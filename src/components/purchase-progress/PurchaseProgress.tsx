@@ -67,7 +67,6 @@ export const PurchaseProgress: React.FC = () => {
 
   // SKU级别完成状态管理
   const [completedSKUs, setCompletedSKUs] = useState<Set<string>>(new Set());
-  const [arrivalQuantities, setArrivalQuantities] = useState<{[key: string]: number}>({});
 
   // 获取已分配的订单
   const { data: allocatedRequests } = getPurchaseRequests(
@@ -907,10 +906,6 @@ export const PurchaseProgress: React.FC = () => {
                           <th className="text-center py-3 px-4 font-medium text-gray-900">尾款支付</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">安排发货</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">收货确认</th>
-                          {/* 厂家包装订单在进行中栏目显示到货数量列 */}
-                          {activeTab === 'in_progress' && allocation?.type === 'external' && (
-                            <th className="text-center py-3 px-4 font-medium text-gray-900 w-32">到货数量</th>
-                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -1036,35 +1031,6 @@ export const PurchaseProgress: React.FC = () => {
                                   </td>
                                 );
                               })}
-                              
-                              {/* 厂家包装订单的到货数量列 */}
-                              {activeTab === 'in_progress' && allocation?.type === 'external' && (
-                                <td className="py-4 px-4 text-center">
-                                  <div className="flex flex-col items-center space-y-2">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max={item.quantity}
-                                      value={getArrivalQuantity(request.id, item.id)}
-                                      onChange={(e) => handleArrivalQuantityChange(request.id, item.id, parseInt(e.target.value) || 0)}
-                                      className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                      placeholder="0"
-                                    />
-                                    <button
-                                      onClick={() => handleSaveArrivalQuantity(request.id, item.id)}
-                                      disabled={!canSaveArrivalQuantity(request.id, item.id)}
-                                      className={`flex items-center space-x-1 px-2 py-1 text-xs rounded transition-colors ${
-                                        canSaveArrivalQuantity(request.id, item.id)
-                                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                      }`}
-                                    >
-                                      <Save className="h-3 w-3" />
-                                      <span>保存</span>
-                                    </button>
-                                  </div>
-                                </td>
-                              )}
                             </tr>
                           );
                         }).filter(Boolean)}
@@ -1153,12 +1119,6 @@ export const PurchaseProgress: React.FC = () => {
                                 </td>
                               );
                             })}
-                            {/* 厂家包装订单的到货数量列不显示批量操作 */}
-                            {activeTab === 'in_progress' && allocation?.type === 'external' && (
-                              <td className="py-3 px-4 text-center">
-                                <span className="text-xs text-gray-500">-</span>
-                              </td>
-                            )}
                           </tr>
                         )}
                       </tbody>
