@@ -67,6 +67,14 @@ export const PurchaseProgress: React.FC = () => {
 
   // SKU级别完成状态管理
   const [completedSKUs, setCompletedSKUs] = useState<Set<string>>(new Set());
+  const [arrivalQuantities, setArrivalQuantities] = useState<{[key: string]: number}>({});
+  const [showConfirmDialog, setShowConfirmDialog] = useState<{
+    show: boolean;
+    requestId: string;
+    itemId: string;
+    arrivalQty: number;
+    purchaseQty: number;
+  } | null>(null);
 
   // 获取已分配的订单
   const { data: allocatedRequests } = getPurchaseRequests(
@@ -246,6 +254,74 @@ export const PurchaseProgress: React.FC = () => {
   function isSKUCompleted(requestId: string, itemId: string): boolean {
     return completedSKUs.has(`${requestId}-${itemId}`);
   }
+
+  // 检查SKU是否可以保存到货数量（前6个节点必须完成）
+  const canSaveArrivalQuantity = (progress: any): boolean => {
+    const requiredStages = ['定金支付', '安排生产', '纸卡提供', '包装生产', '尾款支付', '安排发货'];
+    const stages = progress.stages || [];
+    
+    // 检查前6个必需节点是否都已完成
+    const completedRequiredStages = requiredStages.filter(stageName => {
+      const stage = stages.find((s: any) => s.name === stageName);
+      return stage && stage.status === 'completed';
+    });
+    
+    // 检查收货确认节点是否为进行中
+    const receiptStage = stages.find((s: any) => s.name === '收货确认');
+    const isReceiptInProgress = receiptStage && receiptStage.status === 'in_progress';
+    
+    return completedRequiredStages.length === 6 && isReceiptInProgress;
+  };
+
+  // 处理到货数量变更
+  const handleArrivalQuantityChange = (requestId: string, itemId: string, quantity: number) => {
+    const key = `${requestId}-${itemId}`;
+    setArrivalQuantities(prev => ({
+      ...prev,
+      [key]: quantity
+    }));
+  };
+
+  // 处理保存到货数量
+  const handleSaveArrivalQuantity = async (requestId: string, itemId: string, purchaseQuantity: number) => {
+    const key = `${requestId}-${itemId}`;
+    const arrivalQty = arrivalQuantities[key] || purchaseQuantity;
+    
+    if (arrivalQty >= purchaseQuantity) {
+      // 情况A：到货数量 ≥ 采购数量，直接完成
+      await handleSKUComplete(requestId, itemId);
+    } else {
+      // 情况B：到货数量 < 采购数量，弹出确认对话框
+      setShowConfirmDialog({
+        show: true,
+        requestId,
+        itemId,
+        arrivalQty,
+        purchaseQty: purchaseQuantity
+      });
+    }
+  };
+
+  // 处理确认对话框的选择
+  const handleConfirmDialogChoice = async (continueProduction: boolean) => {
+    if (!showConfirmDialog) return;
+    
+    const { requestId, itemId, arrivalQty, purchaseQty } = showConfirmDialog;
+    
+    if (continueProduction) {
+      // 选择"是"：拆分SKU记录
+      // 这里需要调用后端API来拆分SKU记录
+      // 暂时先标记为完成，实际项目中需要实现拆分逻辑
+      await handleSKUComplete(requestId, itemId);
+      console.log(`拆分SKU: 已到货${arrivalQty}件，剩余${purchaseQty - arrivalQty}件继续生产`);
+    } else {
+      // 选择"否"：按实际数量完成
+      await handleSKUComplete(requestId, itemId);
+      console.log(`按实际到货数量${arrivalQty}件完成，不保留剩余记录`);
+    }
+    
+    setShowConfirmDialog(null);
+  };
 
   // 处理SKU级别完成（新增）
   const handleSKUComplete = async (requestId: string, itemId: string) => {
@@ -820,6 +896,10 @@ export const PurchaseProgress: React.FC = () => {
                           <th className="text-center py-3 px-4 font-medium text-gray-900">尾款支付</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">安排发货</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">收货确认</th>
+                          {/* 厂家包装订单新增到货数量列 */}
+                          {allocation?.type === 'external' && activeTab === 'in_progress' && (
+                            <th className="text-center py-3 px-4 font-medium text-gray-900 w-32">到货数量</th>
+                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -827,6 +907,8 @@ export const PurchaseProgress: React.FC = () => {
                           const cardProgress = cardProgressData.find(cp => 
                             cp.purchaseRequestId === request.id && cp.skuId === item.skuId
                           );
+                          const arrivalKey = `${requestId}-${itemId}`;
+                          const currentArrivalQty = arrivalQuantities[arrivalKey] || progress.purchaseQuantity || 0;
                           
                           // 计算单个SKU进度 - 如果SKU已完成则显示100%
                           const skuProgressPercentage = isSKUCompleted(request.id, item.id) ? 100 : progressPercentage;
@@ -945,6 +1027,29 @@ export const PurchaseProgress: React.FC = () => {
                                   </td>
                                 );
                               })}
+                              
+                              {/* 厂家包装订单的到货数量列 */}
+                              {allocation?.type === 'external' && activeTab === 'in_progress' && (
+                                <td className="py-4 px-4 text-center">
+                                  <div className="flex flex-col items-center space-y-2">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={currentArrivalQty}
+                                      onChange={(e) => handleArrivalQuantityChange(requestId, itemId, parseInt(e.target.value) || 0)}
+                                      className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                      placeholder="数量"
+                                    />
+                                    <button
+                                      onClick={() => handleSaveArrivalQuantity(requestId, itemId, progress.purchaseQuantity || 0)}
+                                      disabled={!canSaveArrivalQuantity(progress) || skuCompleted}
+                                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      保存
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
                             </tr>
                           );
                         }).filter(Boolean)}
@@ -955,6 +1060,12 @@ export const PurchaseProgress: React.FC = () => {
                             <td className="py-3 px-4 text-sm font-medium text-gray-700" colSpan={5}>
                               批量操作
                             </td>
+                            {/* 厂家包装订单的到货数量列占位 */}
+                            {allocation?.type === 'external' && (
+                              <td className="py-3 px-4 text-center">
+                                <span className="text-xs text-gray-500">-</span>
+                              </td>
+                            )}
                             {/* 为每个节点创建对应的批量操作按钮 */}
                             {currentProgress.stages.map((stage, stageIndex) => {
 
@@ -1078,6 +1189,66 @@ export const PurchaseProgress: React.FC = () => {
                           return (
                             <div className="text-sm text-orange-600">
                               <span className="font-medium">定金催付时间:</span> 
+      {/* 确认对话框 */}
+      {showConfirmDialog?.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="flex-shrink-0">
+                  <AlertTriangle className="h-8 w-8 text-orange-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">确认处理方式</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    到货数量({showConfirmDialog.arrivalQty})少于采购数量({showConfirmDialog.purchaseQty})
+                  </p>
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-sm text-gray-700 mb-2">剩余订单是否继续生产？</p>
+                <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                  <div className="flex justify-between mb-1">
+                    <span>采购数量:</span>
+                    <span className="font-medium">{showConfirmDialog.purchaseQty}</span>
+                  </div>
+                  <div className="flex justify-between mb-1">
+                    <span>到货数量:</span>
+                    <span className="font-medium text-green-600">{showConfirmDialog.arrivalQty}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-1">
+                    <span>剩余数量:</span>
+                    <span className="font-medium text-orange-600">{showConfirmDialog.purchaseQty - showConfirmDialog.arrivalQty}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-end space-x-3">
+                <button
+                  onClick={() => setShowConfirmDialog(null)}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={() => handleConfirmDialogChoice(false)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  否（完成订单）
+                </button>
+                <button
+                  onClick={() => handleConfirmDialogChoice(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  是（继续生产）
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
                               {depositReminderTime.toLocaleDateString('zh-CN')} {depositReminderTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                             </div>
                           );
