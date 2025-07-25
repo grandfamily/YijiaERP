@@ -1135,6 +1135,66 @@ export const PurchaseProgress: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* SKU拆分确认对话框 */}
+      {showSplitConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="border-b border-gray-200 px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">收货数量确认</h3>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-4">
+                <p className="text-sm text-gray-700 mb-2">
+                  实际到货数量（{showSplitConfirmation.arrivalQuantity}）小于采购数量，剩余订单是否继续生产？
+                </p>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <div className="text-sm text-yellow-800">
+                    <div>采购数量：{(() => {
+                      const request = allocatedRequests.find(r => r.id === showSplitConfirmation.requestId);
+                      const item = request?.items.find(i => i.id === showSplitConfirmation.itemId);
+                      return item?.quantity || 0;
+                    })()}</div>
+                    <div>到货数量：{showSplitConfirmation.arrivalQuantity}</div>
+                    <div>剩余数量：{(() => {
+                      const request = allocatedRequests.find(r => r.id === showSplitConfirmation.requestId);
+                      const item = request?.items.find(i => i.id === showSplitConfirmation.itemId);
+                      return (item?.quantity || 0) - showSplitConfirmation.arrivalQuantity;
+                    })()}</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="text-sm text-gray-600 mb-4">
+                <p><strong>选择"是"</strong>：将按到货数量完成部分订单，剩余数量继续保留在进行中</p>
+                <p><strong>选择"否"</strong>：按实际到货数量完成整个SKU订单</p>
+              </div>
+            </div>
+            
+            <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-end space-x-3">
+              <button
+                onClick={() => setShowSplitConfirmation(null)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => handleSplitConfirmation(false)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                否
+              </button>
+              <button
+                onClick={() => handleSplitConfirmation(true)}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                是
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </>
   );
