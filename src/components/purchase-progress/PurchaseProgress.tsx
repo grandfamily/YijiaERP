@@ -298,18 +298,15 @@ export const PurchaseProgress: React.FC = () => {
     
     // 检查收货确认节点是否为进行中
     const receiptStage = progress.stages.find((stage: any) => stage.name === '收货确认');
-    
+  // 处理保存到货数量
     // 首先检查progress和stages是否存在
     if (!progress || !progress.stages) {
       return false;
     }
 
-    return receiptStage && receiptStage.status === 'in_progress';
-  };
-
   const handleSaveArrivalQuantity = async (requestId: string, itemId: string) => {
     const arrivalQty = getArrivalQuantity(requestId, itemId);
-    const request = allocatedRequests.find(r => r.id === requestId);
+    const request = getRequestInfo(requestId);
     const item = request?.items.find(i => i.id === itemId);
     
     if (!item) return;
@@ -370,7 +367,9 @@ export const PurchaseProgress: React.FC = () => {
   // 检查纸卡是否已完成
   function isCardProgressCompleted(requestId: string): boolean {
     const cardProgress = cardProgressData.filter(cp => cp.purchaseRequestId === requestId);
-    return cardProgress.every(cp => cp.stages.every(stage => stage.status === 'completed'));
+    const completedStages = progress.stages?.filter((stage: any) =>
+      cp.stages.every(stage => stage.status === 'completed')
+    );
   }
 
   // 获取状态颜色
@@ -399,7 +398,6 @@ export const PurchaseProgress: React.FC = () => {
   const handleImageClick = (imageUrl: string) => {
     setZoomedImage(imageUrl);
   };
-
   // 处理阶段完成
   const handleCompleteStage = async (requestId: string, stageName: string) => {
     try {
@@ -487,7 +485,6 @@ export const PurchaseProgress: React.FC = () => {
 
     return true;
   };
-
   // 处理催付款
   const handlePaymentReminder = async (type: 'deposit' | 'final', requestId: string) => {
     try {
@@ -556,12 +553,23 @@ export const PurchaseProgress: React.FC = () => {
   // 获取统计数据
   const getTabStats = () => {
     const inProgress = allocatedRequests.filter(r => !isProcurementCompleted(r.id)).length;
-    const completed = allocatedRequests.filter(r => isProcurementCompleted(r.id)).length;
+    const receivingStage = progress.stages?.find((stage: any) => stage.name === '收货确认');
     
-    return {
-      inProgress,
-      completed
-    };
+    // 修复逻辑：前6个节点完成 且 收货确认节点为进行中
+    const allRequiredCompleted = completedStages?.length === 6;
+    const receivingInProgress = receivingStage?.status === 'in_progress';
+    
+    console.log('🔍 保存按钮激活检查:', {
+      itemSku: item?.sku?.code,
+      completedStagesCount: completedStages?.length,
+      requiredStagesCount: 6,
+      receivingStageStatus: receivingStage?.status,
+      allRequiredCompleted,
+      receivingInProgress,
+      canSave: allRequiredCompleted && receivingInProgress
+    });
+    
+    return allRequiredCompleted && receivingInProgress;
   };
 
   const tabStats = getTabStats();
@@ -1052,9 +1060,9 @@ export const PurchaseProgress: React.FC = () => {
                                     />
                                     <button
                                       onClick={() => handleSaveArrivalQuantity(request.id, item.id)}
-                                      disabled={!canSaveArrivalQuantity(request.id, item.id)}
+                                      disabled={!canSaveArrivalQuantity(progress, item)}
                                       className={`flex items-center space-x-1 px-2 py-1 text-xs rounded transition-colors ${
-                                        canSaveArrivalQuantity(request.id, item.id)
+                                        canSaveArrivalQuantity(progress, item)
                                           ? 'bg-blue-600 text-white hover:bg-blue-700'
                                           : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                       }`}
