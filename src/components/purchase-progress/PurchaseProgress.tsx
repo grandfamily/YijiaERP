@@ -40,7 +40,6 @@ export const PurchaseProgress: React.FC = () => {
   const { 
     getPurchaseRequests, 
     getOrderAllocations, 
-    getProcurementProgress,
     getCardProgress,
     getProcurementProgress,
     createProcurementProgressForRequest,
@@ -960,7 +959,7 @@ export const PurchaseProgress: React.FC = () => {
         <div className="space-y-6">
           {filteredRequests.map((request) => {
             const allocation = getOrderAllocation(request.id);
-            const progress = getProcurementProgress().find(p => p.purchaseRequestId === request.id);
+            const progress = getRequestProgress(request.id);
             const isSelected = selectedOrders.includes(request.id);
             
             // 如果没有进度记录，创建默认进度
