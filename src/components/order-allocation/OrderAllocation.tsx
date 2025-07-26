@@ -1065,17 +1065,19 @@ const OrderAllocationModal: React.FC<OrderAllocationModalProps> = ({
                       
                       {/* Actions */}
                       {canEdit && (
-                          <button 
-                            onClick={() => setViewingRequest(request)}
-                            className="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                        <div className="text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(item.id)}
+                            disabled={currentItems.length <= 1}
+                            className={`p-2 rounded-full transition-colors ${
+                              currentItems.length <= 1
+                                ? 'text-gray-300 cursor-not-allowed bg-gray-100'
+                                : 'text-red-600 hover:text-red-800 hover:bg-red-50'
+                            }`}
+                            title={currentItems.length <= 1 ? '至少需要保留一个SKU' : '移除此SKU'}
                           >
-                            查看详情
-                          </button>
-                          <button 
-                            onClick={() => setAllocatingRequest(request)}
-                            className="px-3 py-1 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors"
-                          >
-                            分配订单
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                       )}
