@@ -8,6 +8,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 export const Approvals: React.FC = () => {
   const { getPurchaseRequests, approvePurchaseRequest, rejectPurchaseRequest, updatePurchaseRequest, getInventoryBySKU } = useProcurement();
   const { user, hasPermission } = useAuth();
+  const [activeTab, setActiveTab] = useState<'pending' | 'approved'>('pending');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRequest, setSelectedRequest] = useState<PurchaseRequest | null>(null);
   const [approvalRemarks, setApprovalRemarks] = useState('');
@@ -18,15 +19,24 @@ export const Approvals: React.FC = () => {
   const [salesData, setSalesData] = useState<{[key: string]: any}>({});
   const pageSize = 15;
 
-  // 获取所有需要审批或已审批的订单（所有角色都能看到）
-  const getRequestsForApproval = () => {
-    return getPurchaseRequests(
-      { status: ['submitted', 'first_approved', 'approved', 'rejected', 'in_production', 'quality_check', 'ready_to_ship', 'shipped', 'completed'] },
-      { field: 'createdAt', direction: 'desc' }
-    );
+  // 根据标签页获取对应的订单
+  const getRequestsForTab = () => {
+    if (activeTab === 'pending') {
+      // 待审批：已提交、一级审批通过、被驳回的订单
+      return getPurchaseRequests(
+        { status: ['submitted', 'first_approved', 'rejected'] },
+        { field: 'createdAt', direction: 'desc' }
+      );
+    } else {
+      // 已审批：最终审批通过及后续状态的订单
+      return getPurchaseRequests(
+        { status: ['approved', 'in_production', 'quality_check', 'ready_to_ship', 'shipped', 'completed'] },
+        { field: 'createdAt', direction: 'desc' }
+      );
+    }
   };
 
-  const { data: allRequests } = getRequestsForApproval();
+  const { data: allRequests } = getRequestsForTab();
 
   // 计算分页
   const totalRequests = allRequests.length;
@@ -52,6 +62,11 @@ export const Approvals: React.FC = () => {
   };
 
   const operableRequests = getOperableRequests();
+
+  // 当切换标签页时重置到第一页
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab]);
 
   // 处理销量查询
   const handleSalesQuery = async (skuId: string, skuCode: string) => {
@@ -192,6 +207,21 @@ export const Approvals: React.FC = () => {
     return operableRequests.some(req => req.id === request.id);
   };
 
+  // 获取标签页统计数据
+  const getTabStats = () => {
+    const pendingRequests = getPurchaseRequests(
+      { status: ['submitted', 'first_approved', 'rejected'] }
+    ).data.length;
+    
+    const approvedRequests = getPurchaseRequests(
+      { status: ['approved', 'in_production', 'quality_check', 'ready_to_ship', 'shipped', 'completed'] }
+    ).data.length;
+    
+    return { pendingRequests, approvedRequests };
+  };
+
+  const tabStats = getTabStats();
+
   return (
     <>
       <div className="p-6 space-y-6">
@@ -217,11 +247,53 @@ export const Approvals: React.FC = () => {
           </div>
         </div>
 
+        {/* Tab Navigation */}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('pending')}
+              className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'pending'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Clock className="h-5 w-5" />
+              <span>待审批订单</span>
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                activeTab === 'pending' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+              }`}>
+                {tabStats.pendingRequests}
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('approved')}
+              className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'approved'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <CheckCircle className="h-5 w-5" />
+              <span>已审批订单</span>
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                activeTab === 'approved' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+              }`}>
+                {tabStats.approvedRequests}
+              </span>
+            </button>
+          </nav>
+        </div>
+
         {allRequests.length === 0 ? (
           <div className="text-center py-12">
             <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">没有审批记录</h3>
-            <p className="text-gray-600">还没有提交的采购申请</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              {activeTab === 'pending' ? '没有待审批订单' : '没有已审批订单'}
+            </h3>
+            <p className="text-gray-600">
+              {activeTab === 'pending' ? '所有订单都已审批完成' : '还没有审批通过的订单'}
+            </p>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
