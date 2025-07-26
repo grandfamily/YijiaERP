@@ -217,6 +217,108 @@ export const Approvals: React.FC = () => {
           </div>
         </div>
 
+        {allRequests.length === 0 ? (
+          <div className="text-center py-12">
+            <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">没有审批记录</h3>
+            <p className="text-gray-600">还没有提交的采购申请</p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">申请编号</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">申请人</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">SKU数量</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">总金额</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">提交时间</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">初审状态</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">终审状态</th>
+                    {hasApprovalPermission && (
+                      <th className="text-left py-3 px-4 font-medium text-gray-900">操作</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {allRequests.map((request) => {
+                    const firstApprovalStatus = getFirstApprovalStatus(request);
+                    const finalApprovalStatus = getFinalApprovalStatus(request);
+                    const canOperate = canOperateRequest(request);
+                    
+                    return (
+                      <tr key={request.id} className="hover:bg-gray-50">
+                        <td className="py-4 px-4">
+                          <div className="font-medium text-gray-900">{request.requestNumber}</div>
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="text-gray-900">{request.requester.name}</div>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="text-gray-900">{request.items.length}</span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="text-gray-900 font-medium">
+                            ¥{request.totalAmount.toLocaleString()}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="text-gray-500 text-sm">
+                            {new Date(request.createdAt).toLocaleDateString('zh-CN')}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <StatusBadge
+                            status={firstApprovalStatus}
+                            color={getStatusColor(firstApprovalStatus)}
+                            size="sm"
+                          />
+                        </td>
+                        <td className="py-4 px-4">
+                          <StatusBadge
+                            status={finalApprovalStatus}
+                            color={getStatusColor(finalApprovalStatus)}
+                            size="sm"
+                          />
+                        </td>
+                        {hasApprovalPermission && (
+                          <td className="py-4 px-4">
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => setSelectedRequest(request)}
+                                className="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                              >
+                                查看
+                              </button>
+                              {canOperate && (
+                                <>
+                                  <button
+                                    onClick={() => handleApprove(request.id)}
+                                    className="px-3 py-1 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors"
+                                  >
+                                    通过
+                                  </button>
+                                  <button
+                                    onClick={() => handleReject(request.id)}
+                                    className="px-3 py-1 text-sm text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                                  >
+                                    驳回
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* 分页控件 - 移到底部 */}
         {totalRequests > 0 && (
           <div className="bg-white border-t border-gray-200 px-4 py-3 mt-4 rounded-b-lg">
@@ -329,108 +431,6 @@ export const Approvals: React.FC = () => {
                   末页
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-      </div>
-        {allRequests.length === 0 ? (
-          <div className="text-center py-12">
-            <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">没有审批记录</h3>
-            <p className="text-gray-600">还没有提交的采购申请</p>
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">申请编号</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">申请人</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">SKU数量</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">总金额</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">提交时间</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">初审状态</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">终审状态</th>
-                    {hasApprovalPermission && (
-                      <th className="text-left py-3 px-4 font-medium text-gray-900">操作</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {allRequests.map((request) => {
-                    const firstApprovalStatus = getFirstApprovalStatus(request);
-                    const finalApprovalStatus = getFinalApprovalStatus(request);
-                    const canOperate = canOperateRequest(request);
-                    
-                    return (
-                      <tr key={request.id} className="hover:bg-gray-50">
-                        <td className="py-4 px-4">
-                          <div className="font-medium text-gray-900">{request.requestNumber}</div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="text-gray-900">{request.requester.name}</div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className="text-gray-900">{request.items.length}</span>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className="text-gray-900 font-medium">
-                            ¥{request.totalAmount.toLocaleString()}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className="text-gray-500 text-sm">
-                            {new Date(request.createdAt).toLocaleDateString('zh-CN')}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4">
-                          <StatusBadge
-                            status={firstApprovalStatus}
-                            color={getStatusColor(firstApprovalStatus)}
-                            size="sm"
-                          />
-                        </td>
-                        <td className="py-4 px-4">
-                          <StatusBadge
-                            status={finalApprovalStatus}
-                            color={getStatusColor(finalApprovalStatus)}
-                            size="sm"
-                          />
-                        </td>
-                        {hasApprovalPermission && (
-                          <td className="py-4 px-4">
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => setSelectedRequest(request)}
-                                className="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                              >
-                                查看
-                              </button>
-                              {canOperate && (
-                                <>
-                                  <button
-                                    onClick={() => handleApprove(request.id)}
-                                    className="px-3 py-1 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors"
-                                  >
-                                    通过
-                                  </button>
-                                  <button
-                                    onClick={() => handleReject(request.id)}
-                                    className="px-3 py-1 text-sm text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition-colors"
-                                  >
-                                    驳回
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
             </div>
           </div>
         )}
@@ -762,106 +762,24 @@ export const Approvals: React.FC = () => {
         )}
       </div>
 
-      <div className="flex flex-col h-full">
-        {/* 表格区域 - 占据剩余空间 */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex-1 flex flex-col min-h-[600px]">
-          <div className="flex-1 overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">申请编号</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">申请人</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">SKU数量</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">总金额</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">提交时间</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">初审状态</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">终审状态</th>
-                  {hasApprovalPermission && (
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">操作</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {currentPageRequests.length === 0 ? (
-                  <tr>
-                    <td colSpan={hasApprovalPermission ? 8 : 7} className="py-12 text-center">
-                      <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">没有审批记录</h3>
-                      <p className="text-gray-600">还没有提交的采购申请</p>
-                    </td>
-                  </tr>
-                ) : (
-                  currentPageRequests.map((request) => {
-                    const firstApprovalStatus = getFirstApprovalStatus(request);
-                    const finalApprovalStatus = getFinalApprovalStatus(request);
-                    const canOperate = canOperateRequest(request);
-                    
-                    return (
-                      <tr key={request.id} className="hover:bg-gray-50">
-                        <td className="py-4 px-4">
-                          <div className="font-medium text-gray-900">{request.requestNumber}</div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="text-gray-900">{request.requester.name}</div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className="text-gray-900">{request.items.length}</span>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className="text-gray-900 font-medium">
-                            ¥{request.totalAmount.toLocaleString()}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className="text-gray-500 text-sm">
-                            {new Date(request.createdAt).toLocaleDateString('zh-CN')}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4">
-                          <StatusBadge
-                            status={firstApprovalStatus}
-                            color={getStatusColor(firstApprovalStatus)}
-                            size="sm"
-                          />
-                        </td>
-                        <td className="py-4 px-4">
-                          <StatusBadge
-                            status={finalApprovalStatus}
-                            color={getStatusColor(finalApprovalStatus)}
-                            size="sm"
-                          />
-                        </td>
-                        {hasApprovalPermission && (
-                          <td className="py-4 px-4">
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => setSelectedRequest(request)}
-                                className="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                              >
-                                查看
-                              </button>
-                              {canOperate && (
-                                <>
-                                  <button
-                                    onClick={() => handleApprove(request.id)}
-                                    className="px-3 py-1 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors"
-                                  >
-                                    通过
-                                  </button>
-                                  <button
-                                    onClick={() => handleReject(request.id)}
-                                    className="px-3 py-1 text-sm text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition-colors"
-                                  >
-                                    驳回
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+      {/* Image Zoom Modal */}
+      {zoomedImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="relative max-w-4xl max-h-full">
+            <button
+              onClick={() => setZoomedImage(null)}
+              className="absolute top-4 right-4 p-2 bg-white rounded-full hover:bg-gray-100 transition-colors z-10"
+            >
+              <X className="h-6 w-6" />
+            </button>
+            <img
+              src={zoomedImage}
+              alt="放大图片"
+              className="max-w-full max-h-full object-contain rounded-lg"
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
