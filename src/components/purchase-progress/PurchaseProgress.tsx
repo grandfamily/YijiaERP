@@ -60,6 +60,15 @@ export const PurchaseProgress: React.FC = () => {
 
   // 筛选状态
   const [filters, setFilters] = useState({
+    status: [] as string[],
+    dateRange: { start: '', end: '' }
+  });
+
+  // 采购专员收货确认权限检查函数
+  const canCompleteReceiving = (stage: ProcurementProgressStage): boolean => {
+    // 只有采购专员可以完成"收货确认"节点
+    return user?.role === 'purchasing_officer' && stage.name === '收货确认';
+  };
   const canCompleteReceiving = (stage: ProcurementProgressStage): boolean => {
     // 只有采购专员可以完成"收货确认"节点
     return user?.role === 'purchasing_officer' && stage.name === '收货确认';
