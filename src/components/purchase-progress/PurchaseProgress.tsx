@@ -912,38 +912,6 @@ export const PurchaseProgress: React.FC = () => {
 
   // 获取厂家包装已完成的SKU数据
   const getExternalCompletedSKUs = () => {
-    const skuData: Array<{
-      progress: any;
-      item: any;
-      request: any;
-    }> = [];
-
-    // 遍历所有采购进度
-    procurementProgressData.forEach(progress => {
-      const request = allocatedRequests.find(req => req.id === progress.purchaseRequestId);
-      if (!request) return;
-
-      // 检查是否为厂家包装且已完成
-      const allocation = getOrderAllocation(progress.purchaseRequestId);
-      const isExternalPackaging = allocation?.type === 'external';
-      const isCompleted = progress.stages.every(stage => stage.status === 'completed');
-
-      if (isExternalPackaging && isCompleted) {
-        // 为每个SKU创建一条记录
-        request.items.forEach(item => {
-          skuData.push({
-            progress,
-            item,
-            request
-          });
-        });
-      }
-    });
-
-    return skuData;
-  };
-
-  return (
     <>
       <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
