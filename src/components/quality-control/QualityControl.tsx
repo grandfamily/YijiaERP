@@ -18,7 +18,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { useAuth } from '../../hooks/useAuth';
 
 // Mock data for quality control - 扩展为SKU级别数据
-const qualityControlData = [
+let qualityControlData = [
   {
     id: 'qc-001',
     purchaseRequestNumber: 'PR-2024-001',
@@ -148,6 +148,58 @@ export const QualityControl: React.FC = () => {
   // 检查是否为仓管人员
   const isWarehouseStaff = user?.role === 'warehouse_staff';
 
+  // 处理数据更新
+  const handleDataUpdate = (itemId: string, field: string, value: any) => {
+    const itemIndex = qualityControlData.findIndex(item => item.id === itemId);
+    if (itemIndex !== -1) {
+      qualityControlData[itemIndex] = {
+        ...qualityControlData[itemIndex],
+        [field]: value,
+        updatedAt: new Date()
+      };
+    }
+  };
+
+  // 处理保存操作
+  const handleSave = (itemId: string) => {
+    const item = qualityControlData.find(i => i.id === itemId);
+    if (item) {
+      // 计算相关字段
+      const totalPieces = item.totalPieces || 0;
+      const piecesPerUnit = item.piecesPerUnit || 0;
+      const boxLength = item.boxLength || 0;
+      const boxWidth = item.boxWidth || 0;
+      const boxHeight = item.boxHeight || 0;
+      const unitWeight = item.unitWeight || 0;
+      
+      // 更新计算字段
+      const totalQuantity = totalPieces * piecesPerUnit;
+      const boxVolume = (boxLength * boxWidth * boxHeight) / 1000000;
+      const totalVolume = totalPieces * boxVolume;
+      const totalWeight = totalPieces * unitWeight;
+      
+      // 更新数据
+      const itemIndex = qualityControlData.findIndex(i => i.id === itemId);
+      if (itemIndex !== -1) {
+        qualityControlData[itemIndex] = {
+          ...qualityControlData[itemIndex],
+          totalQuantity,
+          boxVolume,
+          totalVolume,
+          totalWeight,
+          inspectionStatus: 'completed',
+          inspectionDate: new Date(),
+          inspectorId: user?.id,
+          inspector: user,
+          updatedAt: new Date()
+        };
+      }
+      
+      console.log('保存验收数据:', itemId, item);
+      alert('验收数据保存成功！');
+    }
+  };
+
   // 根据标签页过滤数据
   const getFilteredData = () => {
     const filtered = qualityControlData.filter(item => {
@@ -220,29 +272,6 @@ export const QualityControl: React.FC = () => {
     newData.totalWeight = totalPieces * unitWeight;
     
     setEditData(newData);
-  };
-
-  // 保存数据
-  const handleSave = (itemId: string) => {
-    // 在实际应用中，这里会调用API保存数据
-    console.log('保存验收数据:', itemId, editData);
-    
-    // 模拟保存成功
-    const itemIndex = qualityControlData.findIndex(item => item.id === itemId);
-    if (itemIndex !== -1) {
-      qualityControlData[itemIndex] = {
-        ...qualityControlData[itemIndex],
-        ...editData,
-        inspectionStatus: 'completed',
-        inspectionDate: new Date(),
-        inspectorId: user?.id,
-        inspector: user,
-        updatedAt: new Date()
-      };
-    }
-    
-    setEditingItem(null);
-    setEditData({});
   };
 
   // 取消编辑
@@ -483,10 +512,9 @@ export const QualityControl: React.FC = () => {
                                type="number"
                                min="0"
                                step="1"
-                               value={item.packageCount || ''}
+                               value={item.packageCount || 0}
                                onChange={(e) => {
-                                 // 在实际应用中，这里会调用API更新数据
-                                 console.log('更新中包数:', item.id, e.target.value);
+                                 handleDataUpdate(item.id, 'packageCount', parseInt(e.target.value) || 0);
                                }}
                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                placeholder="0"
@@ -499,10 +527,9 @@ export const QualityControl: React.FC = () => {
                                type="number"
                                min="0"
                                step="1"
-                               value={item.totalPieces || ''}
+                               value={item.totalPieces || 0}
                                onChange={(e) => {
-                                 // 在实际应用中，这里会调用API更新数据
-                                 console.log('更新总件数:', item.id, e.target.value);
+                                 handleDataUpdate(item.id, 'totalPieces', parseInt(e.target.value) || 0);
                                }}
                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                placeholder="0"
@@ -515,10 +542,9 @@ export const QualityControl: React.FC = () => {
                                type="number"
                                min="0"
                                step="1"
-                               value={item.piecesPerUnit || ''}
+                               value={item.piecesPerUnit || 0}
                                onChange={(e) => {
-                                 // 在实际应用中，这里会调用API更新数据
-                                 console.log('更新单件数量:', item.id, e.target.value);
+                                 handleDataUpdate(item.id, 'piecesPerUnit', parseInt(e.target.value) || 0);
                                }}
                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                placeholder="0"
@@ -531,10 +557,9 @@ export const QualityControl: React.FC = () => {
                                type="number"
                                min="0"
                                step="0.1"
-                               value={item.boxLength || ''}
+                               value={item.boxLength || 0}
                                onChange={(e) => {
-                                 // 在实际应用中，这里会调用API更新数据
-                                 console.log('更新外箱长:', item.id, e.target.value);
+                                 handleDataUpdate(item.id, 'boxLength', parseFloat(e.target.value) || 0);
                                }}
                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                placeholder="0"
@@ -547,10 +572,9 @@ export const QualityControl: React.FC = () => {
                                type="number"
                                min="0"
                                step="0.1"
-                               value={item.boxWidth || ''}
+                               value={item.boxWidth || 0}
                                onChange={(e) => {
-                                 // 在实际应用中，这里会调用API更新数据
-                                 console.log('更新外箱宽:', item.id, e.target.value);
+                                 handleDataUpdate(item.id, 'boxWidth', parseFloat(e.target.value) || 0);
                                }}
                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                placeholder="0"
@@ -563,10 +587,9 @@ export const QualityControl: React.FC = () => {
                                type="number"
                                min="0"
                                step="0.1"
-                               value={item.boxHeight || ''}
+                               value={item.boxHeight || 0}
                                onChange={(e) => {
-                                 // 在实际应用中，这里会调用API更新数据
-                                 console.log('更新外箱高:', item.id, e.target.value);
+                                 handleDataUpdate(item.id, 'boxHeight', parseFloat(e.target.value) || 0);
                                }}
                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                placeholder="0"
@@ -579,10 +602,9 @@ export const QualityControl: React.FC = () => {
                                type="number"
                                min="0"
                                step="0.01"
-                               value={item.unitWeight || ''}
+                               value={item.unitWeight || 0}
                                onChange={(e) => {
-                                 // 在实际应用中，这里会调用API更新数据
-                                 console.log('更新单件重量:', item.id, e.target.value);
+                                 handleDataUpdate(item.id, 'unitWeight', parseFloat(e.target.value) || 0);
                                }}
                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                placeholder="0"
@@ -686,47 +708,22 @@ export const QualityControl: React.FC = () => {
                         {/* 操作 - 仅仓管人员可见 */}
                         {isWarehouseStaff && (
                           <td className="py-3 px-3 text-center">
-                            <div className="flex items-center justify-center space-x-2">
-                              {isEditing ? (
-                                <>
-                                  <button
-                                    onClick={() => handleSave(item.id)}
-                                    className="p-1 text-green-600 hover:text-green-800 rounded"
-                                    title="保存"
-                                  >
-                                    <Save className="h-4 w-4" />
-                                  </button>
-                                  <button
-                                    onClick={handleCancel}
-                                    className="p-1 text-gray-600 hover:text-gray-800 rounded"
-                                    title="取消"
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  {activeTab === 'pending' && (
-                                    <button
-                                      onClick={() => handleEdit(item.id)}
-                                      className="p-1 text-blue-600 hover:text-blue-800 rounded"
-                                      title="开始验收"
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </button>
-                                  )}
-                                  {activeTab === 'completed' && (
-                                    <button
-                                      onClick={() => handleEdit(item.id)}
-                                      className="p-1 text-green-600 hover:text-green-800 rounded"
-                                      title="修改数据"
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </button>
-                                  )}
-                                </>
-                              )}
-                            </div>
+                            {activeTab === 'pending' && (
+                              <button
+                                onClick={() => handleSave(item.id)}
+                                className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                              >
+                                保存
+                              </button>
+                            )}
+                            {activeTab === 'completed' && (
+                              <button
+                                onClick={() => handleEdit(item.id)}
+                                className="px-3 py-1 text-sm text-green-600 border border-green-600 rounded hover:bg-green-50 transition-colors"
+                              >
+                                修改
+                              </button>
+                            )}
                           </td>
                         )}
                       </tr>
