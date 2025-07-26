@@ -479,7 +479,16 @@ export const QualityControl: React.FC = () => {
                          <>
                            {/* 中包数 - 可编辑 */}
                            <td className="py-3 px-3 text-center">
-                             {renderEditableField(item.id, 'packageCount', item.packageCount, '0')}
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={editingItem === item.id ? (editData.packageCount || '') : (item.packageCount || '')}
+                              onChange={(e) => handleDataChange('packageCount', e.target.value)}
+                              onFocus={() => handleEdit(item.id)}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              placeholder="0"
+                            />
                            </td>
                            
                            {/* 总件数 - 可编辑 */}
@@ -489,27 +498,72 @@ export const QualityControl: React.FC = () => {
                            
                            {/* 单件数量 - 可编辑 */}
                            <td className="py-3 px-3 text-center">
-                             {renderEditableField(item.id, 'piecesPerUnit', item.piecesPerUnit, '0')}
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={editingItem === item.id ? (editData.piecesPerUnit || '') : (item.piecesPerUnit || '')}
+                              onChange={(e) => handleDataChange('piecesPerUnit', e.target.value)}
+                              onFocus={() => handleEdit(item.id)}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              placeholder="0"
+                            />
                            </td>
                            
                            {/* 外箱长 - 可编辑 */}
                            <td className="py-3 px-3 text-center">
-                             {renderEditableField(item.id, 'boxLength', item.boxLength, '0', 'cm')}
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={editingItem === item.id ? (editData.boxLength || '') : (item.boxLength || '')}
+                              onChange={(e) => handleDataChange('boxLength', e.target.value)}
+                              onFocus={() => handleEdit(item.id)}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              placeholder="0"
+                            />
                            </td>
                            
                            {/* 外箱宽 - 可编辑 */}
                            <td className="py-3 px-3 text-center">
-                             {renderEditableField(item.id, 'boxWidth', item.boxWidth, '0', 'cm')}
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={editingItem === item.id ? (editData.boxWidth || '') : (item.boxWidth || '')}
+                              onChange={(e) => handleDataChange('boxWidth', e.target.value)}
+                              onFocus={() => handleEdit(item.id)}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              placeholder="0"
+                            />
                            </td>
                            
                            {/* 外箱高 - 可编辑 */}
                            <td className="py-3 px-3 text-center">
-                             {renderEditableField(item.id, 'boxHeight', item.boxHeight, '0', 'cm')}
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={editingItem === item.id ? (editData.boxHeight || '') : (item.boxHeight || '')}
+                              onChange={(e) => handleDataChange('boxHeight', e.target.value)}
+                              onFocus={() => handleEdit(item.id)}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              placeholder="0"
+                            />
                            </td>
                            
                            {/* 单件重量 - 可编辑 */}
                            <td className="py-3 px-3 text-center">
-                             {renderEditableField(item.id, 'unitWeight', item.unitWeight, '0', 'kg')}
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={editingItem === item.id ? (editData.unitWeight || '') : (item.unitWeight || '')}
+                              onChange={(e) => handleDataChange('unitWeight', e.target.value)}
+                              onFocus={() => handleEdit(item.id)}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              placeholder="0"
+                            />
                            </td>
                          </>
                        )}
@@ -654,7 +708,16 @@ export const QualityControl: React.FC = () => {
                         )}
                       </tr>
                     );
-                  })}
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={editingItem === item.id ? (editData.totalPieces || '') : (item.totalPieces || '')}
+                              onChange={(e) => handleDataChange('totalPieces', e.target.value)}
+                              onFocus={() => handleEdit(item.id)}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              placeholder="0"
+                            />
                 </tbody>
               </table>
             </div>
