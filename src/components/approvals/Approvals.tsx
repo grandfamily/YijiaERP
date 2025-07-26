@@ -33,7 +33,7 @@ export const Approvals: React.FC = () => {
   const totalPages = Math.ceil(totalRequests / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const currentPageRequests = allRequests.slice(startIndex, endIndex);
+  const paginatedRequests = allRequests.slice(startIndex, endIndex);
 
   // 检查用户是否有审批权限
   const hasApprovalPermission = user?.role === 'department_manager' || user?.role === 'general_manager';
@@ -242,7 +242,7 @@ export const Approvals: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {allRequests.map((request) => {
+                  {paginatedRequests.map((request) => {
                     const firstApprovalStatus = getFirstApprovalStatus(request);
                     const finalApprovalStatus = getFinalApprovalStatus(request);
                     const canOperate = canOperateRequest(request);
@@ -315,6 +315,15 @@ export const Approvals: React.FC = () => {
                   })}
                 </tbody>
               </table>
+            
+            {/* 空状态处理 - 当分页后没有数据时 */}
+            {paginatedRequests.length === 0 && totalRequests > 0 && (
+              <div className="text-center py-12">
+                <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">当前页没有数据</h3>
+                <p className="text-gray-600">请切换到其他页面查看</p>
+              </div>
+            )}
             </div>
           </div>
         )}
