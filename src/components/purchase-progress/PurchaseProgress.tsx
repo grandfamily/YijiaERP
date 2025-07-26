@@ -1,3 +1,6 @@
+Looking at this React component file, I can see it's missing several closing brackets. Let me fix the syntax errors by adding the missing closing brackets:
+
+```typescript
 import React, { useState } from 'react';
 import { 
   FileText, 
@@ -912,8 +915,11 @@ export const PurchaseProgress: React.FC = () => {
 
   // 获取厂家包装已完成的SKU数据
   const getExternalCompletedSKUs = () => {
-    <>
-      <div className="p-6 space-y-6">
+    return [];
+  };
+
+  return (
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">采购进度</h1>
@@ -1706,7 +1712,7 @@ export const PurchaseProgress: React.FC = () => {
           </div>
         </div>
       )}
-      </div>
-    </>
+    </div>
   );
 };
+```
