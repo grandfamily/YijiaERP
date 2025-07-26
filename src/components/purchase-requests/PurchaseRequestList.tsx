@@ -356,9 +356,9 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                       <span className="text-gray-900 cursor-help">{request.items.length}</span>
                       
                       {/* SKU详情悬停提示 */}
-                      <div className="absolute left-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg p-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                      <div className="absolute left-0 top-full mt-2 w-96 bg-white border border-gray-200 rounded-lg shadow-lg p-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                         <div className="text-sm font-medium text-gray-900 mb-3">SKU详情列表</div>
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                        <div className="space-y-2 max-h-80 overflow-y-auto">
                           {request.items.map((item, index) => (
                             <div key={item.id} className="flex items-center space-x-3 p-2 bg-gray-50 rounded border">
                               {item.sku.imageUrl ? (
@@ -388,7 +388,7 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                             </div>
                           ))}
                         </div>
-                        {request.items.length > 5 && (
+                        {request.items.length > 6 && (
                           <div className="text-xs text-gray-500 mt-2 text-center">
                             共 {request.items.length} 个SKU
                           </div>
