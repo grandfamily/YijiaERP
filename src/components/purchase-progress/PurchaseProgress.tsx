@@ -541,6 +541,7 @@ export const PurchaseProgress: React.FC = () => {
         
         await handleSKUFlowAfterReceivingConfirmation(progressId);
         setNotificationMessage(`SKU收货确认已完成，已移至${targetSubTab}栏目`);
+      }
 
       setNotificationMessage(`已完成"${stageName}"阶段`);
       setTimeout(() => setNotificationMessage(null), 3000);
@@ -548,6 +549,9 @@ export const PurchaseProgress: React.FC = () => {
       console.error('完成阶段失败:', error);
       alert('操作失败，请重试');
       setNotificationMessage('操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
 
   // 🎯 收货确认完成后的SKU流转处理
   const handleSKUFlowAfterReceivingConfirmation = async (progressId: string) => {
@@ -590,9 +594,6 @@ export const PurchaseProgress: React.FC = () => {
       
     } catch (error) {
       console.error('SKU流转处理失败:', error);
-    }
-  };
-      setTimeout(() => setNotificationMessage(null), 3000);
     }
   };
 
