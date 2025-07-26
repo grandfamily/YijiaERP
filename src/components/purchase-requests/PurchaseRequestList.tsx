@@ -618,6 +618,45 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
       )}
       </div>
 
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[70]">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="flex-shrink-0">
+                  <ExclamationTriangle className="h-8 w-8 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">确认删除</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    确定要删除采购申请 <span className="font-medium text-gray-900">{deleteConfirmation.requestNumber}</span> 吗？
+                  </p>
+                  <p className="text-sm text-red-600 mt-1">
+                    此操作不可撤销，请谨慎操作。
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => setDeleteConfirmation(null)}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  确认删除
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* View Purchase Request Modal */}
       {viewingRequest && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -863,44 +902,5 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
         />
       )}
     </>
-
-      {/* Delete Confirmation Modal */}
-      {deleteConfirmation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[70]">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="flex-shrink-0">
-                  <ExclamationTriangle className="h-8 w-8 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">确认删除</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    确定要删除采购申请 <span className="font-medium text-gray-900">{deleteConfirmation.requestNumber}</span> 吗？
-                  </p>
-                  <p className="text-sm text-red-600 mt-1">
-                    此操作不可撤销，请谨慎操作。
-                  </p>
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-end space-x-3 mt-6">
-                <button
-                  onClick={() => setDeleteConfirmation(null)}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={confirmDelete}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  确认删除
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
   );
 };
