@@ -1,6 +1,7 @@
 import React from 'react';
 import { QrCode, CheckCircle, XCircle, AlertTriangle, Package, Search } from 'lucide-react';
 import { StatusBadge } from '../ui/StatusBadge';
+import { useAuth } from '../../hooks/useAuth';
 
 // Mock data for quality control
 const qualityControlData = [
@@ -109,8 +110,8 @@ export const QualityControl: React.FC = () => {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">收货验货</h1>
-          <p className="text-gray-600">管理货物接收和质量检验</p>
+          <h1 className="text-2xl font-bold text-gray-900">验货入库</h1>
+          <p className="text-gray-600">管理货物验收和入库检验</p>
         </div>
         <div className="flex items-center space-x-4">
           <div className="flex-1 relative max-w-md">

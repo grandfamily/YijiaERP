@@ -14,7 +14,7 @@ export type UserRole =
   | 'general_manager'       // 总经理
   | 'card_designer'         // 纸卡设计人员
   | 'production_staff'      // 生产排单人员
-  | 'qc_officer'           // 质检专员
+  | 'warehouse_staff'      // 仓管人员
   | 'logistics_staff'      // 物流专员
   | 'finance_personnel'     // 财务人员
   | 'accessory_staff'      // 辅料人员
