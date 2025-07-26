@@ -444,15 +444,6 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                       >
                         <Edit className="h-4 w-4" />
                       </button>
-                      {canEdit(request) && (
-                        <button 
-                          onClick={() => setEditingRequest(request)}
-                          className="p-1 text-gray-400 hover:text-green-600 rounded"
-                          title="编辑"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                      )}
                       {canDelete(request) && (
                         <button 
                           onClick={() => handleDelete(request.id)}
