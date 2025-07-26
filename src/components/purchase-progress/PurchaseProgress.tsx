@@ -105,7 +105,9 @@ export const PurchaseProgress: React.FC = () => {
   // 采购专员收货确认权限检查函数
   const canCompleteReceiving = (stage: ProcurementProgressStage): boolean => {
     // 只有采购专员可以完成"收货确认"节点
-    return user?.role === 'purchasing_officer' && stage.name === '收货确认';
+    return user?.role === 'purchasing_officer' && 
+           stage.name === '收货确认' && 
+           hasPermission('complete_receiving_confirmation');
   };
 
   // 权限检查函数 - 其他节点权限（保持原有逻辑）
@@ -427,6 +429,12 @@ export const PurchaseProgress: React.FC = () => {
   // 处理阶段完成
   const handleCompleteStage = async (requestId: string, stageName: string) => {
     try {
+      // 收货确认节点的特殊权限检查
+      if (stageName === '收货确认' && user?.role !== 'purchasing_officer') {
+        alert('权限不足：只有采购专员可以完成收货确认操作');
+        return;
+      }
+      
       const progress = getRequestProgress(requestId);
       if (!progress) return;
 
