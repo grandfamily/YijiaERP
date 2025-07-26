@@ -553,19 +553,6 @@ export const PurchaseProgress: React.FC = () => {
     }
   };
 
-        // 自己包装类型流转
-        console.log(`🔄 SKU流转：自己包装SKU已完成收货确认，自动流转到"自己包装已完成"子栏目`);
-        // 这里可以添加额外的业务逻辑，比如发送通知、更新状态等
-      }
-
-      // 触发界面刷新以反映流转结果
-      // 由于我们使用的是响应式数据，组件会自动重新渲染
-      
-    } catch (error) {
-      console.error('SKU流转处理失败:', error);
-    }
-  };
-
   // 处理单个SKU的阶段完成
   const handleCompleteSKUStage = async (requestId: string, itemId: string, stageName: string) => {
     try {
@@ -1681,4 +1668,3 @@ export const PurchaseProgress: React.FC = () => {
     </div>
   );
 };
-```
