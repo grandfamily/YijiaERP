@@ -30,8 +30,6 @@ export const Layout: React.FC = () => {
         return <Approvals />;
       case 'order-allocation':
         return <OrderAllocation />;
-      case 'external-purchase':
-        return <ExternalPurchase />;
       case 'in-house-production':
         return <InHouseProduction />;
       case 'production-scheduling':

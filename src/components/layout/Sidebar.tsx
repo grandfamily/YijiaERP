@@ -56,11 +56,6 @@ const sidebarItems: SidebarItem[] = [
     icon: <Package className="h-5 w-5" />,
   },
   {
-    id: 'external-purchase',
-    label: '厂家包装',
-    icon: <ShoppingCart className="h-5 w-5" />,
-  },
-  {
     id: 'in-house-production',
     label: '自己包装',
     icon: <Factory className="h-5 w-5" />,
