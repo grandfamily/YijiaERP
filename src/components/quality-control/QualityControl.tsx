@@ -382,20 +382,37 @@ export const QualityControl: React.FC = () => {
                     <th className="text-left py-3 px-3 font-medium text-gray-900 w-24">SKU</th>
                     <th className="text-left py-3 px-3 font-medium text-gray-900 w-32">品名</th>
                     <th className="text-left py-3 px-3 font-medium text-gray-900 w-20">识别码</th>
-                    <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">中包数</th>
-                    <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">总件数</th>
-                    <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">单件数量</th>
-                    <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">总数量</th>
-                    <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">外箱长(cm)</th>
-                    <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">外箱宽(cm)</th>
-                    <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">外箱高(cm)</th>
-                    <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">外箱体积(m³)</th>
-                    <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">总体积(m³)</th>
-                    <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">单件重量(kg)</th>
-                    <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">总重量(kg)</th>
-                    {activeTab === 'completed' && (
-                      <th className="text-center py-3 px-3 font-medium text-gray-900 w-32">验收时间</th>
+                    {/* 待验收栏目：只显示需要填写的字段 */}
+                    {activeTab === 'pending' && (
+                      <>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">中包数</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">总件数</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">单件数量</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">外箱长(cm)</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">外箱宽(cm)</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">外箱高(cm)</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">单件重量(kg)</th>
+                      </>
                     )}
+                    
+                    {/* 已验收栏目：显示完整字段 */}
+                    {activeTab === 'completed' && (
+                      <>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">中包数</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">总件数</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">单件数量</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">总数量</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">外箱长(cm)</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">外箱宽(cm)</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">外箱高(cm)</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">外箱体积(m³)</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">总体积(m³)</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">单件重量(kg)</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">总重量(kg)</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-32">验收时间</th>
+                      </>
+                    )}
+                    
                     {isWarehouseStaff && (
                       <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">操作</th>
                     )}
@@ -457,71 +474,136 @@ export const QualityControl: React.FC = () => {
                           <span className="text-sm text-gray-900">{item.sku.identificationCode}</span>
                         </td>
                         
-                        {/* 中包数 - 可编辑 */}
-                        <td className="py-3 px-3 text-center">
-                          {renderEditableField(item.id, 'packageCount', item.packageCount, '0')}
-                        </td>
-                        
-                        {/* 总件数 - 可编辑 */}
-                        <td className="py-3 px-3 text-center">
-                          {renderEditableField(item.id, 'totalPieces', item.totalPieces, '0')}
-                        </td>
-                        
-                        {/* 单件数量 - 可编辑 */}
-                        <td className="py-3 px-3 text-center">
-                          {renderEditableField(item.id, 'piecesPerUnit', item.piecesPerUnit, '0')}
-                        </td>
-                        
-                        {/* 总数量 - 计算字段 */}
-                        <td className="py-3 px-3 text-center">
-                          {renderCalculatedField(item.id, 'totalQuantity', item.totalQuantity, '', 0)}
-                        </td>
-                        
-                        {/* 外箱长 - 可编辑 */}
-                        <td className="py-3 px-3 text-center">
-                          {renderEditableField(item.id, 'boxLength', item.boxLength, '0', 'cm')}
-                        </td>
-                        
-                        {/* 外箱宽 - 可编辑 */}
-                        <td className="py-3 px-3 text-center">
-                          {renderEditableField(item.id, 'boxWidth', item.boxWidth, '0', 'cm')}
-                        </td>
-                        
-                        {/* 外箱高 - 可编辑 */}
-                        <td className="py-3 px-3 text-center">
-                          {renderEditableField(item.id, 'boxHeight', item.boxHeight, '0', 'cm')}
-                        </td>
-                        
-                        {/* 外箱体积 - 计算字段 */}
-                        <td className="py-3 px-3 text-center">
-                          {renderCalculatedField(item.id, 'boxVolume', item.boxVolume, 'm³', 6)}
-                        </td>
-                        
-                        {/* 总体积 - 计算字段 */}
-                        <td className="py-3 px-3 text-center">
-                          {renderCalculatedField(item.id, 'totalVolume', item.totalVolume, 'm³', 3)}
-                        </td>
-                        
-                        {/* 单件重量 - 可编辑 */}
-                        <td className="py-3 px-3 text-center">
-                          {renderEditableField(item.id, 'unitWeight', item.unitWeight, '0', 'kg')}
-                        </td>
-                        
-                        {/* 总重量 - 计算字段 */}
-                        <td className="py-3 px-3 text-center">
-                          {renderCalculatedField(item.id, 'totalWeight', item.totalWeight, 'kg', 2)}
-                        </td>
-                        
-                        {/* 验收时间 - 仅已验收显示 */}
-                        {activeTab === 'completed' && (
-                          <td className="py-3 px-3 text-center">
-                            <div className="text-sm text-gray-900">
-                              {item.inspectionDate ? item.inspectionDate.toLocaleDateString('zh-CN') : '-'}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {item.inspector?.name || '-'}
-                            </div>
-                          </td>
+                       {/* 待验收栏目：只显示需要填写的字段 */}
+                       {activeTab === 'pending' && (
+                         <>
+                           {/* 中包数 - 可编辑 */}
+                           <td className="py-3 px-3 text-center">
+                             {renderEditableField(item.id, 'packageCount', item.packageCount, '0')}
+                           </td>
+                           
+                           {/* 总件数 - 可编辑 */}
+                           <td className="py-3 px-3 text-center">
+                             {renderEditableField(item.id, 'totalPieces', item.totalPieces, '0')}
+                           </td>
+                           
+                           {/* 单件数量 - 可编辑 */}
+                           <td className="py-3 px-3 text-center">
+                             {renderEditableField(item.id, 'piecesPerUnit', item.piecesPerUnit, '0')}
+                           </td>
+                           
+                           {/* 外箱长 - 可编辑 */}
+                           <td className="py-3 px-3 text-center">
+                             {renderEditableField(item.id, 'boxLength', item.boxLength, '0', 'cm')}
+                           </td>
+                           
+                           {/* 外箱宽 - 可编辑 */}
+                           <td className="py-3 px-3 text-center">
+                             {renderEditableField(item.id, 'boxWidth', item.boxWidth, '0', 'cm')}
+                           </td>
+                           
+                           {/* 外箱高 - 可编辑 */}
+                           <td className="py-3 px-3 text-center">
+                             {renderEditableField(item.id, 'boxHeight', item.boxHeight, '0', 'cm')}
+                           </td>
+                           
+                           {/* 单件重量 - 可编辑 */}
+                           <td className="py-3 px-3 text-center">
+                             {renderEditableField(item.id, 'unitWeight', item.unitWeight, '0', 'kg')}
+                           </td>
+                         </>
+                       )}
+                       
+                       {/* 已验收栏目：显示完整字段 */}
+                       {activeTab === 'completed' && (
+                         <>
+                           {/* 中包数 - 显示值 */}
+                           <td className="py-3 px-3 text-center">
+                             <span className="text-sm text-gray-900">
+                               {item.packageCount || '-'}
+                             </span>
+                           </td>
+                           
+                           {/* 总件数 - 显示值 */}
+                           <td className="py-3 px-3 text-center">
+                             <span className="text-sm text-gray-900">
+                               {item.totalPieces || '-'}
+                             </span>
+                           </td>
+                           
+                           {/* 单件数量 - 显示值 */}
+                           <td className="py-3 px-3 text-center">
+                             <span className="text-sm text-gray-900">
+                               {item.piecesPerUnit || '-'}
+                             </span>
+                           </td>
+                           
+                           {/* 总数量 - 计算字段 */}
+                           <td className="py-3 px-3 text-center">
+                             <span className="text-sm font-medium text-blue-600">
+                               {item.totalQuantity ? `${item.totalQuantity}` : '-'}
+                             </span>
+                           </td>
+                           
+                           {/* 外箱长 - 显示值 */}
+                           <td className="py-3 px-3 text-center">
+                             <span className="text-sm text-gray-900">
+                               {item.boxLength ? `${item.boxLength}cm` : '-'}
+                             </span>
+                           </td>
+                           
+                           {/* 外箱宽 - 显示值 */}
+                           <td className="py-3 px-3 text-center">
+                             <span className="text-sm text-gray-900">
+                               {item.boxWidth ? `${item.boxWidth}cm` : '-'}
+                             </span>
+                           </td>
+                           
+                           {/* 外箱高 - 显示值 */}
+                           <td className="py-3 px-3 text-center">
+                             <span className="text-sm text-gray-900">
+                               {item.boxHeight ? `${item.boxHeight}cm` : '-'}
+                             </span>
+                           </td>
+                           
+                           {/* 外箱体积 - 计算字段 */}
+                           <td className="py-3 px-3 text-center">
+                             <span className="text-sm font-medium text-blue-600">
+                               {item.boxVolume ? `${parseFloat(item.boxVolume).toFixed(6)}m³` : '-'}
+                             </span>
+                           </td>
+                           
+                           {/* 总体积 - 计算字段 */}
+                           <td className="py-3 px-3 text-center">
+                             <span className="text-sm font-medium text-blue-600">
+                               {item.totalVolume ? `${parseFloat(item.totalVolume).toFixed(3)}m³` : '-'}
+                             </span>
+                           </td>
+                           
+                           {/* 单件重量 - 显示值 */}
+                           <td className="py-3 px-3 text-center">
+                             <span className="text-sm text-gray-900">
+                               {item.unitWeight ? `${item.unitWeight}kg` : '-'}
+                             </span>
+                           </td>
+                           
+                           {/* 总重量 - 计算字段 */}
+                           <td className="py-3 px-3 text-center">
+                             <span className="text-sm font-medium text-blue-600">
+                               {item.totalWeight ? `${parseFloat(item.totalWeight).toFixed(2)}kg` : '-'}
+                             </span>
+                           </td>
+                           
+                           {/* 验收时间 */}
+                           <td className="py-3 px-3 text-center">
+                             <div className="text-sm text-gray-900">
+                               {item.inspectionDate ? item.inspectionDate.toLocaleDateString('zh-CN') : '-'}
+                             </div>
+                             <div className="text-xs text-gray-500">
+                               {item.inspector?.name || '-'}
+                             </div>
+                           </td>
+                         </>
                         )}
                         
                         {/* 操作 - 仅仓管人员可见 */}
