@@ -183,14 +183,14 @@ export const QualityControl: React.FC = () => {
   const handleSave = (itemId: string) => {
     // 权限检查：只有仓管人员可以保存
     if (!isWarehouseStaff) {
-      alert('权限不足：只有仓管人员可以保存数据');
+      console.warn('权限不足：只有仓管人员可以保存数据');
       return;
     }
 
     try {
       const item = qualityControlData.find(i => i.id === itemId);
       if (!item) {
-        alert('未找到对应的SKU数据');
+        console.error('未找到对应的SKU数据');
         return;
       }
 
@@ -213,7 +213,7 @@ export const QualityControl: React.FC = () => {
 
       if (emptyFields.length > 0) {
         const fieldNames = emptyFields.map(f => f.name).join('、');
-        alert(`请填写完整信息：${fieldNames}`);
+        console.warn(`请填写完整信息：${fieldNames}`);
         return;
       }
 
@@ -228,7 +228,7 @@ export const QualityControl: React.FC = () => {
 
       // 验证数值有效性
       if (totalPieces <= 0 || piecesPerUnit <= 0 || boxLength <= 0 || boxWidth <= 0 || boxHeight <= 0 || unitWeight <= 0) {
-        alert('所有数值必须大于0');
+        console.warn('所有数值必须大于0');
         return;
       }
 
@@ -269,10 +269,10 @@ export const QualityControl: React.FC = () => {
       );
 
       // 显示成功提示
-      alert('验收数据保存成功！');
+      console.log('验收数据保存成功！');
     } catch (error) {
       console.error('保存失败:', error);
-      alert('保存失败，请重试');
+      console.error('保存失败，请重试');
     }
   };
 
