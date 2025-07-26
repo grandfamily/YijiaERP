@@ -8,6 +8,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 export const Approvals: React.FC = () => {
   const { getPurchaseRequests, approvePurchaseRequest, rejectPurchaseRequest, updatePurchaseRequest, getInventoryBySKU } = useProcurement();
   const { user, hasPermission } = useAuth();
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedRequest, setSelectedRequest] = useState<PurchaseRequest | null>(null);
   const [approvalRemarks, setApprovalRemarks] = useState('');
   const [editingQuantities, setEditingQuantities] = useState<{[key: string]: number}>({});
@@ -15,6 +16,7 @@ export const Approvals: React.FC = () => {
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [expandedSalesInfo, setExpandedSalesInfo] = useState<{[key: string]: boolean}>({});
   const [salesData, setSalesData] = useState<{[key: string]: any}>({});
+  const pageSize = 15;
 
   // 获取所有需要审批或已审批的订单（所有角色都能看到）
   const getRequestsForApproval = () => {
@@ -25,6 +27,13 @@ export const Approvals: React.FC = () => {
   };
 
   const { data: allRequests } = getRequestsForApproval();
+
+  // 计算分页
+  const totalRequests = allRequests.length;
+  const totalPages = Math.ceil(totalRequests / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const currentPageRequests = allRequests.slice(startIndex, endIndex);
 
   // 检查用户是否有审批权限
   const hasApprovalPermission = user?.role === 'department_manager' || user?.role === 'general_manager';
@@ -208,6 +217,122 @@ export const Approvals: React.FC = () => {
           </div>
         </div>
 
+        {/* 分页控件 - 移到底部 */}
+        {totalRequests > 0 && (
+          <div className="bg-white border-t border-gray-200 px-4 py-3 mt-4 rounded-b-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <span>显示 {startIndex + 1} - {Math.min(endIndex, totalRequests)} 条，共 {totalRequests} 条记录</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  首页
+                </button>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  上一页
+                </button>
+                
+                {/* 页码显示 */}
+                <div className="flex items-center space-x-2 text-sm text-gray-500">
+                  {totalPages <= 7 ? (
+                    // 总页数少于等于7页时，显示所有页码
+                    Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1 border rounded text-sm ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))
+                  ) : (
+                    // 总页数大于7页时，显示省略号
+                    <>
+                      {currentPage > 3 && (
+                        <>
+                          <button
+                            onClick={() => setCurrentPage(1)}
+                            className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
+                          >
+                            1
+                          </button>
+                          {currentPage > 4 && <span className="text-gray-400">...</span>}
+                        </>
+                      )}
+                      
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let page;
+                        if (currentPage <= 3) {
+                          page = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          page = totalPages - 4 + i;
+                        } else {
+                          page = currentPage - 2 + i;
+                        }
+                        
+                        if (page < 1 || page > totalPages) return null;
+                        
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`px-3 py-1 border rounded text-sm ${
+                              currentPage === page
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      })}
+                      
+                      {currentPage < totalPages - 2 && (
+                        <>
+                          {currentPage < totalPages - 3 && <span className="text-gray-400">...</span>}
+                          <button
+                            onClick={() => setCurrentPage(totalPages)}
+                            className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
+                          >
+                            {totalPages}
+                          </button>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  下一页
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  末页
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
         {allRequests.length === 0 ? (
           <div className="text-center py-12">
             <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
@@ -637,25 +762,106 @@ export const Approvals: React.FC = () => {
         )}
       </div>
 
-      {/* Image Zoom Modal */}
-      {zoomedImage && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-[60]">
-          <div className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center">
-            <button
-              onClick={() => setZoomedImage(null)}
-              className="absolute top-4 right-4 p-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full text-white transition-colors z-10"
-            >
-              <X className="h-6 w-6" />
-            </button>
-            <img
-              src={zoomedImage}
-              alt="放大图片"
-              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-              onClick={() => setZoomedImage(null)}
-            />
-          </div>
-        </div>
-      )}
-    </>
-  );
-};
+      <div className="flex flex-col h-full">
+        {/* 表格区域 - 占据剩余空间 */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex-1 flex flex-col min-h-[600px]">
+          <div className="flex-1 overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">申请编号</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">申请人</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">SKU数量</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">总金额</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">提交时间</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">初审状态</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">终审状态</th>
+                  {hasApprovalPermission && (
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">操作</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {currentPageRequests.length === 0 ? (
+                  <tr>
+                    <td colSpan={hasApprovalPermission ? 8 : 7} className="py-12 text-center">
+                      <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">没有审批记录</h3>
+                      <p className="text-gray-600">还没有提交的采购申请</p>
+                    </td>
+                  </tr>
+                ) : (
+                  currentPageRequests.map((request) => {
+                    const firstApprovalStatus = getFirstApprovalStatus(request);
+                    const finalApprovalStatus = getFinalApprovalStatus(request);
+                    const canOperate = canOperateRequest(request);
+                    
+                    return (
+                      <tr key={request.id} className="hover:bg-gray-50">
+                        <td className="py-4 px-4">
+                          <div className="font-medium text-gray-900">{request.requestNumber}</div>
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="text-gray-900">{request.requester.name}</div>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="text-gray-900">{request.items.length}</span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="text-gray-900 font-medium">
+                            ¥{request.totalAmount.toLocaleString()}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="text-gray-500 text-sm">
+                            {new Date(request.createdAt).toLocaleDateString('zh-CN')}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <StatusBadge
+                            status={firstApprovalStatus}
+                            color={getStatusColor(firstApprovalStatus)}
+                            size="sm"
+                          />
+                        </td>
+                        <td className="py-4 px-4">
+                          <StatusBadge
+                            status={finalApprovalStatus}
+                            color={getStatusColor(finalApprovalStatus)}
+                            size="sm"
+                          />
+                        </td>
+                        {hasApprovalPermission && (
+                          <td className="py-4 px-4">
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => setSelectedRequest(request)}
+                                className="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                              >
+                                查看
+                              </button>
+                              {canOperate && (
+                                <>
+                                  <button
+                                    onClick={() => handleApprove(request.id)}
+                                    className="px-3 py-1 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors"
+                                  >
+                                    通过
+                                  </button>
+                                  <button
+                                    onClick={() => handleReject(request.id)}
+                                    className="px-3 py-1 text-sm text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                                  >
+                                    驳回
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
