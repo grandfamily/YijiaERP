@@ -553,6 +553,50 @@ export const PurchaseProgress: React.FC = () => {
     }
   };
 
+  // 🎯 收货确认完成后的SKU流转处理
+  const handleSKUFlowAfterReceivingConfirmation = async (progressId: string) => {
+    try {
+      const progress = procurementProgressData.find(p => p.id === progressId);
+      if (!progress) return;
+
+      // 获取订单分配信息以确定采购类型
+      const allocation = getOrderAllocationByRequestId(progress.purchaseRequestId);
+      if (!allocation) return;
+
+      // 检查收货确认节点是否真的已完成
+      const receivingStage = progress.stages.find(stage => stage.name === '收货确认');
+      if (!receivingStage || receivingStage.status !== 'completed') return;
+
+      // 检查所有前置节点是否都已完成
+      const allPreviousStagesCompleted = progress.stages
+        .filter(stage => stage.name !== '收货确认')
+        .every(stage => stage.status === 'completed');
+
+      if (!allPreviousStagesCompleted) {
+        console.log('⚠️ SKU流转检查：前置节点未全部完成，暂不流转');
+        return;
+      }
+
+      // 根据采购类型执行流转规则
+      if (allocation.type === 'external') {
+        // 厂家包装类型流转
+        console.log(`🔄 SKU流转：厂家包装SKU已完成收货确认，自动流转到"厂家包装已完成"子栏目`);
+        // 这里可以添加额外的业务逻辑，比如发送通知、更新状态等
+        
+      } else if (allocation.type === 'in_house') {
+        // 自己包装类型流转
+        console.log(`🔄 SKU流转：自己包装SKU已完成收货确认，自动流转到"自己包装已完成"子栏目`);
+        // 这里可以添加额外的业务逻辑，比如发送通知、更新状态等
+      }
+
+      // 触发界面刷新以反映流转结果
+      // 由于我们使用的是响应式数据，组件会自动重新渲染
+      
+    } catch (error) {
+      console.error('SKU流转处理失败:', error);
+    }
+  };
+
   // 处理单个SKU的阶段完成
   const handleCompleteSKUStage = async (requestId: string, itemId: string, stageName: string) => {
     try {
@@ -1668,3 +1712,4 @@ export const PurchaseProgress: React.FC = () => {
     </div>
   );
 };
+```
