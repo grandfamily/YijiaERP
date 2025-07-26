@@ -280,30 +280,12 @@ export const EditPurchaseRequest: React.FC<EditPurchaseRequestProps> = ({
     try {
       const totalAmount = getTotalAmount();
 
-      // 如果是被驳回的订单，重新提交时需要重置状态
-      const updateData: any = {
+      await updatePurchaseRequest(request.id, {
         items,
         totalAmount,
         remarks: formData.remarks,
         updatedAt: new Date()
-      };
-
-      // 如果原订单是被驳回状态，修改后自动重新提交
-      if (request.status === 'rejected') {
-        updateData.status = 'submitted';
-        updateData.approvalStatus = 'pending';
-        // 清除之前的审批信息
-        updateData.firstApproverId = undefined;
-        updateData.firstApprover = undefined;
-        updateData.firstApprovalDate = undefined;
-        updateData.firstApprovalRemarks = undefined;
-        updateData.finalApproverId = undefined;
-        updateData.finalApprover = undefined;
-        updateData.finalApprovalDate = undefined;
-        updateData.finalApprovalRemarks = undefined;
-      }
-
-      await updatePurchaseRequest(request.id, updateData);
+      });
 
       onSuccess();
     } catch (error) {

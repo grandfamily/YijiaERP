@@ -168,8 +168,7 @@ class AuthStore {
         'manage_order_allocation',
         'manage_procurement_progress',
         'update_procurement_progress',
-        'view_procurement_progress',
-        'resubmit_requests'
+        'view_procurement_progress'
       ],
       department_manager: [
         'view_purchase_requests',

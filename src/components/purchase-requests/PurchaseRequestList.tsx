@@ -276,26 +276,18 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
   const canEdit = (request: PurchaseRequest) => {
     return hasPermission('edit_purchase_request') && 
            (request.requesterId === user?.id || hasPermission('edit_all_requests')) &&
-           ['draft', 'rejected'].includes(request.status); // 草稿和被驳回的可以编辑
+           ['draft', 'rejected'].includes(request.status); // 只有草稿和被驳回的可以编辑
   };
 
   const canDelete = (request: PurchaseRequest) => {
     return hasPermission('delete_requests') && 
            (request.requesterId === user?.id || hasPermission('delete_all_requests')) &&
-           ['draft', 'rejected'].includes(request.status); // 草稿和被驳回的可以删除
+           ['draft', 'rejected'].includes(request.status); // 只有草稿和被驳回的可以删除
   };
 
   const canResubmit = (request: PurchaseRequest) => {
     return request.status === 'rejected' && 
-           request.requesterId === user?.id && 
-           hasPermission('resubmit_requests');
-  };
-
-  // 新增：检查采购专员是否可以修改被驳回的订单
-  const canPurchasingOfficerEdit = (request: PurchaseRequest) => {
-    return user?.role === 'purchasing_officer' && 
-           request.status === 'rejected' && 
-           request.requesterId === user?.id;
+           (request.requesterId === user?.id || hasPermission('resubmit_requests'));
   };
 
   return (
@@ -442,17 +434,13 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                       </button>
                       <button 
                         onClick={() => setEditingRequest(request)}
-                        disabled={!canModify(request) && !canPurchasingOfficerEdit(request)}
+                        disabled={!canModify(request)}
                         className={`p-1 rounded transition-colors ${
-                          canModify(request) || canPurchasingOfficerEdit(request)
+                          canModify(request) 
                             ? 'text-gray-400 hover:text-blue-600 cursor-pointer' 
                             : 'text-gray-300 cursor-not-allowed'
                         }`}
-                        title={
-                          canModify(request) ? "修改申请" : 
-                          canPurchasingOfficerEdit(request) ? "被驳回订单可重新修改" : 
-                          "订单已审核，无法修改"
-                        }
+                        title={canModify(request) ? "修改申请" : "订单已审核，无法修改"}
                       >
                         <Edit className="h-4 w-4" />
                       </button>
