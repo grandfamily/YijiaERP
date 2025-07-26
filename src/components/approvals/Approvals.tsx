@@ -222,7 +222,6 @@ export const Approvals: React.FC = () => {
                   <tr>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">申请编号</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">申请人</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">类型</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">SKU数量</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">总金额</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">提交时间</th>
@@ -246,12 +245,6 @@ export const Approvals: React.FC = () => {
                         </td>
                         <td className="py-4 px-4">
                           <div className="text-gray-900">{request.requester.name}</div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <StatusBadge
-                            status={request.type === 'external' ? '厂家包装' : '自己包装'}
-                            color={request.type === 'external' ? 'blue' : 'green'}
-                          />
                         </td>
                         <td className="py-4 px-4">
                           <span className="text-gray-900">{request.items.length}</span>
