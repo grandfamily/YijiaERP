@@ -479,37 +479,114 @@ export const QualityControl: React.FC = () => {
                          <>
                            {/* 中包数 - 可编辑 */}
                            <td className="py-3 px-3 text-center">
-                             {renderEditableField(item.id, 'packageCount', item.packageCount, '0')}
+                             <input
+                               type="number"
+                               min="0"
+                               step="1"
+                               value={item.packageCount || ''}
+                               onChange={(e) => {
+                                 // 在实际应用中，这里会调用API更新数据
+                                 console.log('更新中包数:', item.id, e.target.value);
+                               }}
+                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                               placeholder="0"
+                             />
                            </td>
                            
                            {/* 总件数 - 可编辑 */}
                            <td className="py-3 px-3 text-center">
-                             {renderEditableField(item.id, 'totalPieces', item.totalPieces, '0')}
+                             <input
+                               type="number"
+                               min="0"
+                               step="1"
+                               value={item.totalPieces || ''}
+                               onChange={(e) => {
+                                 // 在实际应用中，这里会调用API更新数据
+                                 console.log('更新总件数:', item.id, e.target.value);
+                               }}
+                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                               placeholder="0"
+                             />
                            </td>
                            
                            {/* 单件数量 - 可编辑 */}
                            <td className="py-3 px-3 text-center">
-                             {renderEditableField(item.id, 'piecesPerUnit', item.piecesPerUnit, '0')}
+                             <input
+                               type="number"
+                               min="0"
+                               step="1"
+                               value={item.piecesPerUnit || ''}
+                               onChange={(e) => {
+                                 // 在实际应用中，这里会调用API更新数据
+                                 console.log('更新单件数量:', item.id, e.target.value);
+                               }}
+                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                               placeholder="0"
+                             />
                            </td>
                            
                            {/* 外箱长 - 可编辑 */}
                            <td className="py-3 px-3 text-center">
-                             {renderEditableField(item.id, 'boxLength', item.boxLength, '0', 'cm')}
+                             <input
+                               type="number"
+                               min="0"
+                               step="0.1"
+                               value={item.boxLength || ''}
+                               onChange={(e) => {
+                                 // 在实际应用中，这里会调用API更新数据
+                                 console.log('更新外箱长:', item.id, e.target.value);
+                               }}
+                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                               placeholder="0"
+                             />
                            </td>
                            
                            {/* 外箱宽 - 可编辑 */}
                            <td className="py-3 px-3 text-center">
-                             {renderEditableField(item.id, 'boxWidth', item.boxWidth, '0', 'cm')}
+                             <input
+                               type="number"
+                               min="0"
+                               step="0.1"
+                               value={item.boxWidth || ''}
+                               onChange={(e) => {
+                                 // 在实际应用中，这里会调用API更新数据
+                                 console.log('更新外箱宽:', item.id, e.target.value);
+                               }}
+                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                               placeholder="0"
+                             />
                            </td>
                            
                            {/* 外箱高 - 可编辑 */}
                            <td className="py-3 px-3 text-center">
-                             {renderEditableField(item.id, 'boxHeight', item.boxHeight, '0', 'cm')}
+                             <input
+                               type="number"
+                               min="0"
+                               step="0.1"
+                               value={item.boxHeight || ''}
+                               onChange={(e) => {
+                                 // 在实际应用中，这里会调用API更新数据
+                                 console.log('更新外箱高:', item.id, e.target.value);
+                               }}
+                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                               placeholder="0"
+                             />
                            </td>
                            
                            {/* 单件重量 - 可编辑 */}
                            <td className="py-3 px-3 text-center">
-                             {renderEditableField(item.id, 'unitWeight', item.unitWeight, '0', 'kg')}
+                             <input
+                               type="number"
+                               min="0"
+                               step="0.01"
+                               value={item.unitWeight || ''}
+                               onChange={(e) => {
+                                 // 在实际应用中，这里会调用API更新数据
+                                 console.log('更新单件重量:', item.id, e.target.value);
+                               }}
+                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                               placeholder="0"
+                             />
                            </td>
                          </>
                        )}
