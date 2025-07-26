@@ -527,20 +527,7 @@ export const PurchaseProgress: React.FC = () => {
 
       // 🎯 SKU流转规则核查逻辑
       if (stageName === '收货确认') {
-        // 获取订单分配信息以确定采购类型
-        const progress = procurementProgressData.find(p => p.id === progressId);
-        const allocation = progress ? getOrderAllocationByRequestId(progress.purchaseRequestId) : null;
-        
-        // 根据采购类型显示相应的提示信息
-        let targetSubTab = '';
-        if (allocation?.type === 'external') {
-          targetSubTab = '厂家包装已完成';
-        } else if (allocation?.type === 'in_house') {
-          targetSubTab = '自己包装已完成';
-        }
-        
         await handleSKUFlowAfterReceivingConfirmation(progressId);
-        setNotificationMessage(`SKU收货确认已完成，已移至${targetSubTab}栏目`);
       }
 
       setNotificationMessage(`已完成"${stageName}"阶段`);
@@ -549,9 +536,6 @@ export const PurchaseProgress: React.FC = () => {
       console.error('完成阶段失败:', error);
       alert('操作失败，请重试');
       setNotificationMessage('操作失败，请重试');
-      setTimeout(() => setNotificationMessage(null), 3000);
-    }
-  };
 
   // 🎯 收货确认完成后的SKU流转处理
   const handleSKUFlowAfterReceivingConfirmation = async (progressId: string) => {
@@ -594,6 +578,9 @@ export const PurchaseProgress: React.FC = () => {
       
     } catch (error) {
       console.error('SKU流转处理失败:', error);
+    }
+  };
+      setTimeout(() => setNotificationMessage(null), 3000);
     }
   };
 
