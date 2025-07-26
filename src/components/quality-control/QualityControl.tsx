@@ -493,7 +493,16 @@ export const QualityControl: React.FC = () => {
                            
                            {/* 总件数 - 可编辑 */}
                            <td className="py-3 px-3 text-center">
-                             {renderEditableField(item.id, 'totalPieces', item.totalPieces, '0')}
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={editingItem === item.id ? (editData.totalPieces || '') : (item.totalPieces || '')}
+                              onChange={(e) => handleDataChange('totalPieces', e.target.value)}
+                              onFocus={() => handleEdit(item.id)}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              placeholder="0"
+                            />
                            </td>
                            
                            {/* 单件数量 - 可编辑 */}
@@ -708,16 +717,7 @@ export const QualityControl: React.FC = () => {
                         )}
                       </tr>
                     );
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              value={editingItem === item.id ? (editData.totalPieces || '') : (item.totalPieces || '')}
-                              onChange={(e) => handleDataChange('totalPieces', e.target.value)}
-                              onFocus={() => handleEdit(item.id)}
-                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              placeholder="0"
-                            />
+                  })}
                 </tbody>
               </table>
             </div>
