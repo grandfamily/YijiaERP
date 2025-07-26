@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { useProcurement } from '../../hooks/useProcurement';
 import { useAuth } from '../../hooks/useAuth';
-import { useAuth } from '../../hooks/useAuth';
 import { PurchaseRequest, OrderAllocation, ProcurementProgress, PaymentMethod } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
 import { ProgressBar } from '../ui/ProgressBar';
@@ -51,7 +50,7 @@ export const PurchaseProgress: React.FC = () => {
     getCardDeliveryReminderTime,
     getPaymentReminderTime
   } = useProcurement();
-  const { user, hasPermission } = useAuth();
+  const { user: authUser, hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('in_progress');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
@@ -59,6 +58,7 @@ export const PurchaseProgress: React.FC = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [arrivalQuantities, setArrivalQuantities] = useState<{[key: string]: number}>({});
   // 检查是否为采购专员
   const isPurchasingOfficer = user?.role === 'purchasing_officer';
 
@@ -1066,6 +1066,7 @@ export const PurchaseProgress: React.FC = () => {
                               const isInProgress = stage.status === 'in_progress';
                               const isCompleted = stage.status === 'completed' || stage.status === 'skipped';
                               const showButton = isOperatable && !isCompleted;
+                              const canComplete = stage.name === '收货确认';
 
                               return (
                                 <td key={stage.id} className="py-3 px-4 text-center">
@@ -1111,7 +1112,7 @@ export const PurchaseProgress: React.FC = () => {
                                           onClick={() => handleCompleteStage(request.id, stage.name)}
                                           className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                                         >
-                                    {canComplete && isPurchasingOfficer && (
+                                          完成
                                         </button>
                                       )}
                                     </>
@@ -1119,12 +1120,12 @@ export const PurchaseProgress: React.FC = () => {
                                     <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded-full border border-gray-200 font-medium">
                                       {!isOperatable ? '等待前置节点' : '未开始'}
                                     </span>
-                                    {/* 非采购专员显示状态说明 */}
-                                    {canComplete && !isPurchasingOfficer && stage.name === '收货确认' && (
-                                      <div className="text-xs text-gray-500 mt-1">
-                                        仅采购专员可操作
-                                      </div>
-                                    )}
+                                  )}
+                                  {/* 非采购专员显示状态说明 */}
+                                  {canComplete && !isPurchasingOfficer && stage.name === '收货确认' && (
+                                    <div className="text-xs text-gray-500 mt-1">
+                                      仅采购专员可操作
+                                    </div>
                                   )}
                                 </td>
                               );
