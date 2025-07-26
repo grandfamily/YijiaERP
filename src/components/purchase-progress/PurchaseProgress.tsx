@@ -22,11 +22,7 @@ import {
   Mail,
   Bell,
   ZoomIn,
-  Zap,
-  Upload,
-  Factory,
-  Home,
-  XCircle
+  Zap
 } from 'lucide-react';
 import { useProcurement } from '../../hooks/useProcurement';
 import { useAuth } from '../../hooks/useAuth';
@@ -34,7 +30,7 @@ import { PurchaseRequest, OrderAllocation, ProcurementProgress, PaymentMethod, P
 import { StatusBadge } from '../ui/StatusBadge';
 import { ProgressBar } from '../ui/ProgressBar';
 
-type TabType = 'in_progress' | 'external_completed' | 'internal_completed' | 'failed_orders';
+type TabType = 'in_progress' | 'completed';
 
 // 筛选选项类型
 type PurchaseTypeFilter = 'all' | 'external' | 'in_house';
@@ -52,8 +48,7 @@ export const PurchaseProgress: React.FC = () => {
     addPaymentReminder,
     requestCardDelivery,
     getCardDeliveryReminderTime,
-    getPaymentReminderTime,
-    confirmCardDelivery
+    getPaymentReminderTime
   } = useProcurement();
   const { user, hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('in_progress');
@@ -77,16 +72,14 @@ export const PurchaseProgress: React.FC = () => {
   // SKU级别完成状态管理
   const [completedSKUs, setCompletedSKUs] = useState<Set<string>>(new Set());
 
-  // 获取数据
-  const procurementProgress = getProcurementProgress();
-  const { data: purchaseRequests } = getPurchaseRequests();
-  const orderAllocations = getOrderAllocations();
-
   // 获取已分配的订单
   const { data: allocatedRequests } = getPurchaseRequests(
     { status: ['allocated', 'in_production', 'quality_check', 'ready_to_ship', 'shipped', 'completed'] },
     { field: 'updatedAt', direction: 'desc' }
   );
+
+  // 获取所有订单分配信息
+  const orderAllocations = getOrderAllocations();
 
   // 获取所有纸卡进度
   const cardProgressData = getCardProgress();
@@ -129,76 +122,6 @@ export const PurchaseProgress: React.FC = () => {
            user?.role === 'department_manager' || 
            user?.role === 'general_manager';
   };
-
-  // 🎯 业务逻辑规则：SKU分类判断函数
-  const classifySKUByBusinessRules = (progressId: string) => {
-    const progress = procurementProgress.find(p => p.id === progressId);
-    if (!progress) return 'in_progress';
-
-    const request = purchaseRequests.find(req => req.id === progress.purchaseRequestId);
-    const allocation = orderAllocations.find(a => a.purchaseRequestId === progress.purchaseRequestId);
-    
-    if (!request || !allocation) return 'in_progress';
-
-    // 检查是否所有阶段都已完成
-    const allStagesCompleted = progress.stages.every(stage => 
-      stage.status === 'completed' || stage.status === 'skipped'
-    );
-
-    // 🔍 业务规则1：进行中订单
-    if (!allStagesCompleted) {
-      return 'in_progress';
-    }
-
-    // 🔍 业务规则2：厂家包装已完成
-    if (allocation.type === 'external' && allStagesCompleted) {
-      return 'external_completed';
-    }
-
-    // 🔍 业务规则3：自己包装已完成
-    if (allocation.type === 'in_house' && allStagesCompleted) {
-      // 检查是否有验收不通过的情况
-      const hasFailedInspection = request.status === 'rejected' || 
-        progress.stages.some(stage => stage.name === '验收' && stage.status === 'skipped');
-      
-      if (hasFailedInspection) {
-        return 'failed_orders';
-      }
-      
-      return 'internal_completed';
-    }
-
-    // 🔍 业务规则4：不合格订单
-    // 自己包装类型且验收不通过
-    if (allocation.type === 'in_house' && 
-        (request.status === 'rejected' || 
-         progress.stages.some(stage => stage.name === '验收' && stage.status === 'skipped'))) {
-      return 'failed_orders';
-    }
-
-    return 'in_progress';
-  };
-
-  // 🎯 根据业务规则过滤数据
-  const getFilteredProgressByTab = () => {
-    return procurementProgress.filter(progress => {
-      const classification = classifySKUByBusinessRules(progress.id);
-      return classification === activeTab;
-    });
-  };
-
-  // 🎯 获取统计数据
-  const getTabStats = () => {
-    const inProgress = procurementProgress.filter(p => classifySKUByBusinessRules(p.id) === 'in_progress').length;
-    const externalCompleted = procurementProgress.filter(p => classifySKUByBusinessRules(p.id) === 'external_completed').length;
-    const internalCompleted = procurementProgress.filter(p => classifySKUByBusinessRules(p.id) === 'internal_completed').length;
-    const failedOrders = procurementProgress.filter(p => classifySKUByBusinessRules(p.id) === 'failed_orders').length;
-    
-    return { inProgress, externalCompleted, internalCompleted, failedOrders };
-  };
-
-  const tabStats = getTabStats();
-  const filteredProgress = getFilteredProgressByTab();
 
   // 检查定金支付状态
   const getDepositPaymentStatus = (requestId: string): DepositPaymentFilter => {
@@ -304,17 +227,7 @@ export const PurchaseProgress: React.FC = () => {
     return applyFilters(tabFiltered);
   };
 
-  // 根据搜索条件进一步过滤
-  const searchFilteredProgress = filteredProgress.filter(progress => {
-    if (!searchTerm) return true;
-    
-    const request = purchaseRequests.find(req => req.id === progress.purchaseRequestId);
-    return request?.requestNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           request?.items.some(item => 
-             item.sku.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-             item.sku.name.toLowerCase().includes(searchTerm.toLowerCase())
-           );
-  });
+  const filteredRequests = getTabFilteredRequests();
 
   // 重置筛选条件
   const resetFilters = () => {
@@ -513,55 +426,60 @@ export const PurchaseProgress: React.FC = () => {
     setZoomedImage(imageUrl);
   };
 
-  // 获取订单信息
-  const getRequestInfo = (requestId: string) => {
-    return purchaseRequests.find(req => req.id === requestId);
-  };
-
   // 处理阶段完成
-  const handleCompleteStage = async (progressId: string, stageName: string) => {
+  const handleCompleteStage = async (requestId: string, stageName: string) => {
     try {
-      const progress = procurementProgress.find(p => p.id === progressId);
-      const stage = progress?.stages.find(s => s.name === stageName);
+      // 收货确认节点的特殊权限检查
+      if (stageName === '收货确认' && user?.role !== 'purchasing_officer') {
+        alert('权限不足：只有采购专员可以完成收货确认操作');
+        return;
+      }
       
-      // 🔒 权限验证：收货确认节点只有采购专员可以操作
+      const progress = getRequestProgress(requestId);
+      if (!progress) return;
+
+      // 检查是否可以完成此阶段（前置阶段必须已完成）
+      const stageIndex = progress.stages.findIndex(s => s.name === stageName);
+      if (stageIndex > 0) {
+        // 检查前面所有节点是否都已完成或跳过
+        for (let i = 0; i < stageIndex; i++) {
+          const prevStage = progress.stages[i];
+          if (prevStage.status !== 'completed' && prevStage.status !== 'skipped') {
+            setNotificationMessage(`请先完成前置节点："${prevStage.name}"`);
+            setTimeout(() => setNotificationMessage(null), 3000);
+            return;
+          }
+        }
+      }
+      
+      // 权限验证
+      const stage = progress.stages.find(s => s.name === stageName);
+      if (!stage) return;
+      
+      // 检查收货确认权限
       if (stageName === '收货确认' && !canCompleteReceiving(stage)) {
         alert('权限不足：只有采购专员可以完成收货确认操作');
         return;
       }
+      
+      // 检查其他节点权限
+      if (stageName !== '收货确认' && !canCompleteOtherStages(stage)) {
+        alert('权限不足：您没有权限完成此操作');
+        return;
+      }
 
-      await updateProcurementProgressStage(progressId, stageName, {
+      await updateProcurementProgressStage(progress.id, stageName, {
         status: 'completed',
         completedDate: new Date()
       });
 
-      // 特殊处理：定金支付完成后自动添加催付记录
-      if (stageName === '定金支付') {
-        const requestId = progress?.purchaseRequestId;
-        if (requestId) {
-          addPaymentReminder(requestId, 'deposit');
-        }
-      }
-
-      // 特殊处理：尾款支付完成后自动添加催付记录
-      if (stageName === '尾款支付') {
-        const requestId = progress?.purchaseRequestId;
-        if (requestId) {
-          addPaymentReminder(requestId, 'final');
-        }
-      }
-
-      // 特殊处理：纸卡提供完成后自动确认纸卡交付
-      if (stageName === '纸卡提供') {
-        const requestId = progress?.purchaseRequestId;
-        if (requestId) {
-          confirmCardDelivery(requestId);
-        }
-      }
-
+      setNotificationMessage(`已完成"${stageName}"阶段`);
+      setTimeout(() => setNotificationMessage(null), 3000);
     } catch (error) {
       console.error('完成阶段失败:', error);
       alert('操作失败，请重试');
+      setNotificationMessage('操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
     }
   };
 
@@ -650,36 +568,24 @@ export const PurchaseProgress: React.FC = () => {
     }
   };
 
-  // 处理催要纸卡
-  const handleRequestCard = async (requestId: string) => {
-    try {
-      requestCardDelivery(requestId);
-      alert('纸卡催要记录已添加');
-    } catch (error) {
-      console.error('催要纸卡失败:', error);
-      alert('操作失败，请重试');
-    }
-  };
-
   // 检查用户是否有编辑权限
   const canEdit = hasPermission('manage_procurement_progress');
-  const canUpdateProgress = hasPermission('update_procurement_progress');
 
   // 处理全选/取消全选
   const handleSelectAll = () => {
-    if (selectedOrders.length === searchFilteredProgress.length) {
+    if (selectedOrders.length === filteredRequests.length) {
       setSelectedOrders([]);
     } else {
-      setSelectedOrders(searchFilteredProgress.map(p => p.id));
+      setSelectedOrders(filteredRequests.map(r => r.id));
     }
   };
 
   // 处理单个订单选择
-  const handleSelectOrder = (progressId: string) => {
-    if (selectedOrders.includes(progressId)) {
-      setSelectedOrders(selectedOrders.filter(id => id !== progressId));
+  const handleSelectOrder = (requestId: string) => {
+    if (selectedOrders.includes(requestId)) {
+      setSelectedOrders(selectedOrders.filter(id => id !== requestId));
     } else {
-      setSelectedOrders([...selectedOrders, progressId]);
+      setSelectedOrders([...selectedOrders, requestId]);
     }
   };
 
@@ -697,13 +603,26 @@ export const PurchaseProgress: React.FC = () => {
     setSelectedOrders([]);
   };
 
+  // 获取统计数据
+  const getTabStats = () => {
+    const inProgress = allocatedRequests.filter(r => !isProcurementCompleted(r.id)).length;
+    const completed = allocatedRequests.filter(r => isProcurementCompleted(r.id)).length;
+    
+    return {
+      inProgress,
+      completed
+    };
+  };
+
+  const tabStats = getTabStats();
+
   return (
     <>
       <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">采购进度</h1>
-          <p className="text-gray-600">跟踪和管理采购订单的执行进度</p>
+          <p className="text-gray-600">管理采购订单的执行进度和状态</p>
         </div>
         <div className="flex items-center space-x-4">
           {selectedOrders.length > 0 && (
@@ -728,23 +647,9 @@ export const PurchaseProgress: React.FC = () => {
           <div className="flex items-center space-x-2">
             <FileText className="h-5 w-5 text-blue-500" />
             <span className="text-sm text-gray-600">
-              当前: {searchFilteredProgress.length}
+              订单: {filteredRequests.length}
             </span>
           </div>
-        </div>
-      </div>
-
-      {/* 🎯 业务规则说明 */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex items-center space-x-2 mb-2">
-          <Package className="h-5 w-5 text-blue-600" />
-          <h3 className="text-sm font-medium text-blue-800">SKU自动分类规则</h3>
-        </div>
-        <div className="text-sm text-blue-700 space-y-1">
-          <p>• <strong>进行中</strong>：采购流程未全部完成的SKU</p>
-          <p>• <strong>厂家包装已完成</strong>：厂家包装类型且所有流程已完成的SKU</p>
-          <p>• <strong>自己包装已完成</strong>：自己包装类型且验收通过的SKU</p>
-          <p>• <strong>不合格订单</strong>：自己包装类型但验收不通过的SKU</p>
         </div>
       </div>
 
@@ -767,55 +672,20 @@ export const PurchaseProgress: React.FC = () => {
               {tabStats.inProgress}
             </span>
           </button>
-          
           <button
-            onClick={() => setActiveTab('external_completed')}
+            onClick={() => setActiveTab('completed')}
             className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'external_completed'
+              activeTab === 'completed'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            <Factory className="h-5 w-5" />
-            <span>厂家包装已完成</span>
+            <CheckCircle className="h-5 w-5" />
+            <span>已完成</span>
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-              activeTab === 'external_completed' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+              activeTab === 'completed' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
             }`}>
-              {tabStats.externalCompleted}
-            </span>
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('internal_completed')}
-            className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'internal_completed'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <Home className="h-5 w-5" />
-            <span>自己包装已完成</span>
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-              activeTab === 'internal_completed' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-            }`}>
-              {tabStats.internalCompleted}
-            </span>
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('failed_orders')}
-            className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'failed_orders'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <XCircle className="h-5 w-5" />
-            <span>不合格订单</span>
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-              activeTab === 'failed_orders' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-            }`}>
-              {tabStats.failedOrders}
+              {tabStats.completed}
             </span>
           </button>
         </nav>
@@ -829,7 +699,7 @@ export const PurchaseProgress: React.FC = () => {
               onClick={handleSelectAll}
               className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-800"
             >
-              {selectedOrders.length === searchFilteredProgress.length && searchFilteredProgress.length > 0 ? (
+              {selectedOrders.length === filteredRequests.length && filteredRequests.length > 0 ? (
                 <CheckSquare className="h-4 w-4 text-blue-600" />
               ) : (
                 <Square className="h-4 w-4" />
@@ -841,12 +711,73 @@ export const PurchaseProgress: React.FC = () => {
                 已选择 {selectedOrders.length} 个订单
               </span>
             )}
+            
+            {/* 筛选下拉框 - 仅采购人员可见 */}
+            {user?.role === 'purchasing_officer' && (
+              <div className="flex items-center space-x-3 ml-6">
+                {/* 采购类型筛选 */}
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium text-gray-700">采购类型:</label>
+                  <select
+                    value={filters.purchaseType}
+                    onChange={(e) => setFilters({...filters, purchaseType: e.target.value as PurchaseTypeFilter})}
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">全部</option>
+                    <option value="external">厂家包装</option>
+                    <option value="in_house">自己包装</option>
+                  </select>
+                </div>
+
+                {/* 定金支付筛选 */}
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium text-gray-700">定金支付:</label>
+                  <select
+                    value={filters.depositPayment}
+                    onChange={(e) => setFilters({...filters, depositPayment: e.target.value as DepositPaymentFilter})}
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">全部</option>
+                    <option value="no_deposit">无需支付定金</option>
+                    <option value="deposit_paid">定金已支付</option>
+                    <option value="deposit_unpaid">定金未支付</option>
+                  </select>
+                </div>
+
+                {/* 尾款支付筛选 */}
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium text-gray-700">尾款支付:</label>
+                  <select
+                    value={filters.finalPayment}
+                    onChange={(e) => setFilters({...filters, finalPayment: e.target.value as FinalPaymentFilter})}
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">全部</option>
+                    <option value="no_final">无需支付尾款</option>
+                    <option value="final_paid">尾款已支付</option>
+                    <option value="final_unpaid">尾款未支付</option>
+                  </select>
+                </div>
+
+                {/* 重置筛选按钮 */}
+                {hasActiveFilters() && (
+                  <button
+                    onClick={resetFilters}
+                    className="text-sm text-blue-600 hover:text-blue-800 underline"
+                  >
+                    重置筛选
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <div className="text-sm text-gray-500">
-            {activeTab === 'in_progress' ? '进行中订单：采购流程尚未全部完成' : 
-             activeTab === 'external_completed' ? '厂家包装已完成的订单' :
-             activeTab === 'internal_completed' ? '自己包装已完成的订单' :
-             '不合格订单：验收不通过的订单'}
+            {activeTab === 'in_progress' ? '进行中订单：采购流程尚未全部完成' : '已完成订单：采购流程已全部完成'}
+            {user?.role === 'purchasing_officer' && hasActiveFilters() && (
+              <span className="ml-2 text-blue-600">
+                (已应用筛选条件，显示 {filteredRequests.length} / {originalFilteredRequests.length} 个订单)
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -876,40 +807,68 @@ export const PurchaseProgress: React.FC = () => {
         </div>
       )}
 
-      {searchFilteredProgress.length === 0 ? (
+      {/* Orders List */}
+      {filteredRequests.length === 0 ? (
         <div className="text-center py-12">
-          <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
-            {activeTab === 'in_progress' ? '没有进行中的采购订单' : 
-             activeTab === 'external_completed' ? '没有厂家包装已完成的订单' :
-             activeTab === 'internal_completed' ? '没有自己包装已完成的订单' :
-             '没有不合格的订单'}
+            {activeTab === 'in_progress' ? '没有进行中的采购订单' : '没有已完成的采购订单'}
           </h3>
-          <p className="text-gray-500">
-            {activeTab === 'in_progress' ? '所有采购订单都已完成' : 
-             activeTab === 'external_completed' ? '还没有厂家包装完成的订单' :
-             activeTab === 'internal_completed' ? '还没有自己包装完成的订单' :
-             '所有订单都符合质量要求'}
+          <p className="text-gray-600">
+            {activeTab === 'in_progress' ? '所有采购订单都已完成' : '还没有完成的采购订单'}
           </p>
         </div>
       ) : (
         <div className="space-y-6">
-          {searchFilteredProgress.map((progress) => {
-            const request = getRequestInfo(progress.purchaseRequestId);
-            const allocation = getOrderAllocation(progress.purchaseRequestId);
-            const isSelected = selectedOrders.includes(progress.id);
+          {filteredRequests.map((request) => {
+            const allocation = getOrderAllocation(request.id);
+            const progress = getRequestProgress(request.id);
+            const isSelected = selectedOrders.includes(request.id);
             
-            if (!request) return null;
+            // 如果没有进度记录，创建默认进度
+            const defaultProgress = {
+              stages: [
+                { 
+                  id: '1', 
+                  name: shouldShowDepositPayment(request.id) ? '定金支付' : '无需定金', 
+                  status: shouldShowDepositPayment(request.id) ? 'in_progress' : 'completed', 
+                  order: 1,
+                  completedDate: shouldShowDepositPayment(request.id) ? undefined : new Date(),
+                  remarks: shouldShowDepositPayment(request.id) ? undefined : '账期付款或无需定金，自动跳过'
+                },
+                { 
+                  id: '2', 
+                  name: '安排生产', 
+                  status: shouldShowDepositPayment(request.id) ? 'not_started' : 'in_progress', 
+                  order: 2 
+                },
+                { id: '3', name: '纸卡提供', status: isCardProgressCompleted(request.id) ? 'completed' : 'not_started', order: 3 },
+                { id: '4', name: '包装生产', status: 'not_started', order: 4 },
+                { id: '5', name: '尾款支付', status: 'not_started', order: 5 },
+                { id: '6', name: '安排发货', status: 'not_started', order: 6 },
+                { id: '7', name: '收货确认', status: 'not_started', order: 7 }
+              ],
+              currentStage: shouldShowDepositPayment(request.id) ? 0 : 1, // 如果跳过定金，当前阶段为安排生产
+              overallProgress: 0
+            };
+            
+            const currentProgress = progress || defaultProgress;
+            const completedStages = currentProgress.stages.filter(s => s.status === 'completed').length;
+            const totalStages = currentProgress.stages.filter(s => s.status !== 'skipped').length;
+            const progressPercentage = totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0;
             
             return (
-              <div key={progress.id} className={`bg-white rounded-lg shadow-sm border-2 transition-colors ${
-                isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-              } p-6`}>
+              <div 
+                key={request.id} 
+                className={`bg-white rounded-lg shadow-sm border-2 transition-colors ${
+                  isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                } p-6`}
+              >
                 {/* Order Header */}
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-3">
                     <button
-                      onClick={() => handleSelectOrder(progress.id)}
+                      onClick={() => handleSelectOrder(request.id)}
                       className="flex items-center"
                     >
                       {isSelected ? (
@@ -925,139 +884,403 @@ export const PurchaseProgress: React.FC = () => {
                       status={allocation?.type === 'external' ? '厂家包装' : '自己包装'}
                       color={allocation?.type === 'external' ? 'blue' : 'green'}
                     />
-                    {/* 🎯 显示当前分类状态 */}
                     <StatusBadge
-                      status={
-                        activeTab === 'in_progress' ? '进行中' :
-                        activeTab === 'external_completed' ? '厂家包装已完成' :
-                        activeTab === 'internal_completed' ? '自己包装已完成' :
-                        '不合格订单'
-                      }
-                      color={
-                        activeTab === 'in_progress' ? 'yellow' :
-                        activeTab === 'external_completed' ? 'blue' :
-                        activeTab === 'internal_completed' ? 'green' :
-                        'red'
-                      }
+                      status={isProcurementCompleted(request.id) ? '已完成' : '进行中'}
+                      color={isProcurementCompleted(request.id) ? 'green' : 'yellow'}
                     />
                   </div>
-                  <div className="text-sm text-gray-600">
-                    申请人: {request.requester.name}
+                  <div className="flex items-center space-x-4">
+                    {/* 纸卡类型、付款方式、定金金额字段 */}
+                    <div className="flex items-center space-x-6 text-sm">
+                      <div>
+                        <span className="text-gray-600">纸卡类型:</span>
+                        <span className="ml-2 font-medium text-gray-900">
+                          {allocation?.cardType === 'finished' ? '纸卡成品' :
+                           allocation?.cardType === 'design' ? '设计稿' :
+                           allocation?.cardType === 'none' ? '不需要' : '-'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">付款方式:</span>
+                        <span className="ml-2 font-medium text-gray-900">
+                          {allocation?.paymentMethod === 'payment_on_delivery' ? '付款发货' : 
+                           allocation?.paymentMethod === 'cash_on_delivery' ? '货到付款' : 
+                           allocation?.paymentMethod === 'credit_terms' ? '账期' : '-'}
+                        </span>
+                      </div>
+                      
+                      {/* 账期日期 */}
+                      {allocation?.creditDate && (
+                        <div>
+                          <span className="text-gray-600">账期:</span>
+                          <span className="ml-1 font-medium text-gray-900">
+                            {new Date(allocation.creditDate).toLocaleDateString('zh-CN')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* 右侧：金额和操作按钮 */}
+                    <div className="flex items-center space-x-4">
+                      {/* 定金金额字段 - 仅当定金金额大于0时显示 */}
+                      {allocation?.prepaymentAmount && allocation.prepaymentAmount > 0 && (
+                        <div>
+                          <span className="text-gray-600">定金金额:</span>
+                          <span className="ml-2 font-medium text-blue-600">
+                            ¥{allocation.prepaymentAmount.toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium">供应商:</span> {allocation?.supplierName || '未指定'}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium">总金额:</span> ¥{request.totalAmount.toLocaleString()}
+                    </div>
                   </div>
                 </div>
 
-                {/* Progress Overview */}
+                {/* Overall Progress Bar */}
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">整体进度</span>
-                    <span className="text-sm text-gray-600">{progress.overallProgress}%</span>
+                    <span className="text-sm font-medium text-gray-700">采购进度</span>
+                    <span className="text-sm text-gray-600">{progressPercentage}%</span>
                   </div>
                   <ProgressBar 
-                    progress={progress.overallProgress}
-                    color={
-                      activeTab === 'failed_orders' ? 'red' :
-                      progress.overallProgress === 100 ? 'green' : 'blue'
-                    }
+                    progress={progressPercentage}
+                    color={progressPercentage === 100 ? 'green' : 'blue'}
                   />
                 </div>
 
-                {/* Stages */}
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                  {progress.stages.map((stage, index) => {
-                    const isCompleted = stage.status === 'completed';
-                    const isInProgress = stage.status === 'in_progress';
-                    const isSkipped = stage.status === 'skipped';
-                    const canComplete = canUpdateProgress && 
-                      !isCompleted && 
-                      !isSkipped &&
-                      (index === 0 || progress.stages[index - 1]?.status === 'completed');
+                {/* SKU Table - Single Row per SKU */}
+                <div className="mb-6">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">采购项目</h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border border-gray-200 rounded-lg">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">图片</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">SKU</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">产品名称</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">采购数量</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">整体进度</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">定金支付</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">安排生产</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">纸卡提供</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">包装生产</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">尾款支付</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">安排发货</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">收货确认</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {request.items.map((item) => {
+                          const cardProgress = cardProgressData.find(cp => 
+                            cp.purchaseRequestId === request.id && cp.skuId === item.skuId
+                          );
+                          
+                          // 计算单个SKU进度 - 如果SKU已完成则显示100%
+                          const skuProgressPercentage = isSKUCompleted(request.id, item.id) ? 100 : progressPercentage;
+                          
+                          // 检查SKU是否应该显示在当前栏目
+                          const skuCompleted = isSKUCompleted(request.id, item.id);
+                          const shouldShowInCurrentTab = activeTab === 'completed' ? skuCompleted : !skuCompleted;
+                          
+                          // 如果SKU不应该在当前栏目显示，则跳过
+                          if (!shouldShowInCurrentTab) {
+                            return null;
+                          }
+                          
+                          return (
+                            <tr key={item.id} className="hover:bg-gray-50">
+                              {/* Product Image */}
+                              <td className="py-4 px-4">
+                                {item.sku.imageUrl ? (
+                                  <div className="relative group">
+                                    <img 
+                                      src={item.sku.imageUrl} 
+                                      alt={item.sku.name}
+                                      className="w-12 h-12 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                                      onClick={() => handleImageClick(item.sku.imageUrl!)}
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                      }}
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
+                                         onClick={() => handleImageClick(item.sku.imageUrl!)}>
+                                      <ZoomIn className="h-3 w-3 text-white" />
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="w-12 h-12 bg-gray-200 rounded border flex items-center justify-center">
+                                    <Package className="h-6 w-6 text-gray-400" />
+                                  </div>
+                                )}
+                              </td>
+                              
+                              {/* SKU Info */}
+                              <td className="py-4 px-4">
+                                <div className="font-medium text-gray-900">{item.sku.code}</div>
+                                <div className="text-xs text-gray-500">{item.sku.category}</div>
+                              </td>
+                              <td className="py-4 px-4">
+                                <div className="text-gray-900">{item.sku.name}</div>
+                                <div className="text-xs text-gray-500">{item.sku.englishName}</div>
+                              </td>
+                              
+                              {/* Purchase Quantity */}
+                              <td className="py-4 px-4 text-center">
+                                <span className="text-sm font-medium text-gray-900">
+                                  {item.quantity.toLocaleString()}
+                                </span>
+                              </td>
+                              
+                              {/* Overall Progress */}
+                              <td className="py-4 px-4 text-center">
+                                <div className="flex flex-col items-center space-y-1">
+                                  <span className="text-sm font-bold text-blue-600">{skuProgressPercentage}%</span>
+                                  <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                                    <div 
+                                      className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+                                      style={{ width: `${skuProgressPercentage}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </td>
 
-                    return (
-                      <div key={stage.id} className="text-center">
-                        <div className={`p-4 rounded-lg border-2 transition-colors ${
-                          isCompleted ? 'border-green-500 bg-green-50' :
-                          isInProgress ? 'border-blue-500 bg-blue-50' :
-                          isSkipped ? 'border-red-500 bg-red-50' :
-                          'border-gray-300 bg-gray-50'
-                        }`}>
-                          <h4 className="font-medium text-gray-900 mb-2">{stage.name}</h4>
-                          
-                          <StatusBadge
-                            status={
-                              isCompleted ? '已完成' :
-                              isInProgress ? '进行中' :
-                              isSkipped ? '已跳过' :
-                              '未开始'
-                            }
-                            color={
-                              isCompleted ? 'green' :
-                              isInProgress ? 'blue' :
-                              isSkipped ? 'red' :
-                              'gray'
-                            }
-                            size="sm"
-                          />
-                          
-                          {stage.completedDate && (
-                            <div className="text-xs text-gray-500 mt-2">
-                              {stage.completedDate.toLocaleDateString('zh-CN')}
-                            </div>
-                          )}
-                          
-                          {/* 🔒 权限控制：收货确认节点只有采购专员可以操作 */}
-                          {stage.name === '收货确认' && canCompleteReceiving(stage) && activeTab === 'in_progress' ? (
-                            <button
-                              onClick={() => handleCompleteStage(progress.id, stage.name)}
-                              className="mt-2 px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                              title="采购专员专属：完成收货确认"
-                            >
-                              完成收货
-                            </button>
-                          ) : canComplete && stage.name !== '收货确认' && activeTab === 'in_progress' && (
-                            <button
-                              onClick={() => handleCompleteStage(progress.id, stage.name)}
-                              className="mt-2 px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                            >
-                              完成
-                            </button>
-                          )}
-                          
-                          {stage.name === '纸卡提供' && !isCompleted && canUpdateProgress && activeTab === 'in_progress' && (
-                            <button
-                              onClick={() => handleRequestCard(progress.purchaseRequestId)}
-                              className="mt-2 px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 transition-colors"
-                            >
-                              催要纸卡
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                              {/* Stage Status Columns */}
+                              {currentProgress.stages.map((stage) => {
+                                // 如果SKU已完成，所有阶段显示为已完成
+                                const effectiveStageStatus = skuCompleted ? 'completed' : stage.status;
+                                const effectiveCompletedDate = skuCompleted ? new Date() : stage.completedDate;
+                                
+                                return (
+                                  <td key={stage.id} className="py-4 px-4 text-center">
+                                    <div className="flex flex-col items-center space-y-2">
+                                      <div className={`text-xs px-2 py-1 rounded-full ${
+                                        effectiveStageStatus === 'completed' ? 'bg-green-100 text-green-800' :
+                                        effectiveStageStatus === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                                        effectiveStageStatus === 'skipped' ? 'bg-blue-100 text-blue-800' :
+                                        'bg-gray-100 text-gray-800'
+                                      }`}>
+                                        {getStatusText(effectiveStageStatus)}
+                                      </div>
+                                      
+                                      {/* Completion Date */}
+                                      {effectiveCompletedDate && (
+                                        <div className="text-xs text-gray-500">
+                                          {effectiveCompletedDate.toLocaleDateString('zh-CN')}
+                                        </div>
+                                      )}
+                                      
+                                      {/* SKU级别完成按钮 - 仅在收货确认节点且状态为进行中时显示 */}
+                                      {stage.name === '收货确认' && 
+                                       effectiveStageStatus === 'in_progress' && 
+                                       !skuCompleted &&
+                                       activeTab === 'in_progress' && (
+                                        <button
+                                          onClick={() => handleSKUComplete(request.id, item.id)}
+                                          className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium"
+                                        >
+                                          完成
+                                        </button>
+                                      )}
+                                      
+                                      {/* Remarks for auto-completed stages */}
+                                      {stage.remarks && (
+                                        <div className="text-xs text-blue-600" title={stage.remarks}>
+                                          自动跳过
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        }).filter(Boolean)}
+                        
+                        {/* Batch Complete Row */}
+                        {canEdit && activeTab === 'in_progress' && (
+                          <tr className="bg-gray-50">
+                            <td className="py-3 px-4 text-sm font-medium text-gray-700" colSpan={5}>
+                              批量操作
+                            </td>
+                            {/* 为每个节点创建对应的批量操作按钮 */}
+                            {currentProgress.stages.map((stage, stageIndex) => {
+
+                              // 检查是否可以操作此节点（前置节点必须已完成）
+                              const canOperateStage = () => {
+                                if (stageIndex === 0) return true; // 第一个节点总是可以操作
+                                
+                                // 检查前面所有节点是否都已完成或跳过
+                                for (let i = 0; i < stageIndex; i++) {
+                                  const prevStage = currentProgress.stages[i];
+                                  if (prevStage.status !== 'completed' && prevStage.status !== 'skipped') {
+                                    return false;
+                                  }
+                                }
+                                return true;
+                              };
+
+                              const isOperatable = canOperateStage();
+                              const isInProgress = stage.status === 'in_progress';
+                              const isCompleted = stage.status === 'completed' || stage.status === 'skipped';
+                              const showButton = isOperatable && !isCompleted;
+
+                              // 收货确认节点的权限控制
+                              const renderStageButton = (stage: any, progress: any) => {
+                                if (stage.name === '收货确认') {
+                                  // 只有采购专员可以看到和操作收货确认按钮
+                                  if (!canCompleteReceiving(stage)) {
+                                    return null; // 其他角色不显示按钮
+                                  }
+                                  
+                                  return (
+                                    <button
+                                      onClick={() => handleCompleteStage(progress.id, stage.name)}
+                                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                      title="采购专员专属：完成收货确认"
+                                    >
+                                      完成
+                                    </button>
+                                  );
+                                }
+                                
+                                // 其他节点的按钮显示
+                                if (canCompleteOtherStages(stage)) {
+                                  return (
+                                    <button
+                                      onClick={() => handleCompleteStage(progress.id, stage.name)}
+                                      className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                                    >
+                                      完成
+                                    </button>
+                                  );
+                                }
+                                
+                                return null;
+                              };
+
+                              return (
+                                <td key={stage.id} className="py-3 px-4 text-center">
+                                  {isCompleted ? (
+                                    <span className="px-3 py-1.5 text-xs bg-green-100 text-green-800 rounded-full border border-green-200 font-medium">
+                                      已完成
+                                    </span>
+                                  ) : showButton ? (
+                                    <>
+                                      {/* 催付类按钮 */}
+                                      {stage.name === '定金支付' && (
+                                        <button
+                                          onClick={() => handlePaymentReminder('deposit', request.id)}
+                                          className="px-2 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors flex items-center space-x-1 mx-auto"
+                                        >
+                                          <Bell className="h-3 w-3" />
+                                          <span>催付定金</span>
+                                        </button>
+                                      )}
+                                      {stage.name === '纸卡提供' && (
+                                        <button
+                                          onClick={() => handleRequestCardDelivery(request.id)}
+                                          className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors flex items-center space-x-1 mx-auto"
+                                        >
+                                          <Bell className="h-3 w-3" />
+                                          <span>催要纸卡</span>
+                                        </button>
+                                      )}
+
+                                    
+                                      {stage.name === '尾款支付' && (
+                                        <button
+                                          onClick={() => handlePaymentReminder('final', request.id)}
+                                          className="px-2 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors flex items-center space-x-1 mx-auto"
+                                        >
+                                          <Bell className="h-3 w-3" />
+                                          <span>催付尾款</span>
+                                        </button>
+                                      )}
+                                      {/* 批量完成按钮 */}
+                                      {!['定金支付', '纸卡提供', '尾款支付'].includes(stage.name) && (
+                                        <button
+                                          onClick={() => handleCompleteStage(request.id, stage.name)}
+                                          className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                                        >
+                                          批量完成
+                                        </button>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded-full border border-gray-200 font-medium">
+                                      {!isOperatable ? '等待前置节点' : '未开始'}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
-                {/* Order Summary */}
-                <div className="mt-6 pt-4 border-t border-gray-200">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-600">总金额:</span>
-                      <span className="ml-2 font-medium text-gray-900">¥{request.totalAmount.toLocaleString()}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">SKU数量:</span>
-                      <span className="ml-2 font-medium text-gray-900">{request.items.length}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">创建时间:</span>
-                      <span className="ml-2 font-medium text-gray-900">
-                        {new Date(request.createdAt).toLocaleDateString('zh-CN')}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">预计完成:</span>
-                      <span className="ml-2 font-medium text-gray-900">
+                {/* 催付时间显示 - 参照纸卡催要样式，显示在订单右下角 */}
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm flex-1">
+                      <div>
+                        <span className="text-gray-600">申请人:</span>
+                        <span className="ml-2 font-medium text-gray-900">{request?.requester.name}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">创建时间:</span>
+                        <span className="ml-2 font-medium text-gray-900">
+                          {request?.createdAt ? new Date(request.createdAt).toLocaleDateString('zh-CN') : '-'}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        <span className="font-medium">交货日期:</span> 
                         {allocation?.deliveryDate ? new Date(allocation.deliveryDate).toLocaleDateString('zh-CN') : '-'}
-                      </span>
+                      </div>
+                      {(() => {
+                        const cardReminderTime = getCardDeliveryReminderTime(request.id);
+                        const depositReminderTime = getPaymentReminderTime(request.id, 'deposit');
+                        const finalReminderTime = getPaymentReminderTime(request.id, 'final');
+                        
+                        // 显示纸卡催要时间
+                        if (cardReminderTime) {
+                          return (
+                            <div className="text-sm text-orange-600">
+                              <span className="font-medium">纸卡催要时间:</span> 
+                              {cardReminderTime.toLocaleDateString('zh-CN')} {cardReminderTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          );
+                        }
+                        
+                        // 显示定金催付时间（仅采购人员可见）
+                        if (user?.role === 'purchasing_officer' && depositReminderTime) {
+                          return (
+                            <div className="text-sm text-orange-600">
+                              <span className="font-medium">定金催付时间:</span> 
+                              {depositReminderTime.toLocaleDateString('zh-CN')} {depositReminderTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          );
+                        }
+                        
+                        // 显示尾款催付时间（仅采购人员可见）
+                        if (user?.role === 'purchasing_officer' && finalReminderTime) {
+                          return (
+                            <div className="text-sm text-orange-600">
+                              <span className="font-medium">尾款催付时间:</span> 
+                              {finalReminderTime.toLocaleDateString('zh-CN')} {finalReminderTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          );
+                        }
+                        
+                        return null;
+                      })()}
                     </div>
                   </div>
                 </div>
