@@ -22,7 +22,10 @@ import {
   Mail,
   Bell,
   ZoomIn,
-  Zap
+  Zap,
+  Truck,
+  Factory,
+  XCircle
 } from 'lucide-react';
 import { useProcurement } from '../../hooks/useProcurement';
 import { useAuth } from '../../hooks/useAuth';
@@ -66,33 +69,6 @@ export const PurchaseProgress: React.FC = () => {
     dateRange: { start: '', end: '' },
     purchaseType: 'all' as PurchaseTypeFilter,
     depositPayment: 'all' as DepositPaymentFilter,
-  // 检查SKU是否已完成所有流程
-  const isSKUCompleted = (progress: ProcurementProgress): boolean => {
-    return progress.stages.every(stage => stage.status === 'completed' || stage.status === 'skipped');
-  };
-
-  // 检查订单是否为厂家包装
-  const isExternalPackaging = (requestId: string): boolean => {
-    const allocation = getOrderAllocation(requestId);
-    return allocation?.type === 'external';
-  };
-
-  // 检查订单是否为自己包装
-  const isInternalPackaging = (requestId: string): boolean => {
-    const allocation = getOrderAllocation(requestId);
-    return allocation?.type === 'in_house';
-  };
-
-  // 检查是否为不合格订单（自己包装 + 验收不通过）
-  const isFailedOrder = (requestId: string): boolean => {
-    const request = getRequestInfo(requestId);
-    const allocation = getOrderAllocation(requestId);
-    
-    // 自己包装 + 处于待验收环节 + 验收结果不通过
-    return allocation?.type === 'in_house' && 
-           request?.status === 'quality_check' && 
-           false; // 这里需要根据实际的验收结果字段来判断
-  };
     finalPayment: 'all' as FinalPaymentFilter
   });
 
@@ -127,6 +103,39 @@ export const PurchaseProgress: React.FC = () => {
   // 获取订单分配信息
   const getOrderAllocation = (requestId: string): OrderAllocation | undefined => {
     return orderAllocations.find(a => a.purchaseRequestId === requestId);
+  };
+
+  // 检查SKU是否已完成所有流程
+  const isSKUCompleted = (progress: ProcurementProgress): boolean => {
+    return progress.stages.every(stage => stage.status === 'completed' || stage.status === 'skipped');
+  };
+
+  // 检查订单是否为厂家包装
+  const isExternalPackaging = (requestId: string): boolean => {
+    const allocation = getOrderAllocation(requestId);
+    return allocation?.type === 'external';
+  };
+
+  // 检查订单是否为自己包装
+  const isInternalPackaging = (requestId: string): boolean => {
+    const allocation = getOrderAllocation(requestId);
+    return allocation?.type === 'in_house';
+  };
+
+  // 检查是否为不合格订单（自己包装 + 验收不通过）
+  const isFailedOrder = (requestId: string): boolean => {
+    const request = getRequestInfo(requestId);
+    const allocation = getOrderAllocation(requestId);
+    
+    // 自己包装 + 处于待验收环节 + 验收结果不通过
+    return allocation?.type === 'in_house' && 
+           request?.status === 'quality_check' && 
+           false; // 这里需要根据实际的验收结果字段来判断
+  };
+
+  // 获取请求信息
+  const getRequestInfo = (requestId: string) => {
+    return allocatedRequests.find(r => r.id === requestId);
   };
 
   // 采购专员收货确认权限检查函数
@@ -228,38 +237,50 @@ export const PurchaseProgress: React.FC = () => {
 
   // 根据标签页过滤订单
   const getTabFilteredRequests = () => {
-    let tabFiltered = allocatedRequests.filter(request => {
-        return filtered.filter(progress => !isSKUCompleted(progress));
-        request.requestNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    // 获取所有进度记录
+    const allProgress = procurementProgressData;
+    
+    let filtered: ProcurementProgress[] = [];
+    
+    switch (activeTab) {
+      case 'in_progress':
+        filtered = allProgress.filter(progress => !isSKUCompleted(progress));
+        break;
       case 'external_completed':
-        return filtered.filter(progress => 
+        filtered = allProgress.filter(progress => 
           isSKUCompleted(progress) && isExternalPackaging(progress.purchaseRequestId)
         );
-      
+        break;
       case 'internal_completed':
-        return filtered.filter(progress => 
+        filtered = allProgress.filter(progress => 
           isSKUCompleted(progress) && isInternalPackaging(progress.purchaseRequestId)
         );
-      
+        break;
       case 'failed_orders':
-        return filtered.filter(progress => 
+        filtered = allProgress.filter(progress => 
           isFailedOrder(progress.purchaseRequestId)
         );
+        break;
+      default:
+        filtered = allProgress;
+    }
+
+    // 转换为请求列表并应用搜索
+    const requestIds = filtered.map(p => p.purchaseRequestId);
+    const requests = allocatedRequests.filter(request => {
+      const matchesTab = requestIds.includes(request.id);
+      const matchesSearch = !searchTerm || 
+        request.requestNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        request.items.some(item => 
+          item.sku.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.sku.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
       
-      // 基于标签页过滤 - 支持SKU级别判断
-      if (activeTab === 'completed') {
-        // 已完成栏目：检查是否有任何SKU已完成
-        const hasCompletedSKUs = request.items.some(item => isSKUCompleted(request.id, item.id));
-        return matchesSearch && hasCompletedSKUs;
-      } else {
-        // 进行中栏目：检查是否有任何SKU未完成
-        const hasInProgressSKUs = request.items.some(item => !isSKUCompleted(request.id, item.id));
-        return matchesSearch && hasInProgressSKUs;
-      }
+      return matchesTab && matchesSearch;
     });
 
     // 应用筛选条件
-    return applyFilters(tabFiltered);
+    return applyFilters(requests);
   };
 
   const filteredRequests = getTabFilteredRequests();
@@ -295,7 +316,7 @@ export const PurchaseProgress: React.FC = () => {
     
     // 基于标签页过滤
     const isCompleted = isProcurementCompleted(request.id);
-    return matchesSearch && ((activeTab === 'completed' && isCompleted) || (activeTab === 'in_progress' && !isCompleted));
+    return matchesSearch && ((activeTab === 'external_completed' && isCompleted) || (activeTab === 'in_progress' && !isCompleted));
   });
 
   // 检查采购是否已完成
@@ -640,18 +661,7 @@ export const PurchaseProgress: React.FC = () => {
 
   // 获取统计数据
   const getTabStats = () => {
-    const inProgress = allocatedRequests.filter(r => !isProcurementCompleted(r.id)).length;
-    const completed = allocatedRequests.filter(r => isProcurementCompleted(r.id)).length;
-    
-    return {
-      inProgress,
-      completed
-    };
-  };
-
-  const tabStats = getTabStats();
-  // 获取统计数据
-  const getTabStats = () => {
+    const allProgress = procurementProgressData;
     const inProgress = allProgress.filter(progress => !isSKUCompleted(progress)).length;
     const externalCompleted = allProgress.filter(progress => 
       isSKUCompleted(progress) && isExternalPackaging(progress.purchaseRequestId)
@@ -723,11 +733,6 @@ export const PurchaseProgress: React.FC = () => {
             }`}>
               {tabStats.inProgress}
             </span>
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-              activeTab === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-            }`}>
-              {tabStats.inProgress}
-            </span>
           </button>
           
           <button
@@ -779,11 +784,6 @@ export const PurchaseProgress: React.FC = () => {
             }`}>
               {tabStats.failedOrders}
             </span>
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-              activeTab === 'completed' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-            }`}>
-              {tabStats.completed}
-            </span>
           </button>
         </nav>
       </div>
@@ -792,10 +792,7 @@ export const PurchaseProgress: React.FC = () => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            {activeTab === 'in_progress' ? '没有进行中的采购' : 
-             activeTab === 'external_completed' ? '没有厂家包装已完成的采购' :
-             activeTab === 'internal_completed' ? '没有自己包装已完成的采购' :
-             '没有不合格订单'}
+            <button
               onClick={handleSelectAll}
               className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-800"
             >
@@ -872,7 +869,10 @@ export const PurchaseProgress: React.FC = () => {
             )}
           </div>
           <div className="text-sm text-gray-500">
-            {activeTab === 'in_progress' ? '进行中订单：采购流程尚未全部完成' : '已完成订单：采购流程已全部完成'}
+            {activeTab === 'in_progress' ? '进行中订单：采购流程尚未全部完成' : 
+             activeTab === 'external_completed' ? '厂家包装已完成订单' :
+             activeTab === 'internal_completed' ? '自己包装已完成订单' :
+             '不合格订单：验收不通过的订单'}
             {user?.role === 'purchasing_officer' && hasActiveFilters() && (
               <span className="ml-2 text-blue-600">
                 (已应用筛选条件，显示 {filteredRequests.length} / {originalFilteredRequests.length} 个订单)
@@ -897,7 +897,10 @@ export const PurchaseProgress: React.FC = () => {
         <div className="text-center py-12">
           <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
-            {activeTab === 'in_progress' ? '没有进行中的采购订单' : '没有已完成的采购订单'}
+            {activeTab === 'in_progress' ? '没有进行中的采购订单' : 
+             activeTab === 'external_completed' ? '没有厂家包装已完成的采购订单' :
+             activeTab === 'internal_completed' ? '没有自己包装已完成的采购订单' :
+             '没有不合格订单'}
           </h3>
           <p className="text-gray-600">
             {activeTab === 'in_progress' ? '所有采购都已完成' : 
@@ -1079,7 +1082,7 @@ export const PurchaseProgress: React.FC = () => {
                           
                           // 检查SKU是否应该显示在当前栏目
                           const skuCompleted = isSKUCompleted(request.id, item.id);
-                          const shouldShowInCurrentTab = activeTab === 'completed' ? skuCompleted : !skuCompleted;
+                          const shouldShowInCurrentTab = activeTab === 'external_completed' ? skuCompleted : !skuCompleted;
                           
                           // 如果SKU不应该在当前栏目显示，则跳过
                           if (!shouldShowInCurrentTab) {
@@ -1093,7 +1096,7 @@ export const PurchaseProgress: React.FC = () => {
                                 {item.sku.imageUrl ? (
                                   <div className="relative group">
                                     <img 
-                            {canComplete && activeTab === 'in_progress' && (
+                                      src={item.sku.imageUrl}
                                       alt={item.sku.name}
                                       className="w-12 h-12 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
                                       onClick={() => handleImageClick(item.sku.imageUrl!)}
