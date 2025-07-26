@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, Edit, Trash2, Calendar, User, Package, DollarSign, CheckSquare, Square, Send, AlertTriangle, CheckCircle, ZoomIn, X, ExclamationTriangle } from 'lucide-react';
+import { Eye, Edit, Trash2, Calendar, User, Package, DollarSign, CheckSquare, Square, Send, AlertTriangle, CheckCircle, ZoomIn, X, Triangle as ExclamationTriangle } from 'lucide-react';
 import { useProcurement } from '../../hooks/useProcurement';
 import { useAuth } from '../../hooks/useAuth';
 import { PurchaseRequest } from '../../types';
