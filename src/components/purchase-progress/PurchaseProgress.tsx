@@ -792,21 +792,6 @@ export const PurchaseProgress: React.FC = () => {
         </div>
       )}
 
-      {/* 权限说明提示 */}
-      {user?.role === 'purchasing_officer' && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center space-x-2">
-            <Zap className="h-5 w-5 text-blue-600" />
-            <div>
-              <h3 className="text-sm font-medium text-blue-800">采购专员权限</h3>
-              <p className="text-sm text-blue-700 mt-1">
-                您拥有"收货确认"节点的专属操作权限，其他角色无法看到或操作此节点的完成按钮
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Orders List */}
       {filteredRequests.length === 0 ? (
         <div className="text-center py-12">
