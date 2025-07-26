@@ -291,7 +291,8 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <>
+      <div className="flex flex-col h-full">
       {/* 表格区域 - 占据剩余空间 */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex-1 flex flex-col">
         <div className="flex-1 overflow-hidden">
@@ -611,7 +612,7 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
           </p>
         </div>
       )}
-    </div>
+      </div>
 
       {/* View Purchase Request Modal */}
       {viewingRequest && (
