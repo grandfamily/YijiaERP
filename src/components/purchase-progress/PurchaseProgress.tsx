@@ -325,11 +325,6 @@ export const PurchaseProgress: React.FC = () => {
     return progress ? progress.stages.every(s => s.status === 'completed' || s.status === 'skipped') : false;
   }
 
-  // 检查单个SKU是否已完成（新增）
-  function isSKUCompleted(requestId: string, itemId: string): boolean {
-    return completedSKUs.has(`${requestId}-${itemId}`);
-  }
-
   // 处理SKU级别完成（新增）
   const handleSKUComplete = async (requestId: string, itemId: string) => {
     try {
@@ -1078,10 +1073,10 @@ export const PurchaseProgress: React.FC = () => {
                           );
                           
                           // 计算单个SKU进度 - 如果SKU已完成则显示100%
-                          const skuProgressPercentage = isSKUCompleted(request.id, item.id) ? 100 : progressPercentage;
+                          const skuCompleted = completedSKUs.has(`${request.id}-${item.id}`);
+                          const skuProgressPercentage = skuCompleted ? 100 : progressPercentage;
                           
                           // 检查SKU是否应该显示在当前栏目
-                          const skuCompleted = isSKUCompleted(request.id, item.id);
                           const shouldShowInCurrentTab = activeTab === 'external_completed' ? skuCompleted : !skuCompleted;
                           
                           // 如果SKU不应该在当前栏目显示，则跳过
