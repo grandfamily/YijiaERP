@@ -38,14 +38,14 @@ let qualityControlData = [
     inspectionDate: null,
     inspectorId: null,
     inspector: null,
-    // 仓管人员填写的字段
-    packageCount: null, // 中包数
-    totalPieces: null, // 总件数
-    piecesPerUnit: null, // 单件数量
-    boxLength: null, // 外箱长(cm)
-    boxWidth: null, // 外箱宽(cm)
-    boxHeight: null, // 外箱高(cm)
-    unitWeight: null, // 单件重量(kg)
+    // 仓管人员填写的字段 - 初始值为空
+    packageCount: '', // 中包数
+    totalPieces: '', // 总件数
+    piecesPerUnit: '', // 单件数量
+    boxLength: '', // 外箱长(cm)
+    boxWidth: '', // 外箱宽(cm)
+    boxHeight: '', // 外箱高(cm)
+    unitWeight: '', // 单件重量(kg)
     // 系统计算字段
     totalQuantity: null, // 总数量 = 总件数 * 单件数量
     boxVolume: null, // 外箱体积(m³) = 长*宽*高/1000000
@@ -118,13 +118,13 @@ let qualityControlData = [
     inspectionDate: null,
     inspectorId: null,
     inspector: null,
-    packageCount: null,
-    totalPieces: null,
-    piecesPerUnit: null,
-    boxLength: null,
-    boxWidth: null,
-    boxHeight: null,
-    unitWeight: null,
+    packageCount: '',
+    totalPieces: '',
+    piecesPerUnit: '',
+    boxLength: '',
+    boxWidth: '',
+    boxHeight: '',
+    unitWeight: '',
     totalQuantity: null,
     boxVolume: null,
     totalVolume: null,
@@ -141,62 +141,139 @@ export const QualityControl: React.FC = () => {
   const { user, hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('pending');
   const [searchTerm, setSearchTerm] = useState('');
-  const [editingItem, setEditingItem] = useState<string | null>(null);
-  const [editData, setEditData] = useState<any>({});
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
-  // 检查是否为仓管人员
+  // 权限检查：是否为仓管人员
   const isWarehouseStaff = user?.role === 'warehouse_staff';
 
-  // 处理数据更新
-  const handleDataUpdate = (itemId: string, field: string, value: any) => {
-    const itemIndex = qualityControlData.findIndex(item => item.id === itemId);
-    if (itemIndex !== -1) {
-      qualityControlData[itemIndex] = {
-        ...qualityControlData[itemIndex],
-        [field]: value,
-        updatedAt: new Date()
-      };
+  /**
+   * 处理数据更新
+   * @param itemId SKU项目ID
+   * @param field 字段名
+   * @param value 新值
+   */
+  const handleDataUpdate = (itemId: string, field: string, value: string) => {
+    // 权限检查：只有仓管人员可以编辑
+    if (!isWarehouseStaff) {
+      console.warn('权限不足：只有仓管人员可以编辑数据');
+      return;
+    }
+
+    try {
+      const itemIndex = qualityControlData.findIndex(item => item.id === itemId);
+      if (itemIndex !== -1) {
+        // 更新数据
+        qualityControlData[itemIndex] = {
+          ...qualityControlData[itemIndex],
+          [field]: value,
+          updatedAt: new Date()
+        };
+        
+        // 强制重新渲染
+        setActiveTab(prev => prev);
+      }
+    } catch (error) {
+      console.error('数据更新失败:', error);
     }
   };
 
-  // 处理保存操作
+  /**
+   * 处理保存操作
+   * @param itemId SKU项目ID
+   */
   const handleSave = (itemId: string) => {
-    const item = qualityControlData.find(i => i.id === itemId);
-    if (item) {
-      // 计算相关字段
-      const totalPieces = item.totalPieces || 0;
-      const piecesPerUnit = item.piecesPerUnit || 0;
-      const boxLength = item.boxLength || 0;
-      const boxWidth = item.boxWidth || 0;
-      const boxHeight = item.boxHeight || 0;
-      const unitWeight = item.unitWeight || 0;
-      
-      // 更新计算字段
+    // 权限检查：只有仓管人员可以保存
+    if (!isWarehouseStaff) {
+      alert('权限不足：只有仓管人员可以保存数据');
+      return;
+    }
+
+    try {
+      const item = qualityControlData.find(i => i.id === itemId);
+      if (!item) {
+        alert('未找到对应的SKU数据');
+        return;
+      }
+
+      // 数据验证：检查必填字段
+      const requiredFields = [
+        { field: 'packageCount', name: '中包数' },
+        { field: 'totalPieces', name: '总件数' },
+        { field: 'piecesPerUnit', name: '单件数量' },
+        { field: 'boxLength', name: '外箱长' },
+        { field: 'boxWidth', name: '外箱宽' },
+        { field: 'boxHeight', name: '外箱高' },
+        { field: 'unitWeight', name: '单件重量' }
+      ];
+
+      // 检查是否有空字段
+      const emptyFields = requiredFields.filter(({ field }) => {
+        const value = item[field as keyof typeof item];
+        return !value || value === '' || value === 0;
+      });
+
+      if (emptyFields.length > 0) {
+        const fieldNames = emptyFields.map(f => f.name).join('、');
+        alert(`请填写完整信息：${fieldNames}`);
+        return;
+      }
+
+      // 数值转换和验证
+      const packageCount = parseFloat(item.packageCount as string) || 0;
+      const totalPieces = parseFloat(item.totalPieces as string) || 0;
+      const piecesPerUnit = parseFloat(item.piecesPerUnit as string) || 0;
+      const boxLength = parseFloat(item.boxLength as string) || 0;
+      const boxWidth = parseFloat(item.boxWidth as string) || 0;
+      const boxHeight = parseFloat(item.boxHeight as string) || 0;
+      const unitWeight = parseFloat(item.unitWeight as string) || 0;
+
+      // 验证数值有效性
+      if (totalPieces <= 0 || piecesPerUnit <= 0 || boxLength <= 0 || boxWidth <= 0 || boxHeight <= 0 || unitWeight <= 0) {
+        alert('所有数值必须大于0');
+        return;
+      }
+
+      // 执行计算
       const totalQuantity = totalPieces * piecesPerUnit;
-      const boxVolume = (boxLength * boxWidth * boxHeight) / 1000000;
+      const boxVolume = (boxLength * boxWidth * boxHeight) / 1000000; // 转换为立方米
       const totalVolume = totalPieces * boxVolume;
       const totalWeight = totalPieces * unitWeight;
-      
+
       // 更新数据
       const itemIndex = qualityControlData.findIndex(i => i.id === itemId);
       if (itemIndex !== -1) {
         qualityControlData[itemIndex] = {
           ...qualityControlData[itemIndex],
+          // 保存填写的数据
+          packageCount,
+          totalPieces,
+          piecesPerUnit,
+          boxLength,
+          boxWidth,
+          boxHeight,
+          unitWeight,
+          // 保存计算结果
           totalQuantity,
           boxVolume,
           totalVolume,
           totalWeight,
+          // 更新状态
           inspectionStatus: 'completed',
           inspectionDate: new Date(),
-          inspectorId: user?.id,
+          inspectorId: user?.id || '',
           inspector: user,
           updatedAt: new Date()
         };
+
+        // 显示成功提示
+        alert('验收数据保存成功！');
+        
+        // 强制重新渲染
+        setActiveTab(prev => prev);
       }
-      
-      console.log('保存验收数据:', itemId, item);
-      alert('验收数据保存成功！');
+    } catch (error) {
+      console.error('保存失败:', error);
+      alert('保存失败，请重试');
     }
   };
 
@@ -229,97 +306,34 @@ export const QualityControl: React.FC = () => {
 
   const tabStats = getTabStats();
 
-  // 处理编辑模式
-  const handleEdit = (itemId: string) => {
-    const item = qualityControlData.find(i => i.id === itemId);
-    if (item) {
-      setEditingItem(itemId);
-      setEditData({
-        packageCount: item.packageCount || '',
-        totalPieces: item.totalPieces || '',
-        piecesPerUnit: item.piecesPerUnit || '',
-        boxLength: item.boxLength || '',
-        boxWidth: item.boxWidth || '',
-        boxHeight: item.boxHeight || '',
-        unitWeight: item.unitWeight || '',
-        remarks: item.remarks || ''
-      });
-    }
-  };
-
-  // 处理数据变更
-  const handleDataChange = (field: string, value: any) => {
-    const newData = { ...editData, [field]: value };
-    
-    // 自动计算相关字段
-    const totalPieces = parseFloat(newData.totalPieces) || 0;
-    const piecesPerUnit = parseFloat(newData.piecesPerUnit) || 0;
-    const boxLength = parseFloat(newData.boxLength) || 0;
-    const boxWidth = parseFloat(newData.boxWidth) || 0;
-    const boxHeight = parseFloat(newData.boxHeight) || 0;
-    const unitWeight = parseFloat(newData.unitWeight) || 0;
-    
-    // 计算总数量
-    newData.totalQuantity = totalPieces * piecesPerUnit;
-    
-    // 计算外箱体积 (m³)
-    newData.boxVolume = (boxLength * boxWidth * boxHeight) / 1000000;
-    
-    // 计算总体积 (m³)
-    newData.totalVolume = totalPieces * newData.boxVolume;
-    
-    // 计算总重量 (kg)
-    newData.totalWeight = totalPieces * unitWeight;
-    
-    setEditData(newData);
-  };
-
-  // 取消编辑
-  const handleCancel = () => {
-    setEditingItem(null);
-    setEditData({});
-  };
-
   // 处理图片点击
   const handleImageClick = (imageUrl: string) => {
     setZoomedImage(imageUrl);
   };
 
-  // 渲染可编辑字段
-  const renderEditableField = (itemId: string, field: string, value: any, placeholder: string, unit?: string) => {
-    const isEditing = editingItem === itemId;
-    const displayValue = isEditing ? editData[field] : value;
-    
-    if (isEditing && isWarehouseStaff) {
-      return (
-        <input
-          type="number"
-          min="0"
-          step="0.01"
-          value={displayValue || ''}
-          onChange={(e) => handleDataChange(field, e.target.value)}
-          className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center"
-          placeholder={placeholder}
-        />
-      );
-    }
+  /**
+   * 渲染输入框（仅待验收栏目使用）
+   * @param item SKU项目数据
+   * @param field 字段名
+   * @param placeholder 占位符
+   * @param step 步长
+   */
+  const renderInputField = (item: any, field: string, placeholder: string, step: string = "1") => {
+    const value = item[field];
     
     return (
-      <span className="text-sm text-gray-900">
-        {displayValue ? `${displayValue}${unit || ''}` : '-'}
-      </span>
-    );
-  };
-
-  // 渲染计算字段
-  const renderCalculatedField = (itemId: string, field: string, value: any, unit?: string, decimals: number = 2) => {
-    const isEditing = editingItem === itemId;
-    const displayValue = isEditing ? editData[field] : value;
-    
-    return (
-      <span className="text-sm font-medium text-blue-600">
-        {displayValue ? `${parseFloat(displayValue).toFixed(decimals)}${unit || ''}` : '-'}
-      </span>
+      <input
+        type="number"
+        min="0"
+        step={step}
+        value={value || ''}
+        onChange={(e) => handleDataUpdate(item.id, field, e.target.value)}
+        disabled={!isWarehouseStaff} // 权限控制：非仓管人员为只读
+        className={`w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+          !isWarehouseStaff ? 'bg-gray-100 cursor-not-allowed' : ''
+        }`}
+        placeholder={isWarehouseStaff ? placeholder : ''}
+      />
     );
   };
 
@@ -350,6 +364,23 @@ export const QualityControl: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* 权限提示 */}
+        {!isWarehouseStaff && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              <div>
+                <h3 className="text-sm font-medium text-yellow-800">权限提示</h3>
+                <p className="text-sm text-yellow-700 mt-1">
+                  您当前是{user?.role === 'department_manager' ? '部门主管' : 
+                           user?.role === 'general_manager' ? '总经理' : 
+                           user?.role === 'purchasing_officer' ? '采购专员' : '其他角色'}，只能查看验货数据。只有仓管人员可以编辑和保存验收信息。
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tab Navigation */}
         <div className="border-b border-gray-200">
@@ -411,6 +442,7 @@ export const QualityControl: React.FC = () => {
                     <th className="text-left py-3 px-3 font-medium text-gray-900 w-24">SKU</th>
                     <th className="text-left py-3 px-3 font-medium text-gray-900 w-32">品名</th>
                     <th className="text-left py-3 px-3 font-medium text-gray-900 w-20">识别码</th>
+                    
                     {/* 待验收栏目：只显示需要填写的字段 */}
                     {activeTab === 'pending' && (
                       <>
@@ -421,6 +453,9 @@ export const QualityControl: React.FC = () => {
                         <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">外箱宽(cm)</th>
                         <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">外箱高(cm)</th>
                         <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">单件重量(kg)</th>
+                        {isWarehouseStaff && (
+                          <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">操作</th>
+                        )}
                       </>
                     )}
                     
@@ -439,296 +474,222 @@ export const QualityControl: React.FC = () => {
                         <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">单件重量(kg)</th>
                         <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">总重量(kg)</th>
                         <th className="text-center py-3 px-3 font-medium text-gray-900 w-32">验收时间</th>
+                        {isWarehouseStaff && (
+                          <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">操作</th>
+                        )}
                       </>
-                    )}
-                    
-                    {isWarehouseStaff && (
-                      <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">操作</th>
                     )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {filteredData.map((item) => {
-                    const isEditing = editingItem === item.id;
-                    
-                    return (
-                      <tr key={item.id} className="hover:bg-gray-50">
-                        {/* 订单编号 */}
-                        <td className="py-3 px-3">
-                          <div className="text-sm font-medium text-blue-600">{item.purchaseRequestNumber}</div>
-                          <div className="text-xs text-gray-500">
-                            {item.createdAt.toLocaleDateString('zh-CN')}
+                  {filteredData.map((item) => (
+                    <tr key={item.id} className="hover:bg-gray-50">
+                      {/* 订单编号 */}
+                      <td className="py-3 px-3">
+                        <div className="text-sm font-medium text-blue-600">{item.purchaseRequestNumber}</div>
+                        <div className="text-xs text-gray-500">
+                          {item.createdAt.toLocaleDateString('zh-CN')}
+                        </div>
+                      </td>
+                      
+                      {/* 图片 */}
+                      <td className="py-3 px-3 text-center">
+                        {item.sku.imageUrl ? (
+                          <div className="relative group inline-block">
+                            <img 
+                              src={item.sku.imageUrl} 
+                              alt={item.sku.name}
+                              className="w-12 h-12 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => handleImageClick(item.sku.imageUrl!)}
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
+                                 onClick={() => handleImageClick(item.sku.imageUrl!)}>
+                              <ZoomIn className="h-3 w-3 text-white" />
+                            </div>
                           </div>
-                        </td>
-                        
-                        {/* 图片 */}
-                        <td className="py-3 px-3 text-center">
-                          {item.sku.imageUrl ? (
-                            <div className="relative group inline-block">
-                              <img 
-                                src={item.sku.imageUrl} 
-                                alt={item.sku.name}
-                                className="w-12 h-12 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
-                                onClick={() => handleImageClick(item.sku.imageUrl!)}
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
-                                   onClick={() => handleImageClick(item.sku.imageUrl!)}>
-                                <ZoomIn className="h-3 w-3 text-white" />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="w-12 h-12 bg-gray-200 rounded border flex items-center justify-center">
-                              <Package className="h-5 w-5 text-gray-400" />
-                            </div>
-                          )}
-                        </td>
-                        
-                        {/* SKU */}
-                        <td className="py-3 px-3">
-                          <div className="text-sm font-medium text-gray-900">{item.sku.code}</div>
-                          <div className="text-xs text-gray-500">{item.sku.category}</div>
-                        </td>
-                        
-                        {/* 品名 */}
-                        <td className="py-3 px-3">
-                          <div className="text-sm text-gray-900">{item.sku.name}</div>
-                          <div className="text-xs text-gray-500">{item.sku.englishName}</div>
-                        </td>
-                        
-                        {/* 识别码 */}
-                        <td className="py-3 px-3">
-                          <span className="text-sm text-gray-900">{item.sku.identificationCode}</span>
-                        </td>
-                        
-                       {/* 待验收栏目：只显示需要填写的字段 */}
-                       {activeTab === 'pending' && (
-                         <>
-                           {/* 中包数 - 可编辑 */}
-                           <td className="py-3 px-3 text-center">
-                             <input
-                               type="number"
-                               min="0"
-                               step="1"
-                               value={item.packageCount || 0}
-                               onChange={(e) => {
-                                 handleDataUpdate(item.id, 'packageCount', parseInt(e.target.value) || 0);
-                               }}
-                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                               placeholder="0"
-                             />
-                           </td>
-                           
-                           {/* 总件数 - 可编辑 */}
-                           <td className="py-3 px-3 text-center">
-                             <input
-                               type="number"
-                               min="0"
-                               step="1"
-                               value={item.totalPieces || 0}
-                               onChange={(e) => {
-                                 handleDataUpdate(item.id, 'totalPieces', parseInt(e.target.value) || 0);
-                               }}
-                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                               placeholder="0"
-                             />
-                           </td>
-                           
-                           {/* 单件数量 - 可编辑 */}
-                           <td className="py-3 px-3 text-center">
-                             <input
-                               type="number"
-                               min="0"
-                               step="1"
-                               value={item.piecesPerUnit || 0}
-                               onChange={(e) => {
-                                 handleDataUpdate(item.id, 'piecesPerUnit', parseInt(e.target.value) || 0);
-                               }}
-                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                               placeholder="0"
-                             />
-                           </td>
-                           
-                           {/* 外箱长 - 可编辑 */}
-                           <td className="py-3 px-3 text-center">
-                             <input
-                               type="number"
-                               min="0"
-                               step="0.1"
-                               value={item.boxLength || 0}
-                               onChange={(e) => {
-                                 handleDataUpdate(item.id, 'boxLength', parseFloat(e.target.value) || 0);
-                               }}
-                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                               placeholder="0"
-                             />
-                           </td>
-                           
-                           {/* 外箱宽 - 可编辑 */}
-                           <td className="py-3 px-3 text-center">
-                             <input
-                               type="number"
-                               min="0"
-                               step="0.1"
-                               value={item.boxWidth || 0}
-                               onChange={(e) => {
-                                 handleDataUpdate(item.id, 'boxWidth', parseFloat(e.target.value) || 0);
-                               }}
-                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                               placeholder="0"
-                             />
-                           </td>
-                           
-                           {/* 外箱高 - 可编辑 */}
-                           <td className="py-3 px-3 text-center">
-                             <input
-                               type="number"
-                               min="0"
-                               step="0.1"
-                               value={item.boxHeight || 0}
-                               onChange={(e) => {
-                                 handleDataUpdate(item.id, 'boxHeight', parseFloat(e.target.value) || 0);
-                               }}
-                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                               placeholder="0"
-                             />
-                           </td>
-                           
-                           {/* 单件重量 - 可编辑 */}
-                           <td className="py-3 px-3 text-center">
-                             <input
-                               type="number"
-                               min="0"
-                               step="0.01"
-                               value={item.unitWeight || 0}
-                               onChange={(e) => {
-                                 handleDataUpdate(item.id, 'unitWeight', parseFloat(e.target.value) || 0);
-                               }}
-                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                               placeholder="0"
-                             />
-                           </td>
-                         </>
-                       )}
-                       
-                       {/* 已验收栏目：显示完整字段 */}
-                       {activeTab === 'completed' && (
-                         <>
-                           {/* 中包数 - 显示值 */}
-                           <td className="py-3 px-3 text-center">
-                             <span className="text-sm text-gray-900">
-                               {item.packageCount || '-'}
-                             </span>
-                           </td>
-                           
-                           {/* 总件数 - 显示值 */}
-                           <td className="py-3 px-3 text-center">
-                             <span className="text-sm text-gray-900">
-                               {item.totalPieces || '-'}
-                             </span>
-                           </td>
-                           
-                           {/* 单件数量 - 显示值 */}
-                           <td className="py-3 px-3 text-center">
-                             <span className="text-sm text-gray-900">
-                               {item.piecesPerUnit || '-'}
-                             </span>
-                           </td>
-                           
-                           {/* 总数量 - 计算字段 */}
-                           <td className="py-3 px-3 text-center">
-                             <span className="text-sm font-medium text-blue-600">
-                               {item.totalQuantity ? `${item.totalQuantity}` : '-'}
-                             </span>
-                           </td>
-                           
-                           {/* 外箱长 - 显示值 */}
-                           <td className="py-3 px-3 text-center">
-                             <span className="text-sm text-gray-900">
-                               {item.boxLength ? `${item.boxLength}cm` : '-'}
-                             </span>
-                           </td>
-                           
-                           {/* 外箱宽 - 显示值 */}
-                           <td className="py-3 px-3 text-center">
-                             <span className="text-sm text-gray-900">
-                               {item.boxWidth ? `${item.boxWidth}cm` : '-'}
-                             </span>
-                           </td>
-                           
-                           {/* 外箱高 - 显示值 */}
-                           <td className="py-3 px-3 text-center">
-                             <span className="text-sm text-gray-900">
-                               {item.boxHeight ? `${item.boxHeight}cm` : '-'}
-                             </span>
-                           </td>
-                           
-                           {/* 外箱体积 - 计算字段 */}
-                           <td className="py-3 px-3 text-center">
-                             <span className="text-sm font-medium text-blue-600">
-                               {item.boxVolume ? `${parseFloat(item.boxVolume).toFixed(6)}m³` : '-'}
-                             </span>
-                           </td>
-                           
-                           {/* 总体积 - 计算字段 */}
-                           <td className="py-3 px-3 text-center">
-                             <span className="text-sm font-medium text-blue-600">
-                               {item.totalVolume ? `${parseFloat(item.totalVolume).toFixed(3)}m³` : '-'}
-                             </span>
-                           </td>
-                           
-                           {/* 单件重量 - 显示值 */}
-                           <td className="py-3 px-3 text-center">
-                             <span className="text-sm text-gray-900">
-                               {item.unitWeight ? `${item.unitWeight}kg` : '-'}
-                             </span>
-                           </td>
-                           
-                           {/* 总重量 - 计算字段 */}
-                           <td className="py-3 px-3 text-center">
-                             <span className="text-sm font-medium text-blue-600">
-                               {item.totalWeight ? `${parseFloat(item.totalWeight).toFixed(2)}kg` : '-'}
-                             </span>
-                           </td>
-                           
-                           {/* 验收时间 */}
-                           <td className="py-3 px-3 text-center">
-                             <div className="text-sm text-gray-900">
-                               {item.inspectionDate ? item.inspectionDate.toLocaleDateString('zh-CN') : '-'}
-                             </div>
-                             <div className="text-xs text-gray-500">
-                               {item.inspector?.name || '-'}
-                             </div>
-                           </td>
-                         </>
+                        ) : (
+                          <div className="w-12 h-12 bg-gray-200 rounded border flex items-center justify-center">
+                            <Package className="h-5 w-5 text-gray-400" />
+                          </div>
                         )}
-                        
-                        {/* 操作 - 仅仓管人员可见 */}
-                        {isWarehouseStaff && (
+                      </td>
+                      
+                      {/* SKU */}
+                      <td className="py-3 px-3">
+                        <div className="text-sm font-medium text-gray-900">{item.sku.code}</div>
+                        <div className="text-xs text-gray-500">{item.sku.category}</div>
+                      </td>
+                      
+                      {/* 品名 */}
+                      <td className="py-3 px-3">
+                        <div className="text-sm text-gray-900">{item.sku.name}</div>
+                        <div className="text-xs text-gray-500">{item.sku.englishName}</div>
+                      </td>
+                      
+                      {/* 识别码 */}
+                      <td className="py-3 px-3">
+                        <span className="text-sm text-gray-900">{item.sku.identificationCode}</span>
+                      </td>
+                      
+                      {/* 待验收栏目：直接显示输入框 */}
+                      {activeTab === 'pending' && (
+                        <>
+                          {/* 中包数 */}
                           <td className="py-3 px-3 text-center">
-                            {activeTab === 'pending' && (
+                            {renderInputField(item, 'packageCount', '请输入', '1')}
+                          </td>
+                          
+                          {/* 总件数 */}
+                          <td className="py-3 px-3 text-center">
+                            {renderInputField(item, 'totalPieces', '请输入', '1')}
+                          </td>
+                          
+                          {/* 单件数量 */}
+                          <td className="py-3 px-3 text-center">
+                            {renderInputField(item, 'piecesPerUnit', '请输入', '1')}
+                          </td>
+                          
+                          {/* 外箱长 */}
+                          <td className="py-3 px-3 text-center">
+                            {renderInputField(item, 'boxLength', '请输入', '0.1')}
+                          </td>
+                          
+                          {/* 外箱宽 */}
+                          <td className="py-3 px-3 text-center">
+                            {renderInputField(item, 'boxWidth', '请输入', '0.1')}
+                          </td>
+                          
+                          {/* 外箱高 */}
+                          <td className="py-3 px-3 text-center">
+                            {renderInputField(item, 'boxHeight', '请输入', '0.1')}
+                          </td>
+                          
+                          {/* 单件重量 */}
+                          <td className="py-3 px-3 text-center">
+                            {renderInputField(item, 'unitWeight', '请输入', '0.01')}
+                          </td>
+                          
+                          {/* 操作按钮 - 仅仓管人员可见 */}
+                          {isWarehouseStaff && (
+                            <td className="py-3 px-3 text-center">
                               <button
                                 onClick={() => handleSave(item.id)}
                                 className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                               >
                                 保存
                               </button>
-                            )}
-                            {activeTab === 'completed' && (
+                            </td>
+                          )}
+                        </>
+                      )}
+                      
+                      {/* 已验收栏目：显示完整字段 */}
+                      {activeTab === 'completed' && (
+                        <>
+                          {/* 中包数 - 显示值 */}
+                          <td className="py-3 px-3 text-center">
+                            <span className="text-sm text-gray-900">
+                              {item.packageCount || '-'}
+                            </span>
+                          </td>
+                          
+                          {/* 总件数 - 显示值 */}
+                          <td className="py-3 px-3 text-center">
+                            <span className="text-sm text-gray-900">
+                              {item.totalPieces || '-'}
+                            </span>
+                          </td>
+                          
+                          {/* 单件数量 - 显示值 */}
+                          <td className="py-3 px-3 text-center">
+                            <span className="text-sm text-gray-900">
+                              {item.piecesPerUnit || '-'}
+                            </span>
+                          </td>
+                          
+                          {/* 总数量 - 计算字段 */}
+                          <td className="py-3 px-3 text-center">
+                            <span className="text-sm font-medium text-blue-600">
+                              {item.totalQuantity ? `${item.totalQuantity}` : '-'}
+                            </span>
+                          </td>
+                          
+                          {/* 外箱长 - 显示值 */}
+                          <td className="py-3 px-3 text-center">
+                            <span className="text-sm text-gray-900">
+                              {item.boxLength ? `${item.boxLength}cm` : '-'}
+                            </span>
+                          </td>
+                          
+                          {/* 外箱宽 - 显示值 */}
+                          <td className="py-3 px-3 text-center">
+                            <span className="text-sm text-gray-900">
+                              {item.boxWidth ? `${item.boxWidth}cm` : '-'}
+                            </span>
+                          </td>
+                          
+                          {/* 外箱高 - 显示值 */}
+                          <td className="py-3 px-3 text-center">
+                            <span className="text-sm text-gray-900">
+                              {item.boxHeight ? `${item.boxHeight}cm` : '-'}
+                            </span>
+                          </td>
+                          
+                          {/* 外箱体积 - 计算字段 */}
+                          <td className="py-3 px-3 text-center">
+                            <span className="text-sm font-medium text-blue-600">
+                              {item.boxVolume ? `${parseFloat(item.boxVolume).toFixed(6)}m³` : '-'}
+                            </span>
+                          </td>
+                          
+                          {/* 总体积 - 计算字段 */}
+                          <td className="py-3 px-3 text-center">
+                            <span className="text-sm font-medium text-blue-600">
+                              {item.totalVolume ? `${parseFloat(item.totalVolume).toFixed(3)}m³` : '-'}
+                            </span>
+                          </td>
+                          
+                          {/* 单件重量 - 显示值 */}
+                          <td className="py-3 px-3 text-center">
+                            <span className="text-sm text-gray-900">
+                              {item.unitWeight ? `${item.unitWeight}kg` : '-'}
+                            </span>
+                          </td>
+                          
+                          {/* 总重量 - 计算字段 */}
+                          <td className="py-3 px-3 text-center">
+                            <span className="text-sm font-medium text-blue-600">
+                              {item.totalWeight ? `${parseFloat(item.totalWeight).toFixed(2)}kg` : '-'}
+                            </span>
+                          </td>
+                          
+                          {/* 验收时间 */}
+                          <td className="py-3 px-3 text-center">
+                            <div className="text-sm text-gray-900">
+                              {item.inspectionDate ? item.inspectionDate.toLocaleDateString('zh-CN') : '-'}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {item.inspector?.name || '-'}
+                            </div>
+                          </td>
+                          
+                          {/* 操作按钮 - 仅仓管人员可见 */}
+                          {isWarehouseStaff && (
+                            <td className="py-3 px-3 text-center">
                               <button
-                                onClick={() => handleEdit(item.id)}
                                 className="px-3 py-1 text-sm text-green-600 border border-green-600 rounded hover:bg-green-50 transition-colors"
                               >
                                 修改
                               </button>
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
+                            </td>
+                          )}
+                        </>
+                      )}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
