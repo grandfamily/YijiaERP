@@ -18,7 +18,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { useAuth } from '../../hooks/useAuth';
 
 // Mock data for quality control - 扩展为SKU级别数据
-let qualityControlData = [
+const [qualityControlData, setQualityControlData] = useState([
   {
     id: 'qc-001',
     purchaseRequestNumber: 'PR-2024-001',
@@ -39,13 +39,13 @@ let qualityControlData = [
     inspectorId: null,
     inspector: null,
     // 仓管人员填写的字段 - 初始值为空
-    packageCount: '', // 中包数
-    totalPieces: '', // 总件数
-    piecesPerUnit: '', // 单件数量
-    boxLength: '', // 外箱长(cm)
-    boxWidth: '', // 外箱宽(cm)
-    boxHeight: '', // 外箱高(cm)
-    unitWeight: '', // 单件重量(kg)
+    packageCount: 0, // 中包数
+    totalPieces: 0, // 总件数
+    piecesPerUnit: 0, // 单件数量
+    boxLength: 0, // 外箱长(cm)
+    boxWidth: 0, // 外箱宽(cm)
+    boxHeight: 0, // 外箱高(cm)
+    unitWeight: 0, // 单件重量(kg)
     // 系统计算字段
     totalQuantity: null, // 总数量 = 总件数 * 单件数量
     boxVolume: null, // 外箱体积(m³) = 长*宽*高/1000000
@@ -118,13 +118,13 @@ let qualityControlData = [
     inspectionDate: null,
     inspectorId: null,
     inspector: null,
-    packageCount: '',
-    totalPieces: '',
-    piecesPerUnit: '',
-    boxLength: '',
-    boxWidth: '',
-    boxHeight: '',
-    unitWeight: '',
+    packageCount: 0,
+    totalPieces: 0,
+    piecesPerUnit: 0,
+    boxLength: 0,
+    boxWidth: 0,
+    boxHeight: 0,
+    unitWeight: 0,
     totalQuantity: null,
     boxVolume: null,
     totalVolume: null,
@@ -133,7 +133,7 @@ let qualityControlData = [
     createdAt: new Date('2024-01-24'),
     updatedAt: new Date('2024-01-24')
   }
-];
+]);
 
 type TabType = 'pending' | 'completed';
 
@@ -150,9 +150,9 @@ export const QualityControl: React.FC = () => {
    * 处理数据更新
    * @param itemId SKU项目ID
    * @param field 字段名
-   * @param value 新值
+   * @param value 新值 (字符串)
    */
-  const handleDataUpdate = (itemId: string, field: string, value: string) => {
+  const handleDataUpdate = (itemId: string, field: string, value: string | number) => {
     // 权限检查：只有仓管人员可以编辑
     if (!isWarehouseStaff) {
       console.warn('权限不足：只有仓管人员可以编辑数据');
@@ -160,18 +160,16 @@ export const QualityControl: React.FC = () => {
     }
 
     try {
-      const itemIndex = qualityControlData.findIndex(item => item.id === itemId);
-      if (itemIndex !== -1) {
-        // 更新数据
-        qualityControlData[itemIndex] = {
-          ...qualityControlData[itemIndex],
-          [field]: value,
-          updatedAt: new Date()
-        };
-        
-        // 强制重新渲染
-        setActiveTab(prev => prev);
-      }
+      // 转换为数字类型
+      const numericValue = typeof value === 'string' ? parseFloat(value) || 0 : value;
+      
+      setQualityControlData(prevData => 
+        prevData.map(item => 
+          item.id === itemId 
+            ? { ...item, [field]: numericValue, updatedAt: new Date() }
+            : item
+        )
+      );
     } catch (error) {
       console.error('数据更新失败:', error);
     }
@@ -209,7 +207,7 @@ export const QualityControl: React.FC = () => {
       // 检查是否有空字段
       const emptyFields = requiredFields.filter(({ field }) => {
         const value = item[field as keyof typeof item];
-        return !value || value === '' || value === 0;
+        return !value || value === 0;
       });
 
       if (emptyFields.length > 0) {
@@ -219,13 +217,13 @@ export const QualityControl: React.FC = () => {
       }
 
       // 数值转换和验证
-      const packageCount = parseFloat(item.packageCount as string) || 0;
-      const totalPieces = parseFloat(item.totalPieces as string) || 0;
-      const piecesPerUnit = parseFloat(item.piecesPerUnit as string) || 0;
-      const boxLength = parseFloat(item.boxLength as string) || 0;
-      const boxWidth = parseFloat(item.boxWidth as string) || 0;
-      const boxHeight = parseFloat(item.boxHeight as string) || 0;
-      const unitWeight = parseFloat(item.unitWeight as string) || 0;
+      const packageCount = Number(item.packageCount) || 0;
+      const totalPieces = Number(item.totalPieces) || 0;
+      const piecesPerUnit = Number(item.piecesPerUnit) || 0;
+      const boxLength = Number(item.boxLength) || 0;
+      const boxWidth = Number(item.boxWidth) || 0;
+      const boxHeight = Number(item.boxHeight) || 0;
+      const unitWeight = Number(item.unitWeight) || 0;
 
       // 验证数值有效性
       if (totalPieces <= 0 || piecesPerUnit <= 0 || boxLength <= 0 || boxWidth <= 0 || boxHeight <= 0 || unitWeight <= 0) {
@@ -240,37 +238,37 @@ export const QualityControl: React.FC = () => {
       const totalWeight = totalPieces * unitWeight;
 
       // 更新数据
-      const itemIndex = qualityControlData.findIndex(i => i.id === itemId);
-      if (itemIndex !== -1) {
-        qualityControlData[itemIndex] = {
-          ...qualityControlData[itemIndex],
-          // 保存填写的数据
-          packageCount,
-          totalPieces,
-          piecesPerUnit,
-          boxLength,
-          boxWidth,
-          boxHeight,
-          unitWeight,
-          // 保存计算结果
-          totalQuantity,
-          boxVolume,
-          totalVolume,
-          totalWeight,
-          // 更新状态
-          inspectionStatus: 'completed',
-          inspectionDate: new Date(),
-          inspectorId: user?.id || '',
-          inspector: user,
-          updatedAt: new Date()
-        };
+      setQualityControlData(prevData => 
+        prevData.map(i => 
+          i.id === itemId 
+            ? {
+                ...i,
+                // 保存填写的数据
+                packageCount,
+                totalPieces,
+                piecesPerUnit,
+                boxLength,
+                boxWidth,
+                boxHeight,
+                unitWeight,
+                // 保存计算结果
+                totalQuantity,
+                boxVolume,
+                totalVolume,
+                totalWeight,
+                // 更新状态
+                inspectionStatus: 'completed',
+                inspectionDate: new Date(),
+                inspectorId: user?.id || '',
+                inspector: user,
+                updatedAt: new Date()
+              }
+            : i
+        )
+      );
 
-        // 显示成功提示
-        alert('验收数据保存成功！');
-        
-        // 强制重新渲染
-        setActiveTab(prev => prev);
-      }
+      // 显示成功提示
+      alert('验收数据保存成功！');
     } catch (error) {
       console.error('保存失败:', error);
       alert('保存失败，请重试');
@@ -319,14 +317,14 @@ export const QualityControl: React.FC = () => {
    * @param step 步长
    */
   const renderInputField = (item: any, field: string, placeholder: string, step: string = "1") => {
-    const value = item[field];
+    const value = item[field] || '';
     
     return (
       <input
         type="number"
         min="0"
         step={step}
-        value={value || ''}
+        value={value === 0 ? '' : value}
         onChange={(e) => handleDataUpdate(item.id, field, e.target.value)}
         disabled={!isWarehouseStaff} // 权限控制：非仓管人员为只读
         className={`w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
@@ -679,11 +677,13 @@ export const QualityControl: React.FC = () => {
                           {/* 操作按钮 - 仅仓管人员可见 */}
                           {isWarehouseStaff && (
                             <td className="py-3 px-3 text-center">
-                              <button
-                                className="px-3 py-1 text-sm text-green-600 border border-green-600 rounded hover:bg-green-50 transition-colors"
-                              >
-                                修改
-                              </button>
+                              <div className="flex items-center justify-center space-x-2">
+                                <button
+                                  className="px-3 py-1 text-sm text-green-600 border border-green-600 rounded hover:bg-green-50 transition-colors"
+                                >
+                                  修改
+                                </button>
+                              </div>
                             </td>
                           )}
                         </>
