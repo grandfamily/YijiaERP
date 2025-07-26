@@ -23,32 +23,40 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
   const [editingRequest, setEditingRequest] = useState<PurchaseRequest | null>(null);
   const [viewingRequest, setViewingRequest] = useState<PurchaseRequest | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const pageSize = 10;
+  const pageSize = 15;
 
   // 获取草稿和被驳回的申请
-  const { data: requests, total } = getPurchaseRequests(
+  const { data: allRequests, total: totalRequests } = getPurchaseRequests(
     { status: ['draft', 'rejected', 'submitted', 'first_approved', 'approved', 'in_production', 'quality_check', 'ready_to_ship', 'shipped', 'completed'] },
-    { field: 'createdAt', direction: 'desc' },
-    { page: currentPage, pageSize, total: 0 }
+    { field: 'createdAt', direction: 'desc' }
   );
 
-
-  const filteredRequests = requests.filter(request => 
+  // 先过滤，再分页
+  const filteredAllRequests = allRequests.filter(request => 
     request.requestNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
     request.requester.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     request.items.some(item => item.sku.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  // 计算分页
+  const totalFiltered = filteredAllRequests.length;
+  const totalPages = Math.ceil(totalFiltered / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const currentPageRequests = filteredAllRequests.slice(startIndex, endIndex);
 
-  const totalPages = Math.ceil(total / pageSize);
+  // 当搜索条件变化时重置到第一页
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const handleSelectAll = () => {
     if (!onSelectionChange) return;
     
-    if (selectedRequests.length === filteredRequests.length) {
+    if (selectedRequests.length === currentPageRequests.length) {
       onSelectionChange([]);
     } else {
-      onSelectionChange(filteredRequests.map(r => r.id));
+      onSelectionChange(currentPageRequests.map(r => r.id));
     }
   };
 
@@ -295,7 +303,7 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                       onClick={handleSelectAll}
                       className="flex items-center space-x-2"
                     >
-                      {selectedRequests.length === filteredRequests.length && filteredRequests.length > 0 ? (
+                      {selectedRequests.length === currentPageRequests.length && currentPageRequests.length > 0 ? (
                         <CheckSquare className="h-4 w-4 text-blue-600" />
                       ) : (
                         <Square className="h-4 w-4 text-gray-400" />
@@ -313,7 +321,7 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredRequests.map((request) => (
+              {currentPageRequests.map((request) => (
                 <tr key={request.id} className="hover:bg-gray-50">
                   {onSelectionChange && (
                     <td className="py-4 px-4">
@@ -470,33 +478,144 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
-            <div className="flex items-center space-x-2 text-sm text-gray-500">
-              <span>显示 {(currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, total)} 条，共 {total} 条</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                上一页
-              </button>
-              <span className="text-sm text-gray-700">
-                第 {currentPage} 页，共 {totalPages} 页
-              </span>
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                下一页
-              </button>
-            </div>
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+          <div className="flex items-center space-x-2 text-sm text-gray-500">
+            <span>显示 {startIndex + 1} - {Math.min(endIndex, totalFiltered)} 条，共 {totalFiltered} 条记录</span>
+            {searchTerm && (
+              <span className="text-blue-600">（搜索结果）</span>
+            )}
           </div>
-        )}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              首页
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              上一页
+            </button>
+            
+            {/* 页码显示 */}
+            <div className="flex items-center space-x-2 text-sm text-gray-500">
+              {totalPages <= 7 ? (
+                // 总页数少于等于7页时，显示所有页码
+                Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1 border rounded text-sm ${
+                      currentPage === page
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))
+              ) : (
+                // 总页数大于7页时，显示省略号
+                <>
+                  {currentPage > 3 && (
+                    <>
+                      <button
+                        onClick={() => setCurrentPage(1)}
+                        className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
+                      >
+                        1
+                      </button>
+                      {currentPage > 4 && <span className="text-gray-400">...</span>}
+                    </>
+                  )}
+                  
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let page;
+                    if (currentPage <= 3) {
+                      page = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      page = totalPages - 4 + i;
+                    } else {
+                      page = currentPage - 2 + i;
+                    }
+                    
+                    if (page < 1 || page > totalPages) return null;
+                    
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1 border rounded text-sm ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    );
+                  })}
+                  
+                  {currentPage < totalPages - 2 && (
+                    <>
+                      {currentPage < totalPages - 3 && <span className="text-gray-400">...</span>}
+                      <button
+                        onClick={() => setCurrentPage(totalPages)}
+                        className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
+                      >
+                        {totalPages}
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+            
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              下一页
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              末页
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* 分页信息摘要 */}
+      {totalFiltered > 0 && (
+        <div className="text-center text-sm text-gray-500 mt-2">
+          {searchTerm ? (
+            <span>搜索到 {totalFiltered} 条记录，当前显示第 {currentPage} 页，共 {totalPages} 页</span>
+          ) : (
+            <span>共 {totalFiltered} 条记录，当前显示第 {currentPage} 页，共 {totalPages} 页</span>
+          )}
+        </div>
+      )}
+
+      {/* 空状态显示 */}
+      {totalFiltered === 0 && (
+        <div className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200 mt-4">
+          <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            {searchTerm ? '没有找到匹配的采购申请' : '暂无采购申请'}
+          </h3>
+          <p className="text-gray-600">
+            {searchTerm ? '请尝试调整搜索条件' : '开始创建您的第一个采购申请'}
+          </p>
+        </div>
+      )}
 
       {/* View Purchase Request Modal */}
       {viewingRequest && (
