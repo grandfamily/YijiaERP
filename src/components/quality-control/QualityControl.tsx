@@ -18,7 +18,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { useAuth } from '../../hooks/useAuth';
 
 // Mock data for quality control - 扩展为SKU级别数据
-const [qualityControlData, setQualityControlData] = useState([
+const mockQualityControlData = [
   {
     id: 'qc-001',
     purchaseRequestNumber: 'PR-2024-001',
@@ -133,12 +133,13 @@ const [qualityControlData, setQualityControlData] = useState([
     createdAt: new Date('2024-01-24'),
     updatedAt: new Date('2024-01-24')
   }
-]);
+];
 
 type TabType = 'pending' | 'completed';
 
 export const QualityControl: React.FC = () => {
   const { user, hasPermission } = useAuth();
+  const [qualityControlData, setQualityControlData] = useState(mockQualityControlData);
   const [activeTab, setActiveTab] = useState<TabType>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
