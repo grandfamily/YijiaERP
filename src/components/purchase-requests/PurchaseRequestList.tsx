@@ -427,39 +427,39 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                     <div className="flex items-center space-x-2">
                       <button 
                         onClick={() => setViewingRequest(request)}
-                        className="p-1 text-gray-400 hover:text-blue-600 rounded"
+                        className="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
                         title="查看详情"
                       >
-                        <Eye className="h-4 w-4" />
+                        查看
                       </button>
                       <button 
                         onClick={() => setEditingRequest(request)}
                         disabled={!canModify(request)}
                         className={`p-1 rounded transition-colors ${
                           canModify(request) 
-                            ? 'text-gray-400 hover:text-blue-600 cursor-pointer' 
-                            : 'text-gray-300 cursor-not-allowed'
+                            ? 'text-green-600 border border-green-600 hover:bg-green-50 cursor-pointer' 
+                            : 'text-gray-400 border border-gray-300 cursor-not-allowed'
                         }`}
                         title={canModify(request) ? "修改申请" : "订单已审核，无法修改"}
                       >
-                        <Edit className="h-4 w-4" />
+                        编辑
                       </button>
                       {canDelete(request) && (
                         <button 
                           onClick={() => handleDelete(request.id)}
-                          className="p-1 text-gray-400 hover:text-red-600 rounded"
+                          className="px-3 py-1 text-sm text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition-colors"
                           title="删除"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          删除
                         </button>
                       )}
                       {canResubmit(request) && (
                         <button 
                           onClick={() => handleResubmit(request.id)}
-                          className="p-1 text-gray-400 hover:text-blue-600 rounded"
+                          className="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
                           title="重新提交"
                         >
-                          <Send className="h-4 w-4" />
+                          重新提交
                         </button>
                       )}
                     </div>
