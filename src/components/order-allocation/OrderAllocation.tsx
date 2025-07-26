@@ -1065,21 +1065,16 @@ const OrderAllocationModal: React.FC<OrderAllocationModalProps> = ({
                       
                       {/* Actions */}
                       {canEdit && (
-                            <div className="flex items-center space-x-2">
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => setViewingRequest(request)}
-                              className="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                            >
-                              查看详情
-                            </button>
-                            <button
-                              onClick={() => setAllocatingRequest(request)}
-                              className="px-3 py-1 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors"
-                            >
-                              分配订单
-                            </button>
-                          </div>
+                        <div className="text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(item.id)}
+                            className="p-1 text-gray-400 hover:text-red-600 rounded"
+                            title="移除此项"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))}
