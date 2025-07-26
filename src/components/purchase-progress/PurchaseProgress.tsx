@@ -1135,7 +1135,7 @@ export const PurchaseProgress: React.FC = () => {
                                 
                                 // 其他节点的按钮显示
                                 if (canCompleteOtherStages(stage)) {
-                                  return (
+                                  {canUpdateProgress && !isCompleted && user?.role === 'purchasing_officer' && (
                                     <button
                                       onClick={() => handleCompleteStage(progress.id, stage.name)}
                                       className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
@@ -1203,7 +1203,7 @@ export const PurchaseProgress: React.FC = () => {
                                   )}
                                 </td>
                               );
-                            })}
+                                  {stage.name === '收货确认' && !isCompleted && user?.role === 'purchasing_officer' && canCompleteReceiving(stage) && (
                           </tr>
                         )}
                       </tbody>
