@@ -673,6 +673,213 @@ export const PurchaseProgress: React.FC = () => {
 
   const tabStats = getTabStats();
 
+  // 处理到货数量更新
+  const handleArrivalQuantityUpdate = async (progressId: string, itemId: string, arrivalQuantity: number) => {
+    try {
+      // 这里可以添加更新到货数量的逻辑
+      console.log(`更新SKU ${itemId} 的到货数量为: ${arrivalQuantity}`);
+      // 在实际应用中，这里会调用API更新数据
+    } catch (error) {
+      console.error('更新到货数量失败:', error);
+      alert('更新到货数量失败，请重试');
+    }
+  };
+
+  // 渲染标签页内容
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'in_progress':
+        return renderInProgressTab();
+      case 'external_completed':
+        return renderExternalCompletedTab();
+      case 'in_house_completed':
+        return renderCompletedTab('in_house');
+      case 'failed_orders':
+        return renderFailedOrdersTab();
+      default:
+        return renderInProgressTab();
+    }
+  };
+
+  // 渲染厂家包装已完成标签页（SKU维度）
+  const renderExternalCompletedTab = () => {
+    // 获取厂家包装已完成的SKU数据
+    const externalCompletedSKUs = getExternalCompletedSKUs();
+
+    if (externalCompletedSKUs.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">暂无厂家包装已完成的SKU</h3>
+          <p className="text-gray-600">还没有完成的厂家包装SKU</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left py-3 px-4 font-medium text-gray-900 w-32">订单编号</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-900 w-20">商品图片</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-900 w-24">SKU编码</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-900 w-40">品名</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-900 w-24">采购数量</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-900 w-32">完成时间</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-900 w-32">到货数量</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {externalCompletedSKUs.map((skuData) => {
+                const { progress, item, request } = skuData;
+                const completedStage = progress.stages.find(s => s.status === 'completed' && s.completedDate);
+                const completedDate = completedStage?.completedDate || progress.updatedAt;
+                
+                return (
+                  <tr key={`${progress.id}-${item.id}`} className="hover:bg-gray-50">
+                    {/* 订单编号 */}
+                    <td className="py-4 px-4">
+                      <div className="text-sm font-medium text-blue-600">{request.requestNumber}</div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(request.createdAt).toLocaleDateString('zh-CN')}
+                      </div>
+                    </td>
+                    
+                    {/* 商品图片 */}
+                    <td className="py-4 px-4 text-center">
+                      {item.sku.imageUrl ? (
+                        <div className="relative group inline-block">
+                          <img 
+                            src={item.sku.imageUrl} 
+                            alt={item.sku.name}
+                            className="w-12 h-12 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => handleImageClick(item.sku.imageUrl!)}
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
+                               onClick={() => handleImageClick(item.sku.imageUrl!)}>
+                            <ZoomIn className="h-3 w-3 text-white" />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 bg-gray-200 rounded border flex items-center justify-center">
+                          <Package className="h-5 w-5 text-gray-400" />
+                        </div>
+                      )}
+                    </td>
+                    
+                    {/* SKU编码 */}
+                    <td className="py-4 px-4">
+                      <div className="text-sm font-medium text-gray-900">{item.sku.code}</div>
+                      <div className="text-xs text-gray-500">{item.sku.category}</div>
+                    </td>
+                    
+                    {/* 品名 */}
+                    <td className="py-4 px-4">
+                      <div className="text-sm text-gray-900 font-medium">{item.sku.name}</div>
+                      <div className="text-xs text-gray-500 truncate">{item.sku.englishName}</div>
+                    </td>
+                    
+                    {/* 采购数量 */}
+                    <td className="py-4 px-4 text-center">
+                      <div className="text-sm font-bold text-gray-900">{item.quantity.toLocaleString()}</div>
+                    </td>
+                    
+                    {/* 完成时间 */}
+                    <td className="py-4 px-4 text-center">
+                      <div className="text-sm text-gray-900">
+                        {completedDate.toLocaleDateString('zh-CN')}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {completedDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </td>
+                    
+                    {/* 到货数量（可编辑） */}
+                    <td className="py-4 px-4 text-center">
+                      <div className="flex flex-col items-center space-y-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max={item.quantity}
+                          defaultValue={item.quantity}
+                          className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="数量"
+                          onBlur={(e) => {
+                            const arrivalQuantity = parseInt(e.target.value) || 0;
+                            if (arrivalQuantity !== item.quantity) {
+                              handleArrivalQuantityUpdate(progress.id, item.id, arrivalQuantity);
+                            }
+                          }}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              const arrivalQuantity = parseInt((e.target as HTMLInputElement).value) || 0;
+                              handleArrivalQuantityUpdate(progress.id, item.id, arrivalQuantity);
+                            }
+                          }}
+                        />
+                        <div className="text-xs text-gray-500">
+                          最大: {item.quantity.toLocaleString()}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* 统计信息 */}
+        <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <span>共 {externalCompletedSKUs.length} 个已完成的厂家包装SKU</span>
+            <span>
+              总采购数量: {externalCompletedSKUs.reduce((sum, skuData) => sum + skuData.item.quantity, 0).toLocaleString()}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 获取厂家包装已完成的SKU数据
+  const getExternalCompletedSKUs = () => {
+    const skuData: Array<{
+      progress: any;
+      item: any;
+      request: any;
+    }> = [];
+
+    // 遍历所有采购进度
+    procurementProgressData.forEach(progress => {
+      const request = allocatedRequests.find(req => req.id === progress.purchaseRequestId);
+      if (!request) return;
+
+      // 检查是否为厂家包装且已完成
+      const allocation = getOrderAllocation(progress.purchaseRequestId);
+      const isExternalPackaging = allocation?.type === 'external';
+      const isCompleted = progress.stages.every(stage => stage.status === 'completed');
+
+      if (isExternalPackaging && isCompleted) {
+        // 为每个SKU创建一条记录
+        request.items.forEach(item => {
+          skuData.push({
+            progress,
+            item,
+            request
+          });
+        });
+      }
+    });
+
+    return skuData;
+  };
+
   return (
     <>
       <div className="p-6 space-y-6">
