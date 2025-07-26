@@ -168,7 +168,8 @@ class AuthStore {
         'manage_order_allocation',
         'manage_procurement_progress',
         'update_procurement_progress',
-        'view_procurement_progress'
+        'view_procurement_progress',
+        'complete_receiving_confirmation'  // 新增：收货确认专属权限
       ],
       department_manager: [
         'view_purchase_requests',

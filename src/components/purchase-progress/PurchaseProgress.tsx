@@ -60,6 +60,23 @@ export const PurchaseProgress: React.FC = () => {
 
   // 筛选状态
   const [filters, setFilters] = useState({
+  const canCompleteReceiving = (stage: ProcurementProgressStage): boolean => {
+    // 只有采购专员可以完成"收货确认"节点
+    return user?.role === 'purchasing_officer' && stage.name === '收货确认';
+  };
+
+  // 权限检查函数 - 其他节点权限（保持原有逻辑）
+  const canCompleteOtherStages = (stage: ProcurementProgressStage): boolean => {
+    // 非收货确认节点的权限逻辑
+    if (stage.name === '收货确认') {
+      return false; // 收货确认只能由采购专员操作
+    }
+    
+    // 其他节点的权限逻辑（根据实际需求调整）
+    return user?.role === 'purchasing_officer' || 
+           user?.role === 'department_manager' || 
+           user?.role === 'general_manager';
+  };
     purchaseType: 'all' as PurchaseTypeFilter,
     depositPayment: 'all' as DepositPaymentFilter,
     finalPayment: 'all' as FinalPaymentFilter
@@ -418,6 +435,25 @@ export const PurchaseProgress: React.FC = () => {
           }
         }
       }
+      // 权限验证
+      const progress = allProcurementProgress.find(p => p.id === progressId);
+      if (!progress) return;
+      
+      const stage = progress.stages.find(s => s.name === stageName);
+      if (!stage) return;
+      
+      // 检查收货确认权限
+      if (stageName === '收货确认' && !canCompleteReceiving(stage)) {
+        alert('权限不足：只有采购专员可以完成收货确认操作');
+        return;
+      }
+      
+      // 检查其他节点权限
+      if (stageName !== '收货确认' && !canCompleteOtherStages(stage)) {
+        alert('权限不足：您没有权限完成此操作');
+        return;
+      }
+
       await updateProcurementProgressStage(progress.id, stageName, {
         status: 'completed',
         completedDate: new Date()
@@ -427,6 +463,7 @@ export const PurchaseProgress: React.FC = () => {
       setTimeout(() => setNotificationMessage(null), 3000);
     } catch (error) {
       console.error('完成阶段失败:', error);
+      alert('操作失败，请重试');
       setNotificationMessage('操作失败，请重试');
       setTimeout(() => setNotificationMessage(null), 3000);
     }
@@ -561,6 +598,37 @@ export const PurchaseProgress: React.FC = () => {
       inProgress,
       completed
     };
+    // 收货确认节点的权限控制
+    if (stage.name === '收货确认') {
+      // 只有采购专员可以看到和操作收货确认按钮
+      if (!canCompleteReceiving(stage)) {
+        return null; // 其他角色不显示按钮
+      }
+      
+      return (
+        <button
+          onClick={() => handleCompleteStage(progress.id, stage.name)}
+          className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+          title="采购专员专属：完成收货确认"
+        >
+          完成
+        </button>
+      );
+    }
+    
+    // 其他节点的按钮显示
+    if (canCompleteOtherStages(stage)) {
+      return (
+        <button
+          onClick={() => handleCompleteStage(progress.id, stage.name)}
+          className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+        >
+          完成
+        </button>
+      );
+    }
+    
+    return null;
   };
 
   const tabStats = getTabStats();
@@ -1221,6 +1289,20 @@ export const PurchaseProgress: React.FC = () => {
                 <textarea
                   rows={3}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        {/* 权限说明提示 */}
+        {user?.role === 'purchasing_officer' && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center space-x-2">
+              <Zap className="h-5 w-5 text-blue-600" />
+              <div>
+                <h3 className="text-sm font-medium text-blue-800">采购专员权限</h3>
+                <p className="text-sm text-blue-700 mt-1">
+                  您拥有"收货确认"节点的专属操作权限，其他角色无法看到或操作此节点的完成按钮
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
                   placeholder="请输入催付备注..."
                 />
               </div>
