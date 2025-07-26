@@ -30,7 +30,7 @@ import { PurchaseRequest, OrderAllocation, ProcurementProgress, PaymentMethod, P
 import { StatusBadge } from '../ui/StatusBadge';
 import { ProgressBar } from '../ui/ProgressBar';
 
-type TabType = 'in_progress' | 'completed';
+type TabType = 'in_progress' | 'external_completed' | 'internal_completed' | 'failed_orders';
 
 // 筛选选项类型
 type PurchaseTypeFilter = 'all' | 'external' | 'in_house';
