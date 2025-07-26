@@ -1066,20 +1066,20 @@ const OrderAllocationModal: React.FC<OrderAllocationModalProps> = ({
                       {/* Actions */}
                       {canEdit && (
                             <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => setViewingRequest(request)}
-                                className="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                              >
-                                查看详情
-                              </button>
-                              <button
-                                onClick={() => setAllocatingRequest(request)}
-                                className="px-3 py-1 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors"
-                              >
-                                分配订单
-                              </button>
-                            </div>
-                        </div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => setViewingRequest(request)}
+                              className="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                            >
+                              查看详情
+                            </button>
+                            <button
+                              onClick={() => setAllocatingRequest(request)}
+                              className="px-3 py-1 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors"
+                            >
+                              分配订单
+                            </button>
+                          </div>
                       )}
                     </div>
                   ))}
