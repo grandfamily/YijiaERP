@@ -48,7 +48,6 @@ export const PurchaseProgress: React.FC = () => {
     getProcurementProgress,
     createProcurementProgressForRequest,
     updateProcurementProgressStage,
-    handleSKUFlowAfterReceivingConfirmation,
     addPaymentReminder,
     requestCardDelivery,
     getCardDeliveryReminderTime,

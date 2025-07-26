@@ -1741,57 +1741,6 @@ class ProcurementStore {
     return this.paymentStatus[requestId]?.[paymentType] || false;
   }
 
-  // SKU流转规则核查逻辑
-  handleSKUFlowAfterReceivingConfirmation(progressId: string): void {
-    try {
-      // 获取进度记录
-      const progress = this.procurementProgress.find(p => p.id === progressId);
-      if (!progress) {
-        console.error('进度记录不存在:', progressId);
-        return;
-      }
-
-      // 获取订单分配信息
-      const allocation = this.getOrderAllocationByRequestId(progress.purchaseRequestId);
-      if (!allocation) {
-        console.error('订单分配信息不存在:', progress.purchaseRequestId);
-        return;
-      }
-
-      // 检查收货确认节点是否已完成
-      const receivingStage = progress.stages.find(stage => stage.name === '收货确认');
-      if (!receivingStage || receivingStage.status !== 'completed') {
-        console.log('收货确认节点未完成，不执行流转');
-        return;
-      }
-
-      // 检查所有前置节点是否完成
-      const allPreviousStagesCompleted = progress.stages
-        .filter(stage => stage.name !== '收货确认')
-        .every(stage => stage.status === 'completed');
-
-      if (!allPreviousStagesCompleted) {
-        console.log('前置节点未全部完成，不执行流转');
-        return;
-      }
-
-      // 根据采购类型执行流转
-      if (allocation.type === 'external') {
-        console.log(`🔄 SKU流转：厂家包装订单 ${progress.purchaseRequestId} 已完成收货确认，移入"厂家包装已完成"子栏目`);
-        // 厂家包装类型的SKU会自动在getExternalCompletedSKUs中被识别
-      } else if (allocation.type === 'in_house') {
-        console.log(`🔄 SKU流转：自己包装订单 ${progress.purchaseRequestId} 已完成收货确认，移入"自己包装已完成"子栏目`);
-        // 自己包装类型的SKU会自动在getInHouseCompletedSKUs中被识别
-      }
-
-      // 通知监听器更新界面
-      this.notify();
-
-    } catch (error) {
-      console.error('SKU流转处理失败:', error);
-    }
-  }
-
   private getCurrentUser() {
     return authStore.getCurrentUser();
   }

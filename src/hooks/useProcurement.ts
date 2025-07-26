@@ -136,8 +136,6 @@ export const useProcurement = () => {
       procurementStore.updateProcurementProgressStage(progressId, stageName, updates),
     createProcurementProgressForRequest: (request: PurchaseRequest) => 
       procurementStore.createProcurementProgressForRequest(request),
-    handleSKUFlowAfterReceivingConfirmation: (progressId: string) => 
-      procurementStore.handleSKUFlowAfterReceivingConfirmation(progressId),
 
     // Payment Reminders
     addPaymentReminder: (requestId: string, paymentType?: 'deposit' | 'final') => 
