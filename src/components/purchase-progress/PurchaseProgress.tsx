@@ -1,6 +1,3 @@
-Looking at this React component file, I can see it's missing several closing brackets. Let me fix the syntax errors by adding the missing closing brackets:
-
-```typescript
 import React, { useState } from 'react';
 import { 
   FileText, 
