@@ -208,6 +208,59 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
     }
   };
 
+  // 获取初审状态文本
+  const getFirstApprovalStatusText = (request: PurchaseRequest) => {
+    if (request.status === 'draft') return '草稿';
+    if (request.status === 'submitted' && !request.firstApprovalDate) return '未审核';
+    if (request.status === 'rejected' && request.firstApprovalDate && !request.finalApprovalDate) return '未通过';
+    if (request.firstApprovalDate) return '已审核';
+    return '未审核';
+  };
+
+  // 获取初审状态颜色
+  const getFirstApprovalStatusColor = (request: PurchaseRequest) => {
+    const statusText = getFirstApprovalStatusText(request);
+    switch (statusText) {
+      case '已审核': return 'green';
+      case '未通过': return 'red';
+      case '未审核': return 'yellow';
+      case '草稿': return 'gray';
+      default: return 'gray';
+    }
+  };
+
+  // 获取终审状态文本
+  const getFinalApprovalStatusText = (request: PurchaseRequest) => {
+    if (request.status === 'draft') return '草稿';
+    if (!request.firstApprovalDate) return '待初审';
+    if (request.status === 'first_approved') return '未审核';
+    if (request.status === 'rejected' && request.finalApprovalDate) return '未通过';
+    if (request.finalApprovalDate && ['approved', 'in_production', 'quality_check', 'ready_to_ship', 'shipped', 'completed'].includes(request.status)) {
+      return '已审核';
+    }
+    if (request.firstApprovalDate && !request.finalApprovalDate) return '未审核';
+    return '待初审';
+  };
+
+  // 获取终审状态颜色
+  const getFinalApprovalStatusColor = (request: PurchaseRequest) => {
+    const statusText = getFinalApprovalStatusText(request);
+    switch (statusText) {
+      case '已审核': return 'green';
+      case '未通过': return 'red';
+      case '未审核': return 'yellow';
+      case '待初审': return 'gray';
+      case '草稿': return 'gray';
+      default: return 'gray';
+    }
+  };
+
+  // 判断是否可以修改（新增的权限逻辑）
+  const canModify = (request: PurchaseRequest) => {
+    const firstApprovalStatus = getFirstApprovalStatusText(request);
+    return firstApprovalStatus === '未审核' || firstApprovalStatus === '草稿';
+  };
+
   const handleImageClick = (imageUrl: string) => {
     setZoomedImage(imageUrl);
   };
@@ -252,9 +305,9 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                 )}
                 <th className="text-left py-3 px-4 font-medium text-gray-900">申请编号</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-900">申请人</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900">类型</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-900">SKU数量</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900">状态</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-900">初审状态</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-900">终审状态</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-900">创建时间</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-900">操作</th>
               </tr>
@@ -298,9 +351,6 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                     </div>
                   </td>
                   <td className="py-4 px-4">
-                    <span className="text-gray-500 text-sm">-</span>
-                  </td>
-                  <td className="py-4 px-4">
                     <div className="flex items-center space-x-2">
                       <Package className="h-4 w-4 text-gray-400" />
                       <span className="text-gray-900">{request.items.length}</span>
@@ -308,8 +358,14 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                   </td>
                   <td className="py-4 px-4">
                     <StatusBadge
-                      status={getApprovalStatusText(request)}
-                      color={getApprovalStatusColor(request)}
+                      status={getFirstApprovalStatusText(request)}
+                      color={getFirstApprovalStatusColor(request)}
+                    />
+                  </td>
+                  <td className="py-4 px-4">
+                    <StatusBadge
+                      status={getFinalApprovalStatusText(request)}
+                      color={getFinalApprovalStatusColor(request)}
                     />
                   </td>
                   <td className="py-4 px-4">
@@ -325,6 +381,18 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                         title="查看详情"
                       >
                         <Eye className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => setEditingRequest(request)}
+                        disabled={!canModify(request)}
+                        className={`p-1 rounded transition-colors ${
+                          canModify(request) 
+                            ? 'text-gray-400 hover:text-blue-600 cursor-pointer' 
+                            : 'text-gray-300 cursor-not-allowed'
+                        }`}
+                        title={canModify(request) ? "修改申请" : "订单已审核，无法修改"}
+                      >
+                        <Edit className="h-4 w-4" />
                       </button>
                       {canEdit(request) && (
                         <button 
