@@ -351,9 +351,49 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                     </div>
                   </td>
                   <td className="py-4 px-4">
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 relative group">
                       <Package className="h-4 w-4 text-gray-400" />
-                      <span className="text-gray-900">{request.items.length}</span>
+                      <span className="text-gray-900 cursor-help">{request.items.length}</span>
+                      
+                      {/* SKU详情悬停提示 */}
+                      <div className="absolute left-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg p-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                        <div className="text-sm font-medium text-gray-900 mb-3">SKU详情列表</div>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {request.items.map((item, index) => (
+                            <div key={item.id} className="flex items-center space-x-3 p-2 bg-gray-50 rounded border">
+                              {item.sku.imageUrl ? (
+                                <img 
+                                  src={item.sku.imageUrl} 
+                                  alt={item.sku.name}
+                                  className="w-8 h-8 object-cover rounded border"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-8 h-8 bg-gray-200 rounded border flex items-center justify-center">
+                                  <Package className="h-4 w-4 text-gray-400" />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium text-gray-900 text-xs">{item.sku.code}</span>
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                    {item.sku.category}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-600 truncate">{item.sku.name}</div>
+                                <div className="text-xs text-gray-500">数量: {item.quantity.toLocaleString()}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {request.items.length > 5 && (
+                          <div className="text-xs text-gray-500 mt-2 text-center">
+                            共 {request.items.length} 个SKU
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="py-4 px-4">
