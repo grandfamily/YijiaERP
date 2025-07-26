@@ -640,28 +640,28 @@ export const QualityControl: React.FC = () => {
                           {/* 外箱体积 - 计算字段 */}
                           <td className="py-3 px-3 text-center">
                             <span className="text-sm font-medium text-blue-600">
-                              {item.boxVolume ? `${parseFloat(item.boxVolume).toFixed(6)}m³` : '-'}
+                              {item.boxVolume ? `${parseFloat(item.boxVolume.toString()).toFixed(6).replace(/\.?0+$/, '')}m³` : '-'}
                             </span>
                           </td>
                           
                           {/* 总体积 - 计算字段 */}
                           <td className="py-3 px-3 text-center">
                             <span className="text-sm font-medium text-blue-600">
-                              {item.totalVolume ? `${parseFloat(item.totalVolume).toFixed(3)}m³` : '-'}
+                              {item.totalVolume ? `${parseFloat(item.totalVolume.toString()).toFixed(3).replace(/\.?0+$/, '')}m³` : '-'}
                             </span>
                           </td>
                           
                           {/* 单件重量 - 显示值 */}
                           <td className="py-3 px-3 text-center">
                             <span className="text-sm text-gray-900">
-                              {item.unitWeight ? `${item.unitWeight}kg` : '-'}
+                              {item.unitWeight ? `${parseFloat(item.unitWeight.toString()).toFixed(2).replace(/\.?0+$/, '')}kg` : '-'}
                             </span>
                           </td>
                           
                           {/* 总重量 - 计算字段 */}
                           <td className="py-3 px-3 text-center">
                             <span className="text-sm font-medium text-blue-600">
-                              {item.totalWeight ? `${parseFloat(item.totalWeight).toFixed(2)}kg` : '-'}
+                              {item.totalWeight ? `${parseFloat(item.totalWeight.toString()).toFixed(2).replace(/\.?0+$/, '')}kg` : '-'}
                             </span>
                           </td>
                           
