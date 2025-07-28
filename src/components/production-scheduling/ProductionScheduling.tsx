@@ -136,6 +136,21 @@ export const ProductionScheduling: React.FC = () => {
   const [productionSKUs, setProductionSKUs] = useState<ProductionSKU[]>(mockProductionSKUs);
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [batchConfig, setBatchConfig] = useState({
+    scheduledDate: new Date().toISOString().split('T')[0],
+    productionBinding: {
+      machines: [{ machine: '', operator: '' }],
+    },
+    packaging: {
+      operator: ''
+    },
+    blisterPackaging: {
+      operator: ''
+    },
+    outerBoxPacking: {
+      operator: ''
+    }
+  });
 
   // 权限检查
   const isProductionStaff = user?.role === 'production_staff';
@@ -214,6 +229,48 @@ export const ProductionScheduling: React.FC = () => {
           : sku
       )
     );
+  };
+
+  // 添加机器配置
+  const addMachineConfig = () => {
+    setBatchConfig(prev => ({
+      ...prev,
+      productionBinding: {
+        machines: [...prev.productionBinding.machines, { machine: '', operator: '' }]
+      }
+    }));
+  };
+
+  // 移除机器配置
+  const removeMachineConfig = (index: number) => {
+    if (batchConfig.productionBinding.machines.length > 1) {
+      setBatchConfig(prev => ({
+        ...prev,
+        productionBinding: {
+          machines: prev.productionBinding.machines.filter((_, i) => i !== index)
+        }
+      }));
+    }
+  };
+
+  // 更新机器配置
+  const updateMachineConfig = (index: number, field: 'machine' | 'operator', value: string) => {
+    setBatchConfig(prev => ({
+      ...prev,
+      productionBinding: {
+        machines: prev.productionBinding.machines.map((config, i) => 
+          i === index ? { ...config, [field]: value } : config
+        )
+      }
+    }));
+  };
+
+  // 更新其他环节操作员
+  const updateStageOperator = (stage: 'packaging' | 'blisterPackaging' | 'outerBoxPacking', operator: string) => {
+    setBatchConfig(prev => ({
+      ...prev,
+      [stage]: { operator }
+    }));
   };
 
   // 处理确认生产
@@ -564,6 +621,139 @@ export const ProductionScheduling: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {/* 批次生产配置 */}
+      {isProductionStaff && (
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">批次生产配置</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 排单日期 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                排单日期 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={batchConfig.scheduledDate}
+                onChange={(e) => setBatchConfig(prev => ({ ...prev, scheduledDate: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            {/* 生产绑卡配置 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                生产绑卡 <span className="text-red-500">*</span>
+              </label>
+              <div className="space-y-3">
+                {batchConfig.productionBinding.machines.map((config, index) => (
+                  <div key={index} className="flex items-center space-x-2">
+                    <select
+                      value={config.machine}
+                      onChange={(e) => updateMachineConfig(index, 'machine', e.target.value)}
+                      className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">选择机器</option>
+                      <option value="大机器">大机器</option>
+                      <option value="小机器1">小机器1</option>
+                      <option value="小机器2">小机器2</option>
+                      <option value="绑卡机">绑卡机</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={config.operator}
+                      onChange={(e) => updateMachineConfig(index, 'operator', e.target.value)}
+                      placeholder="操作员"
+                      className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                    {batchConfig.productionBinding.machines.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeMachineConfig(index)}
+                        className="p-2 text-red-600 hover:text-red-800 rounded"
+                        title="移除"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addMachineConfig}
+                  className="flex items-center space-x-2 px-3 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>添加机器配置</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 包中托配置 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                包中托 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={batchConfig.packaging.operator}
+                onChange={(e) => updateStageOperator('packaging', e.target.value)}
+                placeholder="操作员"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            {/* 吸塑包装配置 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                吸塑包装 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={batchConfig.blisterPackaging.operator}
+                onChange={(e) => updateStageOperator('blisterPackaging', e.target.value)}
+                placeholder="操作员"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* 打包外箱配置 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                打包外箱 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={batchConfig.outerBoxPacking.operator}
+                onChange={(e) => updateStageOperator('outerBoxPacking', e.target.value)}
+                placeholder="操作员"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {/* 配置说明 */}
+          <div className="mt-4 p-3 bg-blue-100 border border-blue-300 rounded-lg">
+            <div className="flex items-center space-x-2 mb-2">
+              <Calendar className="h-4 w-4 text-blue-600" />
+              <h4 className="text-sm font-medium text-blue-800">批次配置说明</h4>
+            </div>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• 排单日期和生产环节配置将应用于所有选中的SKU</li>
+              <li>• 生产绑卡支持多机器并行作业，可添加多组机器和操作员配置</li>
+              <li>• 包中托、吸塑包装、打包外箱环节各需配置一名操作员</li>
+              <li>• 确认生产前请确保所有必填字段都已填写完整</li>
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 
