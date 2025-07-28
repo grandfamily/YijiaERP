@@ -76,11 +76,6 @@ const sidebarItems: SidebarItem[] = [
     icon: <Truck className="h-5 w-5" />,
   },
   {
-    id: 'shipping-outbound',
-    label: '发货出柜',
-    icon: <Truck className="h-5 w-5" />,
-  },
-  {
     id: 'finance',
     label: '财务管理',
     icon: <DollarSign className="h-5 w-5" />,

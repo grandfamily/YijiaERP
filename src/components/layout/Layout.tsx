@@ -44,8 +44,6 @@ export const Layout: React.FC = () => {
       case 'quality-control':
         return <QualityControl />;
       case 'shipping':
-        return <Shipping />;
-      case 'shipping-outbound':
         return <ShippingOutbound />;
       case 'inventory':
         return <Inventory />;
