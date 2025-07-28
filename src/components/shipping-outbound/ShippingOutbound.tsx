@@ -280,16 +280,23 @@ export const ShippingOutbound: React.FC = () => {
 
   // 处理发货件数修改
   const handleShipmentQuantityChange = (itemId: string, shipmentQuantity: number) => {
+    // 获取当前项目的总件数进行验证
+    const currentItem = shippingData.find(item => item.id === itemId);
+    if (!currentItem) return;
+    
+    // 确保发货件数不超过总件数，且不小于1
+    const validShipmentQuantity = Math.max(1, Math.min(shipmentQuantity, currentItem.totalPieces));
+    
     setShippingData(prevData => 
       prevData.map(item => {
         if (item.id === itemId) {
-          const shipmentTotalQuantity = shipmentQuantity * item.piecesPerUnit;
-          const shipmentTotalVolume = shipmentQuantity * item.boxVolume;
-          const shipmentTotalWeight = shipmentQuantity * item.unitWeight;
+          const shipmentTotalQuantity = validShipmentQuantity * item.piecesPerUnit;
+          const shipmentTotalVolume = validShipmentQuantity * item.boxVolume;
+          const shipmentTotalWeight = validShipmentQuantity * item.unitWeight;
           
           return {
             ...item,
-            shipmentQuantity,
+            shipmentQuantity: validShipmentQuantity,
             shipmentTotalQuantity,
             shipmentTotalVolume,
             shipmentTotalWeight
