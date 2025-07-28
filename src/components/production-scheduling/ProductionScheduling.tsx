@@ -352,32 +352,45 @@ export const ProductionScheduling: React.FC = () => {
   const handleExportSchedule = () => {
     const preScheduledItems = productionSKUs.filter(item => item.status === 'pre_scheduled');
     
-    const exportData = preScheduledItems.map(item => {
-      // 获取生产绑卡机器和操作员信息
-      const machines = batchConfig.productionBinding.machines.map(binding => binding.machine).join(';');
-      const operators = batchConfig.productionBinding.machines.map(binding => binding.operator).join(';');
+    // 构建导出数据 - 支持多行显示
+    const exportRows: string[][] = [];
+    
+    preScheduledItems.forEach(item => {
+      const maxRows = Math.max(1, batchConfig.productionBinding.machines.length);
       
-      return {
-        '排单日期': item.scheduledDate?.toLocaleDateString('zh-CN') || '',
-        '订单编号': item.orderNumber,
-        'SKU编码': item.sku.code,
-        '品名': item.sku.name,
-        '采购数量': item.purchaseQuantity,
-        '生产数量': item.productionQuantity || item.purchaseQuantity,
-        '材质': item.material,
-        '包装方式': item.packagingMethod,
-        '生产绑卡机器': machines,
-        '生产绑卡操作员': operators,
-        '包中托操作员': batchConfig.packaging.operator || '',
-        '吸塑包装操作员': batchConfig.blisterPackaging.operator || '',
-        '打包外箱操作员': batchConfig.outerBoxPacking.operator || ''
-      };
+      for (let i = 0; i < maxRows; i++) {
+        const binding = batchConfig.productionBinding.machines[i];
+        const isFirstRow = i === 0;
+        
+        const row = [
+          item.scheduledDate?.toLocaleDateString('zh-CN') || '',
+          item.orderNumber,
+          item.sku.code,
+          item.sku.name,
+          item.purchaseQuantity.toString(),
+          (item.productionQuantity || item.purchaseQuantity).toString(),
+          item.material,
+          item.packagingMethod,
+          binding ? binding.machine : '',
+          binding ? binding.operator : '',
+          isFirstRow ? (batchConfig.packaging.operator || '') : '',
+          isFirstRow ? (batchConfig.blisterPackaging.operator || '') : '',
+          isFirstRow ? (batchConfig.outerBoxPacking.operator || '') : ''
+        ];
+        
+        exportRows.push(row);
+      }
     });
 
-    const headers = Object.keys(exportData[0] || {});
+    const headers = [
+      '排单日期', '订单编号', 'SKU编码', '品名', '采购数量', '生产数量', 
+      '材质', '包装方式', '生产绑卡机器', '生产绑卡操作员', 
+      '包中托操作员', '吸塑包装操作员', '打包外箱操作员'
+    ];
+    
     const csvContent = [
       headers.join(','),
-      ...exportData.map(row => headers.map(header => `"${row[header as keyof typeof row]}"`).join(','))
+      ...exportRows.map(row => row.map(cell => `"${cell}"`).join(','))
     ].join('\n');
 
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
