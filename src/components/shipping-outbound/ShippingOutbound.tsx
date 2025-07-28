@@ -14,7 +14,8 @@ import {
   X,
   Calculator,
   Send,
-  Undo
+  Undo,
+  Download
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { StatusBadge } from '../ui/StatusBadge';
@@ -238,6 +239,71 @@ export const ShippingOutbound: React.FC = () => {
 
   const selectedStats = getSelectedStats();
 
+  // 导出发货批次详情
+  const handleExportBatchDetails = (batch: any) => {
+    const exportData = batch.items.map((item: any) => ({
+      '订单编号': item.purchaseRequestNumber,
+      'SKU编码': item.sku.code,
+      '品名': item.sku.name,
+      '英文品名': item.sku.englishName || '',
+      '产品类别': item.sku.category || '',
+      '识别码': item.sku.identificationCode,
+      '中包数': item.packageCount,
+      '发货件数': item.shipmentQuantity,
+      '单件数量': item.piecesPerUnit,
+      '发货总数量': item.shipmentTotalQuantity,
+      '外箱长(cm)': item.boxLength,
+      '外箱宽(cm)': item.boxWidth,
+      '外箱高(cm)': item.boxHeight,
+      '外箱体积(m³)': formatNumber(item.boxVolume, 6),
+      '发货总体积(m³)': formatNumber(item.shipmentTotalVolume, 3),
+      '单件重量(kg)': formatNumber(item.unitWeight, 2),
+      '发货总重量(kg)': formatNumber(item.shipmentTotalWeight, 2)
+    }));
+
+    // 添加批次汇总信息
+    const summaryData = {
+      '批次编号': batch.batchNumber,
+      'SKU数量': batch.skuCount,
+      '发货总重量(kg)': formatNumber(batch.totalWeight, 2),
+      '发货总体积(m³)': formatNumber(batch.totalVolume, 3),
+      '发货时间': `${batch.shipmentDate.toLocaleDateString('zh-CN')} ${batch.shipmentDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+    };
+
+    // 创建完整的导出数据
+    const fullExportData = [
+      // 批次信息标题行
+      { '订单编号': '=== 批次信息 ===' },
+      summaryData,
+      { '订单编号': '' }, // 空行分隔
+      // SKU详情标题行
+      { '订单编号': '=== SKU详情 ===' },
+      ...exportData
+    ];
+
+    // 转换为CSV格式
+    const headers = Object.keys(exportData[0] || {});
+    const csvContent = [
+      // 批次信息部分
+      '批次信息',
+      `批次编号,${batch.batchNumber}`,
+      `SKU数量,${batch.skuCount}`,
+      `发货总重量(kg),${formatNumber(batch.totalWeight, 2)}`,
+      `发货总体积(m³),${formatNumber(batch.totalVolume, 3)}`,
+      `发货时间,${batch.shipmentDate.toLocaleDateString('zh-CN')} ${batch.shipmentDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`,
+      '', // 空行
+      'SKU详情',
+      headers.join(','),
+      ...exportData.map(row => headers.map(header => `"${row[header as keyof typeof row]}"`).join(','))
+    ].join('\n');
+
+    // 下载文件
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `发货批次详情_${batch.batchNumber}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
   // 处理预发货
   const handlePreShipment = () => {
     if (selectedItems.length === 0) return;
@@ -907,12 +973,21 @@ export const ShippingOutbound: React.FC = () => {
               <h2 className="text-xl font-semibold text-gray-900">
                 发货批次详情 - {viewingBatch.batchNumber}
               </h2>
-              <button
-                onClick={() => setViewingBatch(null)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => handleExportBatchDetails(viewingBatch)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>导出</span>
+                </button>
+                <button
+                  onClick={() => setViewingBatch(null)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
             <div className="p-6 space-y-6">
@@ -1019,6 +1094,13 @@ export const ShippingOutbound: React.FC = () => {
 
               {/* 关闭按钮 */}
               <div className="flex items-center justify-end pt-6 border-t border-gray-200">
+                <button
+                  onClick={() => handleExportBatchDetails(viewingBatch)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mr-4"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>导出详情</span>
+                </button>
                 <button
                   onClick={() => setViewingBatch(null)}
                   className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
