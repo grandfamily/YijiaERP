@@ -223,7 +223,9 @@ class AuthStore {
         'view_logistics_reports',
         'view_card_progress',
         'view_suppliers',
-        'view_order_allocation'
+        'view_order_allocation',
+        'manage_shipping_outbound',
+        'edit_shipping_outbound'
       ],
       accessory_staff: [
         'view_accessory_progress',

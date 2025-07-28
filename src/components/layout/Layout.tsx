@@ -16,6 +16,7 @@ import { Shipping } from '../shipping/Shipping';
 import { Inventory } from '../inventory/Inventory';
 import { FinanceManagement } from '../finance/FinanceManagement';
 import { ProductionScheduling } from '../production-scheduling/ProductionScheduling';
+import { ShippingOutbound } from '../shipping-outbound/ShippingOutbound';
 
 export const Layout: React.FC = () => {
   const [activeItem, setActiveItem] = useState('dashboard');
@@ -44,6 +45,8 @@ export const Layout: React.FC = () => {
         return <QualityControl />;
       case 'shipping':
         return <Shipping />;
+      case 'shipping-outbound':
+        return <ShippingOutbound />;
       case 'inventory':
         return <Inventory />;
       case 'finance':
