@@ -588,10 +588,10 @@ export const ShippingOutbound: React.FC = () => {
                     <input
                       type="number"
                       min="1"
-                      max={item.totalPieces}
+                     max={item.totalPieces}
                       value={item.shipmentQuantity || item.totalPieces}
                       onChange={(e) => handleShipmentQuantityChange(item.id, parseInt(e.target.value) || 1)}
-                      className="w-16 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                     className="w-16 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   ) : (
                     <span className="text-sm text-gray-900">{item.shipmentQuantity || item.totalPieces}</span>
