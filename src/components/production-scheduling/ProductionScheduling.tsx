@@ -352,21 +352,27 @@ export const ProductionScheduling: React.FC = () => {
   const handleExportSchedule = () => {
     const preScheduledItems = productionSKUs.filter(item => item.status === 'pre_scheduled');
     
-    const exportData = preScheduledItems.map(item => ({
-      '排单日期': item.scheduledDate?.toLocaleDateString('zh-CN') || '',
-      '订单编号': item.orderNumber,
-      'SKU编码': item.sku.code,
-      '品名': item.sku.name,
-      '采购数量': item.purchaseQuantity,
-      '生产数量': item.productionQuantity || item.purchaseQuantity,
-      '材质': item.material,
-      '包装方式': item.packagingMethod,
-      '生产绑卡机器': item.productionSteps?.find(s => s.type === 'binding')?.machine || '',
-      '生产绑卡操作员': item.productionSteps?.find(s => s.type === 'binding')?.operator || '',
-      '包中托操作员': item.productionSteps?.find(s => s.type === 'tray')?.operator || '',
-      '吸塑包装操作员': item.productionSteps?.find(s => s.type === 'blister')?.operator || '',
-      '打包外箱操作员': item.productionSteps?.find(s => s.type === 'packing')?.operator || ''
-    }));
+    const exportData = preScheduledItems.map(item => {
+      // 获取生产绑卡机器和操作员信息
+      const machines = batchConfig.productionBinding.machines.map(binding => binding.machine).join(';');
+      const operators = batchConfig.productionBinding.machines.map(binding => binding.operator).join(';');
+      
+      return {
+        '排单日期': item.scheduledDate?.toLocaleDateString('zh-CN') || '',
+        '订单编号': item.orderNumber,
+        'SKU编码': item.sku.code,
+        '品名': item.sku.name,
+        '采购数量': item.purchaseQuantity,
+        '生产数量': item.productionQuantity || item.purchaseQuantity,
+        '材质': item.material,
+        '包装方式': item.packagingMethod,
+        '生产绑卡机器': machines,
+        '生产绑卡操作员': operators,
+        '包中托操作员': batchConfig.packaging.operator || '',
+        '吸塑包装操作员': batchConfig.blisterPackaging.operator || '',
+        '打包外箱操作员': batchConfig.outerBoxPacking.operator || ''
+      };
+    });
 
     const headers = Object.keys(exportData[0] || {});
     const csvContent = [
@@ -377,7 +383,8 @@ export const ProductionScheduling: React.FC = () => {
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `生产排单表_${new Date().toISOString().split('T')[0]}.csv`;
+    const dateStr = batchConfig.scheduledDate ? new Date(batchConfig.scheduledDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    link.download = `生产排单表_${dateStr}.csv`;
     link.click();
   };
 
@@ -494,7 +501,6 @@ export const ProductionScheduling: React.FC = () => {
                   )}
                 </button>
               </th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900">排单日期</th>
               <th className="text-left py-3 px-3 font-medium text-gray-900">订单编号</th>
               <th className="text-center py-3 px-3 font-medium text-gray-900">图片</th>
               <th className="text-left py-3 px-3 font-medium text-gray-900">SKU</th>
@@ -503,13 +509,7 @@ export const ProductionScheduling: React.FC = () => {
               <th className="text-center py-3 px-3 font-medium text-gray-900">生产数量</th>
               <th className="text-left py-3 px-3 font-medium text-gray-900">材质</th>
               <th className="text-left py-3 px-3 font-medium text-gray-900">包装方式</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900">生产绑卡</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900">包中托</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900">吸塑包装</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900">打包外箱</th>
-              {isProductionStaff && (
-                <th className="text-center py-3 px-3 font-medium text-gray-900">操作</th>
-              )}
+              <th className="text-center py-3 px-3 font-medium text-gray-900">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -523,9 +523,6 @@ export const ProductionScheduling: React.FC = () => {
                       <Square className="h-4 w-4 text-gray-400" />
                     )}
                   </button>
-                </td>
-                <td className="py-3 px-3 text-sm text-gray-900">
-                  {item.scheduledDate?.toLocaleDateString('zh-CN')}
                 </td>
                 <td className="py-3 px-3 text-sm font-medium text-blue-600">{item.orderNumber}</td>
                 <td className="py-3 px-3 text-center">
@@ -574,27 +571,6 @@ export const ProductionScheduling: React.FC = () => {
                 </td>
                 <td className="py-3 px-3 text-sm text-gray-900">{item.material}</td>
                 <td className="py-3 px-3 text-sm text-gray-900">{item.packagingMethod}</td>
-                
-                {/* 生产环节配置 */}
-                <td className="py-3 px-3 text-center">
-                  <div className="space-y-1">
-                    <div className="text-xs text-gray-600">
-                      机器: {item.productionSteps?.find(s => s.type === 'binding')?.machine || '未配置'}
-                    </div>
-                    <div className="text-xs text-gray-600">
-                      操作员: {item.productionSteps?.find(s => s.type === 'binding')?.operator || '未配置'}
-                    </div>
-                  </div>
-                </td>
-                <td className="py-3 px-3 text-center text-xs text-gray-600">
-                  {item.productionSteps?.find(s => s.type === 'tray')?.operator || '未配置'}
-                </td>
-                <td className="py-3 px-3 text-center text-xs text-gray-600">
-                  {item.productionSteps?.find(s => s.type === 'blister')?.operator || '未配置'}
-                </td>
-                <td className="py-3 px-3 text-center text-xs text-gray-600">
-                  {item.productionSteps?.find(s => s.type === 'packing')?.operator || '未配置'}
-                </td>
                 
                 {isProductionStaff && (
                   <td className="py-3 px-3 text-center">
