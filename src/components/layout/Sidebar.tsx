@@ -63,7 +63,7 @@ const sidebarItems: SidebarItem[] = [
   {
     id: 'production-scheduling',
     label: '生产排单',
-    icon: <Calendar className="h-5 w-5" />,
+    icon: <Calendar className="h-5 w-5" />
   },
   {
     id: 'quality-control', 
