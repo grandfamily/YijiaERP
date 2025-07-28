@@ -973,21 +973,12 @@ export const ShippingOutbound: React.FC = () => {
               <h2 className="text-xl font-semibold text-gray-900">
                 发货批次详情 - {viewingBatch.batchNumber}
               </h2>
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={() => handleExportBatchDetails(viewingBatch)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  <Download className="h-4 w-4" />
-                  <span>导出</span>
-                </button>
-                <button
-                  onClick={() => setViewingBatch(null)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+              <button
+                onClick={() => setViewingBatch(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
             <div className="p-6 space-y-6">
