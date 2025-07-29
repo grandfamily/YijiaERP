@@ -221,6 +221,43 @@ export const InHouseProduction: React.FC = () => {
 
   const tabStats = getTabStats();
 
+  // 处理验收决策
+  const handleInspectionDecision = async (requestId: string, skuId: string, decision: 'pass' | 'fail') => {
+    try {
+      if (decision === 'pass') {
+        // 验收通过：流转到已验收SKU和生产排单
+        console.log(`✅ SKU ${skuId} 验收通过，流转到已验收SKU和生产排单`);
+        
+        // 更新订单状态为已完成
+        await updatePurchaseRequest(requestId, {
+          status: 'completed',
+          updatedAt: new Date()
+        });
+        
+        // 自动创建生产排单
+        const schedules = createSchedulesFromInHouseProduction(requestId);
+        console.log(`🔄 自动流转：创建了 ${schedules.length} 个SKU的生产排单`);
+        
+      } else {
+        // 验收不合格：退回到采购进度的不合格订单
+        console.log(`❌ SKU ${skuId} 验收不合格，退回到采购进度不合格订单`);
+        
+        // 更新订单状态为质检不合格
+        await updatePurchaseRequest(requestId, {
+          status: 'quality_check',
+          updatedAt: new Date()
+        });
+      }
+      
+      // 刷新数据
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('处理验收决策失败:', error);
+      alert('操作失败，请重试');
+    }
+  };
+
   const renderTabContent = () => {
     if (activeTab === 'pending_inspection') {
       return renderPendingInspectionSKUs();
@@ -390,11 +427,12 @@ export const InHouseProduction: React.FC = () => {
               <th className="text-center py-3 px-3 font-medium text-gray-900 w-16">图片</th>
               <th className="text-left py-3 px-3 font-medium text-gray-900 w-24">SKU编码</th>
               <th className="text-left py-3 px-3 font-medium text-gray-900 w-40">品名</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">生产数量</th>
               <th className="text-left py-3 px-3 font-medium text-gray-900 w-24">材料</th>
               <th className="text-left py-3 px-3 font-medium text-gray-900 w-24">包装方式</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">验收条件</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">验收状态</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">采购数量</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">到货数量</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">验收照片</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">验收意见</th>
               {canManageProduction && (
                 <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">操作</th>
               )}
@@ -448,13 +486,8 @@ export const InHouseProduction: React.FC = () => {
                   <div className="text-xs text-gray-500 truncate">{skuData.sku.englishName}</div>
                 </td>
                 
-                {/* 生产数量 */}
-                <td className="py-3 px-3 text-center">
-                  <div className="text-sm font-bold text-gray-900">{skuData.quantity.toLocaleString()}</div>
-                </td>
-                
                 {/* 材料 */}
-                <td className="py-3 px-3">
+                <td className="py-3 px-3 text-center">
                   <div className="text-sm text-gray-900">{skuData.material}</div>
                 </td>
                 
@@ -463,34 +496,86 @@ export const InHouseProduction: React.FC = () => {
                   <div className="text-sm text-gray-900">{skuData.packagingMethod}</div>
                 </td>
                 
-                {/* 验收条件 */}
+                {/* 采购数量 */}
                 <td className="py-3 px-3">
-                  <div className="flex flex-col space-y-1">
-                    <div className="flex items-center space-x-1">
-                      <CheckCircle className="h-3 w-3 text-green-500" />
-                      <span className="text-xs text-green-700">采购100%</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <CheckCircle className="h-3 w-3 text-green-500" />
-                      <span className="text-xs text-green-700">辅料{skuData.accessoryProgress}%</span>
-                    </div>
-                  </div>
+                  <div className="text-sm font-bold text-gray-900">{skuData.quantity.toLocaleString()}</div>
                 </td>
                 
-                {/* 验收状态 */}
+                {/* 到货数量 */}
+                <td className="py-3 px-3">
+                  {canManageProduction ? (
+                    <input
+                      type="number"
+                      min="0"
+                      defaultValue={skuData.quantity}
+                      className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      onChange={(e) => {
+                        // 处理到货数量变更
+                        const newQuantity = parseInt(e.target.value) || 0;
+                        // 这里可以添加状态更新逻辑
+                      }}
+                    />
+                  ) : (
+                    <div className="text-sm font-bold text-gray-900">{skuData.quantity.toLocaleString()}</div>
+                  )}
+                </td>
+                
+                {/* 验收照片 */}
                 <td className="py-3 px-3 text-center">
-                  <StatusBadge status="待验收" color="yellow" size="sm" />
+                  {canManageProduction ? (
+                    <div className="flex flex-col items-center space-y-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        id={`photo-upload-${skuData.id}`}
+                        onChange={(e) => {
+                          // 处理照片上传
+                          const files = Array.from(e.target.files || []);
+                          console.log('上传照片:', files);
+                        }}
+                      />
+                      <label
+                        htmlFor={`photo-upload-${skuData.id}`}
+                        className="cursor-pointer px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                      >
+                        上传照片
+                      </label>
+                      <span className="text-xs text-gray-500">支持JPG/PNG</span>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-500">-</span>
+                  )}
+                </td>
+                
+                {/* 验收意见 */}
+                <td className="py-3 px-3 text-center">
+                  {canManageProduction ? (
+                    <div className="flex flex-col space-y-1">
+                      <button
+                        onClick={() => handleInspectionDecision(skuData.requestId, skuData.id, 'pass')}
+                        className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                      >
+                        验收通过
+                      </button>
+                      <button
+                        onClick={() => handleInspectionDecision(skuData.requestId, skuData.id, 'fail')}
+                        className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                      >
+                        验收不合格
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-500">待验收</span>
+                  )}
                 </td>
                 
                 {/* 操作 */}
                 {canManageProduction && (
                   <td className="py-3 px-3 text-center">
-                    <button 
-                      onClick={() => setShowInspectionModal(skuData.requestId)}
-                      className="flex items-center space-x-1 px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                    >
-                      <Camera className="h-3 w-3" />
-                      <span>验收</span>
+                    <button className="px-2 py-1 text-xs text-blue-600 border border-blue-600 rounded hover:bg-blue-50 transition-colors">
+                      详情
                     </button>
                   </td>
                 )}
