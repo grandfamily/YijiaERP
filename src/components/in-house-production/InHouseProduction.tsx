@@ -39,6 +39,7 @@ export const InHouseProduction: React.FC = () => {
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [uploadedPhotos, setUploadedPhotos] = useState<{[key: string]: File[]}>({});
   const [arrivalQuantities, setArrivalQuantities] = useState<{[key: string]: number}>({});
+  const [skuInspectionStatus, setSkuInspectionStatus] = useState<{[key: string]: 'passed' | 'failed' | null}>({});
   
   // 获取已分配的自己包装订单
   const { data: inHouseRequests } = getPurchaseRequests(
@@ -125,9 +126,11 @@ export const InHouseProduction: React.FC = () => {
         const cardProgress = getCardProgressPercentage(request.id);
         const accessoryProgress = getAccessoryProgressPercentage(request.id);
         const readyForInspection = isReadyForInspection(request.id);
+        const skuId = `${request.id}-${item.id}`;
+        const inspectionStatus = skuInspectionStatus[skuId];
         
         skuData.push({
-          id: `${request.id}-${item.id}`,
+          id: skuId,
           requestId: request.id,
           requestNumber: request.requestNumber,
           item,
@@ -140,6 +143,7 @@ export const InHouseProduction: React.FC = () => {
           accessoryProgress,
           readyForInspection,
           request
+          inspectionStatus
         });
       });
     });
@@ -156,15 +160,15 @@ export const InHouseProduction: React.FC = () => {
     // 根据标签页过滤
     switch (activeTab) {
       case 'in_progress':
-        filtered = allSKUData.filter(skuData => !skuData.readyForInspection);
+        filtered = allSKUData.filter(skuData => !skuData.readyForInspection || skuData.inspectionStatus === 'failed');
         break;
       case 'pending_inspection':
         filtered = allSKUData.filter(skuData => 
-          skuData.readyForInspection && skuData.request.status !== 'completed'
+          skuData.readyForInspection && !skuData.inspectionStatus
         );
         break;
       case 'completed_inspection':
-        filtered = allSKUData.filter(skuData => skuData.request.status === 'completed');
+        filtered = allSKUData.filter(skuData => skuData.inspectionStatus === 'passed');
         break;
     }
 
@@ -249,11 +253,11 @@ export const InHouseProduction: React.FC = () => {
   // 获取统计数据
   const getTabStats = () => {
     const allSKUData = convertToSKULevelData();
-    const inProgress = allSKUData.filter(s => !s.readyForInspection).length;
+    const inProgress = allSKUData.filter(s => !s.readyForInspection || s.inspectionStatus === 'failed').length;
     const pendingInspection = allSKUData.filter(s => 
-      s.readyForInspection && s.request.status !== 'completed'
+      s.readyForInspection && !s.inspectionStatus
     ).length;
-    const completedInspection = allSKUData.filter(s => s.request.status === 'completed').length;
+    const completedInspection = allSKUData.filter(s => s.inspectionStatus === 'passed').length;
     
     return { inProgress, pendingInspection, completedInspection };
   };
@@ -261,36 +265,42 @@ export const InHouseProduction: React.FC = () => {
   const tabStats = getTabStats();
 
   // 处理验收决策
-  const handleInspectionDecision = async (requestId: string, skuId: string, decision: 'pass' | 'fail') => {
+  const handleInspectionDecision = async (skuId: string, decision: 'pass' | 'fail') => {
     try {
+      // 更新SKU级别的验收状态
+      setSkuInspectionStatus(prev => ({
+        ...prev,
+        [skuId]: decision === 'pass' ? 'passed' : 'failed'
+      }));
+      
+      // 清除该SKU的临时数据
+      setUploadedPhotos(prev => {
+        const newState = { ...prev };
+        delete newState[skuId];
+        return newState;
+      });
+      setArrivalQuantities(prev => {
+        const newState = { ...prev };
+        delete newState[skuId];
+        return newState;
+      });
+      
+      // 如果是验收通过，检查是否需要创建生产排单
       if (decision === 'pass') {
-        // 更新订单状态为已完成
-        await updatePurchaseRequest(requestId, {
-          status: 'completed',
-          updatedAt: new Date()
-        });
+        // 从skuId中提取requestId
+        const requestId = skuId.split('-')[0];
         
-        // 清除该SKU的临时数据
-        setUploadedPhotos(prev => {
-          const newState = { ...prev };
-          delete newState[skuId];
-          return newState;
-        });
-        setArrivalQuantities(prev => {
-          const newState = { ...prev };
-          delete newState[skuId];
-          return newState;
-        });
+        // 检查该订单的所有SKU是否都已验收通过
+        const allSKUData = convertToSKULevelData();
+        const orderSKUs = allSKUData.filter(s => s.requestId === requestId);
+        const allPassed = orderSKUs.every(s => 
+          skuInspectionStatus[s.id] === 'passed' || s.id === skuId
+        );
         
-        // 自动创建生产排单
-        createSchedulesFromInHouseProduction(requestId);
-        
-      } else {
-        // 更新订单状态为质检不合格
-        await updatePurchaseRequest(requestId, {
-          status: 'quality_check',
-          updatedAt: new Date()
-        });
+        // 如果所有SKU都验收通过，则创建生产排单
+        if (allPassed) {
+          createSchedulesFromInHouseProduction(requestId);
+        }
       }
       
     } catch (error) {
@@ -623,13 +633,13 @@ export const InHouseProduction: React.FC = () => {
                   {canManageProduction ? (
                     <div className="flex flex-col space-y-1">
                       <button
-                        onClick={() => handleInspectionDecision(skuData.requestId, skuData.id, 'pass')}
+                        onClick={() => handleInspectionDecision(skuData.id, 'pass')}
                         className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                       >
                         验收通过
                       </button>
                       <button
-                        onClick={() => handleInspectionDecision(skuData.requestId, skuData.id, 'fail')}
+                        onClick={() => handleInspectionDecision(skuData.id, 'fail')}
                         className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
                       >
                         验收不合格
@@ -739,7 +749,11 @@ export const InHouseProduction: React.FC = () => {
                 
                 {/* 验收状态 */}
                 <td className="py-3 px-3 text-center">
-                  <StatusBadge status="验收完成" color="green" size="sm" />
+                  <StatusBadge 
+                    status={skuData.inspectionStatus === 'passed' ? '验收通过' : '验收完成'} 
+                    color="green" 
+                    size="sm" 
+                  />
                 </td>
                 
                 {/* 操作 */}
