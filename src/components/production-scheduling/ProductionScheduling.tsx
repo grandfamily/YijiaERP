@@ -349,17 +349,19 @@ export const ProductionScheduling: React.FC = () => {
   };
 
   // 导出排单表
+  const handleExportSchedule = () => {
     // 构建SKU信息部分
     const skuData: any[] = [];
+    const preScheduleData = productionSKUs.filter(sku => selectedItems.includes(sku.id));
     preScheduleData.forEach(schedule => {
       skuData.push({
-        '排单日期': schedule.scheduledDate.toLocaleDateString('zh-CN'),
-        '订单编号': schedule.purchaseRequestNumber || '',
+        '排单日期': schedule.scheduledDate?.toLocaleDateString('zh-CN') || '',
+        '订单编号': schedule.orderNumber || '',
         'SKU编码': schedule.sku.code,
         '品名': schedule.sku.name,
-        '采购数量': schedule.plannedQuantity,
-        '生产数量': schedule.plannedQuantity,
-        '材质': schedule.packagingMethod,
+        '采购数量': schedule.purchaseQuantity,
+        '生产数量': schedule.productionQuantity || schedule.purchaseQuantity,
+        '材质': schedule.material,
         '包装方式': schedule.packagingMethod
       });
     });
@@ -367,27 +369,27 @@ export const ProductionScheduling: React.FC = () => {
     // 构建批次生产配置部分
     const configData: any[] = [];
     preScheduleData.forEach(schedule => {
-      const batchConfig = batchConfigurations[schedule.id] || {
-        scheduledDate: schedule.scheduledDate,
-        productionBinding: [{ machine: schedule.machine, operator: schedule.operator?.name || '' }],
-        packagingOperator: '',
-        blisterOperator: '',
-        boxingOperator: ''
+      const batchConfigData = {
+        scheduledDate: schedule.scheduledDate || new Date(),
+        productionBinding: batchConfig.productionBinding.machines,
+        packagingOperator: batchConfig.packaging.operator,
+        blisterOperator: batchConfig.blisterPackaging.operator,
+        boxingOperator: batchConfig.outerBoxPacking.operator
       };
       
       // 根据机器配置数量决定行数
-      const maxRows = Math.max(1, batchConfig.productionBinding.length);
+      const maxRows = Math.max(1, batchConfigData.productionBinding.length);
       
       for (let i = 0; i < maxRows; i++) {
-        const binding = batchConfig.productionBinding[i];
+        const binding = batchConfigData.productionBinding[i];
         const isFirstRow = i === 0;
         
         configData.push({
           '生产绑卡机器': binding?.machine || '',
           '生产绑卡操作员': binding?.operator || '',
-          '包中托操作员': isFirstRow ? batchConfig.packagingOperator : '',
-          '吸塑包装操作员': isFirstRow ? batchConfig.blisterOperator : '',
-          '打包外箱操作员': isFirstRow ? batchConfig.boxingOperator : ''
+          '包中托操作员': isFirstRow ? batchConfigData.packagingOperator : '',
+          '吸塑包装操作员': isFirstRow ? batchConfigData.blisterOperator : '',
+          '打包外箱操作员': isFirstRow ? batchConfigData.boxingOperator : ''
         });
       }
     });
