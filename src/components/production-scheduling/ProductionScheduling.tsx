@@ -1235,7 +1235,7 @@ interface ProductionConfigModalProps {
   itemId: string;
   onClose: () => void;
   onSave: (config: any) => void;
-      const headers = ['排单日期', '订单编号', 'SKU编码', '品名', '采购数量', '生产数量', '材质', '包装方式'];
+}
 
 const ProductionConfigModal: React.FC<ProductionConfigModalProps> = ({ itemId, onClose, onSave }) => {
   const [bindingGroups, setBindingGroups] = useState<MachineOperatorGroup[]>([
