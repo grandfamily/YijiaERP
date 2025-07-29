@@ -666,20 +666,21 @@ export const InHouseProduction: React.FC = () => {
               <th className="text-left py-3 px-3 font-medium text-gray-900 w-32">订单编号</th>
               <th className="text-center py-3 px-3 font-medium text-gray-900 w-16">图片</th>
               <th className="text-left py-3 px-3 font-medium text-gray-900 w-24">SKU编码</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900 w-40">品名</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">验收数量</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900 w-24">材料</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900 w-32">品名</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900 w-20">材料</th>
               <th className="text-left py-3 px-3 font-medium text-gray-900 w-24">包装方式</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">到货数量</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900 w-32">验收照片</th>
               <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">验收时间</th>
               <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">验收状态</th>
               {canManageProduction && (
-                <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">操作</th>
+                <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">操作</th>
               )}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {filteredSKUData.map((skuData) => (
-              <tr key={skuData.id} className="hover:bg-gray-50 h-20">
+              <tr key={skuData.id} className="hover:bg-gray-50">
                 {/* 订单编号 */}
                 <td className="py-3 px-3">
                   <div className="text-sm font-medium text-blue-600">{skuData.requestNumber}</div>
@@ -725,13 +726,8 @@ export const InHouseProduction: React.FC = () => {
                   <div className="text-xs text-gray-500 truncate">{skuData.sku.englishName}</div>
                 </td>
                 
-                {/* 验收数量 */}
-                <td className="py-3 px-3 text-center">
-                  <div className="text-sm font-bold text-gray-900">{skuData.quantity.toLocaleString()}</div>
-                </td>
-                
                 {/* 材料 */}
-                <td className="py-3 px-3">
+                <td className="py-3 px-3 text-center">
                   <div className="text-sm text-gray-900">{skuData.material}</div>
                 </td>
                 
@@ -740,20 +736,83 @@ export const InHouseProduction: React.FC = () => {
                   <div className="text-sm text-gray-900">{skuData.packagingMethod}</div>
                 </td>
                 
+                {/* 到货数量 */}
+                <td className="py-3 px-3">
+                  <div className="text-sm font-bold text-blue-600 text-center">
+                    {(arrivalQuantities[skuData.id] || skuData.quantity).toLocaleString()}
+                  </div>
+                </td>
+                
+                {/* 验收照片 */}
+                <td className="py-4 px-3 text-center">
+                  <div className="flex flex-col items-center space-y-2">
+                    {uploadedPhotos[skuData.id] && uploadedPhotos[skuData.id].length > 0 ? (
+                      <>
+                        <div className="text-xs text-green-600 font-medium">
+                          {uploadedPhotos[skuData.id].length} 张照片
+                        </div>
+                        <div className="flex flex-wrap gap-1 justify-center max-w-32">
+                          {uploadedPhotos[skuData.id].slice(0, 4).map((file, index) => (
+                            <div key={index} className="relative group">
+                              <img
+                                src={URL.createObjectURL(file)}
+                                alt={`验收照片${index + 1}`}
+                                className="w-8 h-8 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => setZoomedImage(URL.createObjectURL(file))}
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
+                                   onClick={() => setZoomedImage(URL.createObjectURL(file))}>
+                                <ZoomIn className="h-2 w-2 text-white" />
+                              </div>
+                            </div>
+                          ))}
+                          {uploadedPhotos[skuData.id].length > 4 && (
+                            <div className="w-8 h-8 bg-gray-200 rounded border flex items-center justify-center text-xs text-gray-600">
+                              +{uploadedPhotos[skuData.id].length - 4}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => {
+                            // 下载所有照片的功能
+                            uploadedPhotos[skuData.id].forEach((file, index) => {
+                              const link = document.createElement('a');
+                              link.href = URL.createObjectURL(file);
+                              link.download = `${skuData.sku.code}_验收照片_${index + 1}.${file.name.split('.').pop()}`;
+                              link.click();
+                            });
+                          }}
+                          className="px-2 py-1 text-xs text-blue-600 border border-blue-600 rounded hover:bg-blue-50 transition-colors"
+                        >
+                          下载照片
+                        </button>
+                      </>
+                    ) : (
+                      <div className="text-xs text-gray-500">无照片</div>
+                    )}
+                  </div>
+                </td>
+                
                 {/* 验收时间 */}
                 <td className="py-3 px-3 text-center">
-                  <div className="text-xs text-gray-600">
-                    {new Date(skuData.request.updatedAt).toLocaleDateString('zh-CN')}
+                  <div className="text-sm text-gray-900">
+                    {new Date().toLocaleDateString('zh-CN')}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </td>
                 
                 {/* 验收状态 */}
                 <td className="py-3 px-3 text-center">
-                  <StatusBadge 
-                    status={skuData.inspectionStatus === 'passed' ? '验收通过' : '验收完成'} 
-                    color="green" 
-                    size="sm" 
-                  />
+                  <div className="flex items-center justify-center space-x-1">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <StatusBadge 
+                      status="已验收" 
+                      color="green" 
+                      size="sm" 
+                    />
+                  </div>
                 </td>
                 
                 {/* 操作 */}
