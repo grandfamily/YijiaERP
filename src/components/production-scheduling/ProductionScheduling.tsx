@@ -1,353 +1,930 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Calendar, 
-  Clock, 
-  CheckCircle, 
-  AlertTriangle, 
-  Package, 
   Search, 
+  Filter, 
+  Download, 
   Plus, 
   Edit, 
   Trash2, 
-  Save, 
-  X, 
-  Upload, 
-  Download,
-  User,
-  Factory,
-  Play,
-  Pause,
-  RotateCcw,
+  CheckCircle, 
+  Clock, 
+  Play, 
+  Square, 
   CheckSquare,
-  Square
+  Package,
+  Settings,
+  Save,
+  X,
+  ArrowRight,
+  Undo,
+  User,
+  Cog,
+  ZoomIn
 } from 'lucide-react';
-import { useProduction } from '../../hooks/useProduction';
-import { useProcurement } from '../../hooks/useProcurement';
 import { useAuth } from '../../hooks/useAuth';
-import { ProductionSchedule, ProductionStatus } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
-import { ScheduleForm } from './ScheduleForm';
-import { BulkScheduleForm } from './BulkScheduleForm';
 
-type TabType = 'pending' | 'pre_schedule' | 'in_production' | 'completed';
-
-interface BatchConfig {
-  scheduledDate: string;
-  productionBinding: Array<{
-    machine: string;
-    operator: string;
-  }>;
-  packaging: {
-    operator: string;
+// 模拟数据类型定义
+interface ProductionSKU {
+  id: string;
+  inspectionDate: Date;
+  orderNumber: string;
+  sku: {
+    code: string;
+    name: string;
+    imageUrl?: string;
   };
-  blisterPackaging: {
-    operator: string;
-  };
-  outerBoxPacking: {
-    operator: string;
-  };
+  purchaseQuantity: number;
+  productionQuantity?: number;
+  material: string;
+  packagingMethod: string;
+  scheduledDate?: Date;
+  productionSteps?: ProductionStep[];
+  status: 'pending' | 'pre_scheduled' | 'in_production' | 'completed';
+  completedDate?: Date;
 }
 
+interface ProductionStep {
+  id: string;
+  name: string;
+  type: 'binding' | 'tray' | 'blister' | 'packing';
+  machine?: string;
+  operator?: string;
+  isCompleted: boolean;
+  completedDate?: Date;
+}
+
+interface MachineOperatorGroup {
+  id: string;
+  machine: string;
+  operator: string;
+}
+
+type TabType = 'pending' | 'pre_scheduled' | 'in_production' | 'completed';
+
+// 模拟数据
+const mockProductionSKUs: ProductionSKU[] = [
+  {
+    id: 'prod-001',
+    inspectionDate: new Date('2024-01-26'),
+    orderNumber: 'PR-2024-001',
+    sku: {
+      code: 'ELE-001',
+      name: '电子产品A',
+      imageUrl: 'https://images.pexels.com/photos/356056/pexels-photo-356056.jpeg'
+    },
+    purchaseQuantity: 100,
+    material: '塑料',
+    packagingMethod: '纸盒包装',
+    status: 'pending'
+  },
+  {
+    id: 'prod-002',
+    inspectionDate: new Date('2024-01-25'),
+    orderNumber: 'PR-2024-002',
+    sku: {
+      code: 'TOY-001',
+      name: '玩具B',
+      imageUrl: 'https://images.pexels.com/photos/163036/mario-luigi-yoschi-figures-163036.jpeg'
+    },
+    purchaseQuantity: 200,
+    productionQuantity: 150,
+    material: '木材',
+    packagingMethod: '气泡膜包装',
+    status: 'pre_scheduled',
+    scheduledDate: new Date(),
+    productionSteps: [
+      { id: 'step-1', name: '生产绑卡', type: 'binding', machine: '大机器', operator: '张三', isCompleted: false },
+      { id: 'step-2', name: '包中托', type: 'tray', operator: '李四', isCompleted: false },
+      { id: 'step-3', name: '吸塑包装', type: 'blister', operator: '王五', isCompleted: false },
+      { id: 'step-4', name: '打包外箱', type: 'packing', operator: '赵六', isCompleted: false }
+    ]
+  },
+  {
+    id: 'prod-003',
+    inspectionDate: new Date('2024-01-24'),
+    orderNumber: 'PR-2024-003',
+    sku: {
+      code: 'KIT-001',
+      name: '厨房用品A',
+      imageUrl: 'https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg'
+    },
+    purchaseQuantity: 80,
+    productionQuantity: 80,
+    material: '不锈钢',
+    packagingMethod: '纸盒包装',
+    status: 'in_production',
+    scheduledDate: new Date('2024-01-27'),
+    productionSteps: [
+      { id: 'step-5', name: '生产绑卡', type: 'binding', machine: '小机器1', operator: '张三', isCompleted: true, completedDate: new Date() },
+      { id: 'step-6', name: '包中托', type: 'tray', operator: '李四', isCompleted: true, completedDate: new Date() },
+      { id: 'step-7', name: '吸塑包装', type: 'blister', operator: '王五', isCompleted: false },
+      { id: 'step-8', name: '打包外箱', type: 'packing', operator: '赵六', isCompleted: false }
+    ]
+  }
+];
+
+const machineOptions = ['大机器', '小机器1', '小机器2', '绑卡机'];
+const operatorOptions = ['张三', '李四', '王五', '赵六', '孙七', '周八'];
+
 export const ProductionScheduling: React.FC = () => {
-  const { 
-    getProductionSchedules, 
-    updateProductionSchedule, 
-    bulkUpdateProductionStatus,
-    deleteProductionSchedule,
-    getAvailableMachines,
-    getProductionStats
-  } = useProduction();
-  
-  const { getPurchaseRequests } = useProcurement();
-  const { user, hasPermission } = useAuth();
-  
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('pending');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSchedules, setSelectedSchedules] = useState<string[]>([]);
-  const [editingSchedule, setEditingSchedule] = useState<ProductionSchedule | null>(null);
-  const [showScheduleForm, setShowScheduleForm] = useState(false);
-  const [showBulkForm, setShowBulkForm] = useState(false);
-  
-  // Batch configuration for pre-schedule
-  const [batchConfig, setBatchConfig] = useState<BatchConfig>({
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [productionSKUs, setProductionSKUs] = useState<ProductionSKU[]>(mockProductionSKUs);
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [batchConfig, setBatchConfig] = useState({
     scheduledDate: new Date().toISOString().split('T')[0],
-    productionBinding: [{ machine: '', operator: '' }],
-    packaging: { operator: '' },
-    blisterPackaging: { operator: '' },
-    outerBoxPacking: { operator: '' }
+    productionBinding: {
+      machines: [{ machine: '', operator: '' }],
+    },
+    packaging: {
+      operator: ''
+    },
+    blisterPackaging: {
+      operator: ''
+    },
+    outerBoxPacking: {
+      operator: ''
+    }
   });
 
-  const allSchedules = getProductionSchedules();
-  const machines = getAvailableMachines();
-  const stats = getProductionStats();
-  const { data: purchaseRequests } = getPurchaseRequests();
+  // 权限检查
+  const isProductionStaff = user?.role === 'production_staff';
 
-  // Get schedules based on active tab
-  const getFilteredSchedules = () => {
-    let filtered = allSchedules;
-    
-    switch (activeTab) {
-      case 'pending':
-        filtered = allSchedules.filter(s => s.status === 'pending');
-        break;
-      case 'pre_schedule':
-        filtered = allSchedules.filter(s => s.status === 'scheduled');
-        break;
-      case 'in_production':
-        filtered = allSchedules.filter(s => s.status === 'in_production');
-        break;
-      case 'completed':
-        filtered = allSchedules.filter(s => s.status === 'completed');
-        break;
-    }
-
-    if (searchTerm) {
-      filtered = filtered.filter(schedule =>
-        schedule.sku.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        schedule.sku.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        schedule.purchaseRequestNumber?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    return filtered;
+  // 根据标签页过滤数据
+  const getFilteredData = () => {
+    return productionSKUs.filter(item => {
+      const matchesTab = item.status === activeTab;
+      const matchesSearch = !searchTerm || 
+        item.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.sku.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.sku.name.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      return matchesTab && matchesSearch;
+    });
   };
 
-  const filteredSchedules = getFilteredSchedules();
+  const filteredData = getFilteredData();
 
-  // Get pre-schedule data (scheduled status)
-  const preScheduleData = allSchedules.filter(s => s.status === 'scheduled');
-
-  const canManageProduction = hasPermission('manage_production_scheduling') || hasPermission('edit_production_scheduling');
-
-  // Handle selection
+  // 处理全选
   const handleSelectAll = () => {
-    if (selectedSchedules.length === filteredSchedules.length) {
-      setSelectedSchedules([]);
+    if (selectedItems.length === filteredData.length && filteredData.length > 0) {
+      setSelectedItems([]);
     } else {
-      setSelectedSchedules(filteredSchedules.map(s => s.id));
+      setSelectedItems(filteredData.map(item => item.id));
     }
   };
 
-  const handleSelectSchedule = (scheduleId: string) => {
-    if (selectedSchedules.includes(scheduleId)) {
-      setSelectedSchedules(selectedSchedules.filter(id => id !== scheduleId));
+  // 处理单选
+  const handleSelectItem = (itemId: string) => {
+    if (selectedItems.includes(itemId)) {
+      setSelectedItems(selectedItems.filter(id => id !== itemId));
     } else {
-      setSelectedSchedules([...selectedSchedules, scheduleId]);
+      setSelectedItems([...selectedItems, itemId]);
     }
   };
 
-  // Handle status updates
-  const handleStatusUpdate = async (scheduleIds: string[], newStatus: ProductionStatus) => {
-    try {
-      await bulkUpdateProductionStatus(scheduleIds, newStatus, user?.id);
-      setSelectedSchedules([]);
-    } catch (error) {
-      console.error('更新状态失败:', error);
-      alert('更新状态失败，请重试');
-    }
-  };
-
-  const handleDelete = async (scheduleId: string) => {
-    if (window.confirm('确定要删除这个生产排单吗？')) {
-      try {
-        await deleteProductionSchedule(scheduleId);
-      } catch (error) {
-        console.error('删除失败:', error);
-        alert('删除失败，请重试');
-      }
-    }
-  };
-
-  // Batch configuration handlers
-  const addProductionBinding = () => {
-    setBatchConfig({
-      ...batchConfig,
-      productionBinding: [...batchConfig.productionBinding, { machine: '', operator: '' }]
-    });
-  };
-
-  const removeProductionBinding = (index: number) => {
-    if (batchConfig.productionBinding.length > 1) {
-      setBatchConfig({
-        ...batchConfig,
-        productionBinding: batchConfig.productionBinding.filter((_, i) => i !== index)
-      });
-    }
-  };
-
-  const updateProductionBinding = (index: number, field: 'machine' | 'operator', value: string) => {
-    const newBindings = [...batchConfig.productionBinding];
-    newBindings[index] = { ...newBindings[index], [field]: value };
-    setBatchConfig({
-      ...batchConfig,
-      productionBinding: newBindings
-    });
-  };
-
-  // Handle batch production confirmation
-  const handleBatchProduction = async () => {
-    if (selectedSchedules.length === 0) {
-      alert('请先选择要排产的SKU');
-      return;
-    }
-
-    // Validate batch configuration
-    if (!batchConfig.scheduledDate) {
-      alert('请选择排单日期');
-      return;
-    }
-
-    const hasEmptyBinding = batchConfig.productionBinding.some(binding => 
-      !binding.machine || !binding.operator
-    );
-    if (hasEmptyBinding) {
-      alert('请完善生产绑卡配置');
-      return;
-    }
-
-    if (!batchConfig.packaging.operator || !batchConfig.blisterPackaging.operator || !batchConfig.outerBoxPacking.operator) {
-      alert('请完善所有操作员配置');
-      return;
-    }
-
-    try {
-      // Update selected schedules with batch configuration
-      for (const scheduleId of selectedSchedules) {
-        await updateProductionSchedule(scheduleId, {
-          scheduledDate: new Date(batchConfig.scheduledDate),
-          status: 'in_production',
-          startDate: new Date(),
-          operatorId: user?.id,
-          operator: user,
-          // Store batch configuration in remarks for now
-          remarks: JSON.stringify(batchConfig)
-        });
-      }
-
-      setSelectedSchedules([]);
-      alert('批次生产配置成功！');
-    } catch (error) {
-      console.error('批次生产配置失败:', error);
-      alert('批次生产配置失败，请重试');
-    }
-  };
-
-  // Export schedule table
-  const handleExportSchedule = () => {
-    if (activeTab !== 'pre_schedule') {
-      alert('请在预排单标签页中导出');
-      return;
-    }
-
-    if (preScheduleData.length === 0) {
-      alert('没有预排单数据可导出');
-      return;
-    }
-
-    try {
-      const headers = [
-        '排单日期', '订单编号', 'SKU编码', '品名', '采购数量', '生产数量', 
-        '材质', '包装方式', '生产绑卡机器', '生产绑卡操作员', 
-        '包中托操作员', '吸塑包装操作员', '打包外箱操作员'
-      ];
-
-      const exportData: string[][] = [];
-
-      preScheduleData.forEach(schedule => {
-        // Parse batch configuration from remarks
-        let config = batchConfig;
-        try {
-          if (schedule.remarks) {
-            config = JSON.parse(schedule.remarks);
-          }
-        } catch (e) {
-          // Use default config if parsing fails
-        }
-
-        // Get request info
-        const request = purchaseRequests.find(r => r.id === schedule.purchaseRequestId);
-        const requestNumber = request?.requestNumber || schedule.purchaseRequestNumber || '';
-
-        // Determine number of rows based on production binding configurations
-        const maxRows = Math.max(1, config.productionBinding.length);
-
-        for (let i = 0; i < maxRows; i++) {
-          const binding = config.productionBinding[i];
-          const isFirstRow = i === 0;
-
-          const row = [
-            config.scheduledDate || schedule.scheduledDate.toLocaleDateString('zh-CN'),
-            requestNumber,
-            schedule.sku.code,
-            schedule.sku.name,
-            schedule.plannedQuantity.toString(),
-            schedule.plannedQuantity.toString(), // 生产数量默认等于计划数量
-            schedule.sku.category || '', // 材质使用类别
-            schedule.packagingMethod || '',
-            binding?.machine || '',
-            binding?.operator || '',
-            // 其他操作员只在第一行显示
-            isFirstRow ? (config.packaging?.operator || '') : '',
-            isFirstRow ? (config.blisterPackaging?.operator || '') : '',
-            isFirstRow ? (config.outerBoxPacking?.operator || '') : ''
-          ];
-
-          exportData.push(row);
-        }
-      });
-
-      // Create CSV content
-      const csvContent = [
-        headers.join(','),
-        ...exportData.map(row => row.map(cell => `"${cell}"`).join(','))
-      ].join('\n');
-
-      // Download file
-      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `生产排单表_${batchConfig.scheduledDate}.csv`;
-      link.click();
-
-    } catch (error) {
-      console.error('导出失败:', error);
-      alert('导出失败，请重试');
-    }
-  };
-
-  // Get tab statistics
-  const getTabStats = () => {
-    const pending = allSchedules.filter(s => s.status === 'pending').length;
-    const preSchedule = allSchedules.filter(s => s.status === 'scheduled').length;
-    const inProduction = allSchedules.filter(s => s.status === 'in_production').length;
-    const completed = allSchedules.filter(s => s.status === 'completed').length;
+  // 处理预排单
+  const handlePreSchedule = () => {
+    if (selectedItems.length === 0) return;
     
-    return { pending, preSchedule, inProduction, completed };
+    setProductionSKUs(prevSKUs => 
+      prevSKUs.map(sku => 
+        selectedItems.includes(sku.id)
+          ? { 
+              ...sku, 
+              status: 'pre_scheduled',
+              scheduledDate: new Date(),
+              productionQuantity: sku.purchaseQuantity,
+              productionSteps: [
+                { id: `step-${Date.now()}-1`, name: '生产绑卡', type: 'binding', isCompleted: false },
+                { id: `step-${Date.now()}-2`, name: '包中托', type: 'tray', isCompleted: false },
+                { id: `step-${Date.now()}-3`, name: '吸塑包装', type: 'blister', isCompleted: false },
+                { id: `step-${Date.now()}-4`, name: '打包外箱', type: 'packing', isCompleted: false }
+              ]
+            }
+          : sku
+      )
+    );
+    
+    setSelectedItems([]);
+  };
+
+  // 处理退回待排单
+  const handleReturnToPending = (itemId: string) => {
+    setProductionSKUs(prevSKUs => 
+      prevSKUs.map(sku => 
+        sku.id === itemId
+          ? { 
+              ...sku, 
+              status: 'pending',
+              scheduledDate: undefined,
+              productionQuantity: undefined,
+              productionSteps: undefined
+            }
+          : sku
+      )
+    );
+  };
+
+  // 添加机器配置
+  const addMachineConfig = () => {
+    setBatchConfig(prev => ({
+      ...prev,
+      productionBinding: {
+        machines: [...prev.productionBinding.machines, { machine: '', operator: '' }]
+      }
+    }));
+  };
+
+  // 移除机器配置
+  const removeMachineConfig = (index: number) => {
+    if (batchConfig.productionBinding.machines.length > 1) {
+      setBatchConfig(prev => ({
+        ...prev,
+        productionBinding: {
+          machines: prev.productionBinding.machines.filter((_, i) => i !== index)
+        }
+      }));
+    }
+  };
+
+  // 更新机器配置
+  const updateMachineConfig = (index: number, field: 'machine' | 'operator', value: string) => {
+    setBatchConfig(prev => ({
+      ...prev,
+      productionBinding: {
+        machines: prev.productionBinding.machines.map((config, i) => 
+          i === index ? { ...config, [field]: value } : config
+        )
+      }
+    }));
+  };
+
+  // 更新其他环节操作员
+  const updateStageOperator = (stage: 'packaging' | 'blisterPackaging' | 'outerBoxPacking', operator: string) => {
+    setBatchConfig(prev => ({
+      ...prev,
+      [stage]: { operator }
+    }));
+  };
+
+  // 处理确认生产
+  const handleConfirmProduction = () => {
+    if (selectedItems.length === 0) return;
+    
+    setProductionSKUs(prevSKUs => 
+      prevSKUs.map(sku => 
+        selectedItems.includes(sku.id)
+          ? { ...sku, status: 'in_production' }
+          : sku
+      )
+    );
+    
+    setSelectedItems([]);
+  };
+
+  // 处理生产数量修改
+  const handleProductionQuantityChange = (itemId: string, quantity: number) => {
+    const item = productionSKUs.find(sku => sku.id === itemId);
+    if (!item) return;
+    
+    const validQuantity = Math.max(1, Math.min(quantity, item.purchaseQuantity));
+    
+    setProductionSKUs(prevSKUs => {
+      const newSKUs = [...prevSKUs];
+      const index = newSKUs.findIndex(sku => sku.id === itemId);
+      
+      if (index !== -1) {
+        newSKUs[index] = { ...newSKUs[index], productionQuantity: validQuantity };
+        
+        // 如果生产数量小于采购数量，创建剩余数量的新记录
+        if (validQuantity < item.purchaseQuantity) {
+          const remainingQuantity = item.purchaseQuantity - validQuantity;
+          const remainingItem: ProductionSKU = {
+            ...item,
+            id: `${item.id}-remaining-${Date.now()}`,
+            purchaseQuantity: remainingQuantity,
+            productionQuantity: undefined,
+            status: 'pending',
+            scheduledDate: undefined,
+            productionSteps: undefined
+          };
+          newSKUs.push(remainingItem);
+        }
+      }
+      
+      return newSKUs;
+    });
+  };
+
+  // 处理生产环节完成
+  const handleStepComplete = (itemId: string, stepId: string) => {
+    setProductionSKUs(prevSKUs => 
+      prevSKUs.map(sku => {
+        if (sku.id === itemId && sku.productionSteps) {
+          const updatedSteps = sku.productionSteps.map(step => 
+            step.id === stepId 
+              ? { ...step, isCompleted: true, completedDate: new Date() }
+              : step
+          );
+          
+          // 检查是否所有环节都完成
+          const allCompleted = updatedSteps.every(step => step.isCompleted);
+          
+          return {
+            ...sku,
+            productionSteps: updatedSteps,
+            status: allCompleted ? 'completed' : 'in_production',
+            completedDate: allCompleted ? new Date() : undefined
+          };
+        }
+        return sku;
+      })
+    );
+  };
+
+  // 导出排单表
+  const handleExportSchedule = () => {
+    const preScheduledItems = productionSKUs.filter(item => item.status === 'pre_scheduled');
+    
+    // 构建导出数据 - 支持多行显示
+    const exportRows: string[][] = [];
+    
+    preScheduledItems.forEach(item => {
+      const maxRows = Math.max(1, batchConfig.productionBinding.machines.length);
+      
+      for (let i = 0; i < maxRows; i++) {
+        const binding = batchConfig.productionBinding.machines[i];
+        const isFirstRow = i === 0;
+        
+        const row = [
+          item.scheduledDate?.toLocaleDateString('zh-CN') || '',
+          item.orderNumber,
+          item.sku.code,
+          item.sku.name,
+          item.purchaseQuantity.toString(),
+          (item.productionQuantity || item.purchaseQuantity).toString(),
+          item.material,
+          item.packagingMethod,
+          binding ? binding.machine : '',
+          binding ? binding.operator : '',
+          isFirstRow ? (batchConfig.packaging.operator || '') : '',
+          isFirstRow ? (batchConfig.blisterPackaging.operator || '') : '',
+          isFirstRow ? (batchConfig.outerBoxPacking.operator || '') : ''
+        ];
+        
+        exportRows.push(row);
+      }
+    });
+
+    const headers = [
+      '排单日期', '订单编号', 'SKU编码', '品名', '采购数量', '生产数量', 
+      '材质', '包装方式', '生产绑卡机器', '生产绑卡操作员', 
+      '包中托操作员', '吸塑包装操作员', '打包外箱操作员'
+    ];
+    
+    const csvContent = [
+      headers.join(','),
+      ...exportRows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    const dateStr = batchConfig.scheduledDate ? new Date(batchConfig.scheduledDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    link.download = `生产排单表_${dateStr}.csv`;
+    link.click();
+  };
+
+  // 处理图片点击
+  const handleImageClick = (imageUrl: string) => {
+    setZoomedImage(imageUrl);
+  };
+
+  // 获取统计数据
+  const getTabStats = () => {
+    const pending = productionSKUs.filter(item => item.status === 'pending').length;
+    const preScheduled = productionSKUs.filter(item => item.status === 'pre_scheduled').length;
+    const inProduction = productionSKUs.filter(item => item.status === 'in_production').length;
+    const completed = productionSKUs.filter(item => item.status === 'completed').length;
+    
+    return { pending, preScheduled, inProduction, completed };
   };
 
   const tabStats = getTabStats();
 
-  const getStatusColor = (status: ProductionStatus) => {
-    const colors = {
-      pending: 'yellow',
-      scheduled: 'blue',
-      in_production: 'purple',
-      completed: 'green',
-      cancelled: 'red'
-    };
-    return colors[status] || 'gray';
-  };
+  // 渲染待排单
+  const renderPending = () => (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="w-10 py-3 px-3 text-left font-medium text-gray-900">
+                <button onClick={handleSelectAll} className="flex items-center">
+                  {selectedItems.length === filteredData.length && filteredData.length > 0 ? (
+                    <CheckSquare className="h-4 w-4 text-blue-600" />
+                  ) : (
+                    <Square className="h-4 w-4 text-gray-400" />
+                  )}
+                </button>
+              </th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">验收日期</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">订单编号</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">图片</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">SKU</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">品名</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">采购数量</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">材质</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">包装方式</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {filteredData.map((item) => (
+              <tr key={item.id} className="hover:bg-gray-50">
+                <td className="py-3 px-3">
+                  <button onClick={() => handleSelectItem(item.id)} className="flex items-center">
+                    {selectedItems.includes(item.id) ? (
+                      <CheckSquare className="h-4 w-4 text-blue-600" />
+                    ) : (
+                      <Square className="h-4 w-4 text-gray-400" />
+                    )}
+                  </button>
+                </td>
+                <td className="py-3 px-3 text-sm text-gray-900">
+                  {item.inspectionDate.toLocaleDateString('zh-CN')}
+                </td>
+                <td className="py-3 px-3 text-sm font-medium text-blue-600">{item.orderNumber}</td>
+                <td className="py-3 px-3 text-center">
+                  {item.sku.imageUrl ? (
+                    <div className="relative group inline-block">
+                      <img 
+                        src={item.sku.imageUrl} 
+                        alt={item.sku.name}
+                        className="w-12 h-12 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => handleImageClick(item.sku.imageUrl!)}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
+                           onClick={() => handleImageClick(item.sku.imageUrl!)}>
+                        <ZoomIn className="h-3 w-3 text-white" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-200 rounded border flex items-center justify-center">
+                      <Package className="h-5 w-5 text-gray-400" />
+                    </div>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-sm font-medium text-gray-900">{item.sku.code}</td>
+                <td className="py-3 px-3 text-sm text-gray-900">{item.sku.name}</td>
+                <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
+                  {item.purchaseQuantity.toLocaleString()}
+                </td>
+                <td className="py-3 px-3 text-sm text-gray-900">{item.material}</td>
+                <td className="py-3 px-3 text-sm text-gray-900">{item.packagingMethod}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
-  const getStatusText = (status: ProductionStatus) => {
-    const statusMap = {
-      pending: '待排单',
-      scheduled: '已排单',
-      in_production: '生产中',
-      completed: '已完成',
-      cancelled: '已取消'
-    };
-    return statusMap[status] || status;
-  };
+  // 渲染预排单
+  const renderPreScheduled = () => (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="w-10 py-3 px-3 text-left font-medium text-gray-900">
+                <button onClick={handleSelectAll} className="flex items-center">
+                  {selectedItems.length === filteredData.length && filteredData.length > 0 ? (
+                    <CheckSquare className="h-4 w-4 text-blue-600" />
+                  ) : (
+                    <Square className="h-4 w-4 text-gray-400" />
+                  )}
+                </button>
+              </th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">订单编号</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">图片</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">SKU</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">品名</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">采购数量</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">生产数量</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">材质</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">包装方式</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">操作</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {filteredData.map((item) => (
+              <tr key={item.id} className="hover:bg-gray-50">
+                <td className="py-3 px-3">
+                  <button onClick={() => handleSelectItem(item.id)} className="flex items-center">
+                    {selectedItems.includes(item.id) ? (
+                      <CheckSquare className="h-4 w-4 text-blue-600" />
+                    ) : (
+                      <Square className="h-4 w-4 text-gray-400" />
+                    )}
+                  </button>
+                </td>
+                <td className="py-3 px-3 text-sm font-medium text-blue-600">{item.orderNumber}</td>
+                <td className="py-3 px-3 text-center">
+                  {item.sku.imageUrl ? (
+                    <div className="relative group inline-block">
+                      <img 
+                        src={item.sku.imageUrl} 
+                        alt={item.sku.name}
+                        className="w-12 h-12 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => handleImageClick(item.sku.imageUrl!)}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
+                           onClick={() => handleImageClick(item.sku.imageUrl!)}>
+                        <ZoomIn className="h-3 w-3 text-white" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-200 rounded border flex items-center justify-center">
+                      <Package className="h-5 w-5 text-gray-400" />
+                    </div>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-sm font-medium text-gray-900">{item.sku.code}</td>
+                <td className="py-3 px-3 text-sm text-gray-900">{item.sku.name}</td>
+                <td className="py-3 px-3 text-center text-sm text-gray-900">
+                  {item.purchaseQuantity.toLocaleString()}
+                </td>
+                <td className="py-3 px-3 text-center">
+                  {isProductionStaff ? (
+                    <input
+                      type="number"
+                      min="1"
+                      max={item.purchaseQuantity}
+                      value={item.productionQuantity || item.purchaseQuantity}
+                      onChange={(e) => handleProductionQuantityChange(item.id, parseInt(e.target.value) || 1)}
+                      className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  ) : (
+                    <span className="text-sm font-medium text-blue-600">
+                      {(item.productionQuantity || item.purchaseQuantity).toLocaleString()}
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-sm text-gray-900">{item.material}</td>
+                <td className="py-3 px-3 text-sm text-gray-900">{item.packagingMethod}</td>
+                
+                {isProductionStaff && (
+                  <td className="py-3 px-3 text-center">
+                    <div className="flex items-center space-x-1">
+                     
+                      <button
+                        onClick={() => handleReturnToPending(item.id)}
+                        className="px-2 py-1 text-xs text-orange-600 border border-orange-600 rounded hover:bg-orange-50 transition-colors"
+                        title="退回"
+                      >
+                        退回
+                      </button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 批次生产配置 */}
+      {isProductionStaff && (
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">批次生产配置</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 排单日期 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                排单日期 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={batchConfig.scheduledDate}
+                onChange={(e) => setBatchConfig(prev => ({ ...prev, scheduledDate: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            {/* 生产绑卡配置 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                生产绑卡 <span className="text-red-500">*</span>
+              </label>
+              <div className="space-y-3">
+                {batchConfig.productionBinding.machines.map((config, index) => (
+                  <div key={index} className="flex items-center space-x-2">
+                    <select
+                      value={config.machine}
+                      onChange={(e) => updateMachineConfig(index, 'machine', e.target.value)}
+                      className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">选择机器</option>
+                      <option value="大机器">大机器</option>
+                      <option value="小机器1">小机器1</option>
+                      <option value="小机器2">小机器2</option>
+                      <option value="绑卡机">绑卡机</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={config.operator}
+                      onChange={(e) => updateMachineConfig(index, 'operator', e.target.value)}
+                      placeholder="操作员"
+                      className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                    {batchConfig.productionBinding.machines.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeMachineConfig(index)}
+                        className="p-2 text-red-600 hover:text-red-800 rounded"
+                        title="移除"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addMachineConfig}
+                  className="flex items-center space-x-2 px-3 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>添加机器配置</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 包中托配置 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                包中托 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={batchConfig.packaging.operator}
+                onChange={(e) => updateStageOperator('packaging', e.target.value)}
+                placeholder="操作员"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            {/* 吸塑包装配置 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                吸塑包装 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={batchConfig.blisterPackaging.operator}
+                onChange={(e) => updateStageOperator('blisterPackaging', e.target.value)}
+                placeholder="操作员"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* 打包外箱配置 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                打包外箱 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={batchConfig.outerBoxPacking.operator}
+                onChange={(e) => updateStageOperator('outerBoxPacking', e.target.value)}
+                placeholder="操作员"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {/* 配置说明 */}
+          <div className="mt-4 p-3 bg-blue-100 border border-blue-300 rounded-lg">
+            <div className="flex items-center space-x-2 mb-2">
+              <Calendar className="h-4 w-4 text-blue-600" />
+              <h4 className="text-sm font-medium text-blue-800">批次配置说明</h4>
+            </div>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• 排单日期和生产环节配置将应用于所有选中的SKU</li>
+              <li>• 生产绑卡支持多机器并行作业，可添加多组机器和操作员配置</li>
+              <li>• 包中托、吸塑包装、打包外箱环节各需配置一名操作员</li>
+              <li>• 确认生产前请确保所有必填字段都已填写完整</li>
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // 渲染生产中
+  const renderInProduction = () => (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="w-10 py-3 px-3 text-left font-medium text-gray-900">
+                <button onClick={handleSelectAll} className="flex items-center">
+                  {selectedItems.length === filteredData.length && filteredData.length > 0 ? (
+                    <CheckSquare className="h-4 w-4 text-blue-600" />
+                  ) : (
+                    <Square className="h-4 w-4 text-gray-400" />
+                  )}
+                </button>
+              </th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">排单日期</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">订单编号</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">图片</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">SKU</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">品名</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">生产数量</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">生产绑卡</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">包中托</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">吸塑包装</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">打包外箱</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {filteredData.map((item) => (
+              <tr key={item.id} className="hover:bg-gray-50">
+                <td className="py-3 px-3">
+                  <button onClick={() => handleSelectItem(item.id)} className="flex items-center">
+                    {selectedItems.includes(item.id) ? (
+                      <CheckSquare className="h-4 w-4 text-blue-600" />
+                    ) : (
+                      <Square className="h-4 w-4 text-gray-400" />
+                    )}
+                  </button>
+                </td>
+                <td className="py-3 px-3 text-sm text-gray-900">
+                  {item.scheduledDate?.toLocaleDateString('zh-CN')}
+                </td>
+                <td className="py-3 px-3 text-sm font-medium text-blue-600">{item.orderNumber}</td>
+                <td className="py-3 px-3 text-center">
+                  {item.sku.imageUrl ? (
+                    <div className="relative group inline-block">
+                      <img 
+                        src={item.sku.imageUrl} 
+                        alt={item.sku.name}
+                        className="w-12 h-12 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => handleImageClick(item.sku.imageUrl!)}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
+                           onClick={() => handleImageClick(item.sku.imageUrl!)}>
+                        <ZoomIn className="h-3 w-3 text-white" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-200 rounded border flex items-center justify-center">
+                      <Package className="h-5 w-5 text-gray-400" />
+                    </div>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-sm font-medium text-gray-900">{item.sku.code}</td>
+                <td className="py-3 px-3 text-sm text-gray-900">{item.sku.name}</td>
+                <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
+                  {(item.productionQuantity || item.purchaseQuantity).toLocaleString()}
+                </td>
+                
+                {/* 生产环节进度 */}
+                {item.productionSteps?.map((step) => (
+                  <td key={step.id} className="py-3 px-3 text-center">
+                    <div className="flex flex-col items-center space-y-2">
+                      <StatusBadge
+                        status={step.isCompleted ? '已完成' : '进行中'}
+                        color={step.isCompleted ? 'green' : 'yellow'}
+                        size="sm"
+                      />
+                      {step.completedDate && (
+                        <div className="text-xs text-gray-500">
+                          {step.completedDate.toLocaleDateString('zh-CN')}
+                        </div>
+                      )}
+                      {!step.isCompleted && isProductionStaff && (
+                        <button
+                          onClick={() => handleStepComplete(item.id, step.id)}
+                          className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                        >
+                          完成
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  // 渲染已完成
+  const renderCompleted = () => (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="w-10 py-3 px-3 text-left font-medium text-gray-900">
+                <button onClick={handleSelectAll} className="flex items-center">
+                  {selectedItems.length === filteredData.length && filteredData.length > 0 ? (
+                    <CheckSquare className="h-4 w-4 text-blue-600" />
+                  ) : (
+                    <Square className="h-4 w-4 text-gray-400" />
+                  )}
+                </button>
+              </th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">完成日期</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">订单编号</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">图片</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">SKU</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">品名</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">生产数量</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">材质</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">包装方式</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {filteredData.map((item) => (
+              <tr key={item.id} className="hover:bg-gray-50">
+                <td className="py-3 px-3">
+                  <button onClick={() => handleSelectItem(item.id)} className="flex items-center">
+                    {selectedItems.includes(item.id) ? (
+                      <CheckSquare className="h-4 w-4 text-blue-600" />
+                    ) : (
+                      <Square className="h-4 w-4 text-gray-400" />
+                    )}
+                  </button>
+                </td>
+                <td className="py-3 px-3 text-sm text-gray-900">
+                  {item.completedDate?.toLocaleDateString('zh-CN')}
+                </td>
+                <td className="py-3 px-3 text-sm font-medium text-blue-600">{item.orderNumber}</td>
+                <td className="py-3 px-3 text-center">
+                  {item.sku.imageUrl ? (
+                    <div className="relative group inline-block">
+                      <img 
+                        src={item.sku.imageUrl} 
+                        alt={item.sku.name}
+                        className="w-12 h-12 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => handleImageClick(item.sku.imageUrl!)}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
+                           onClick={() => handleImageClick(item.sku.imageUrl!)}>
+                        <ZoomIn className="h-3 w-3 text-white" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-200 rounded border flex items-center justify-center">
+                      <Package className="h-5 w-5 text-gray-400" />
+                    </div>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-sm font-medium text-gray-900">{item.sku.code}</td>
+                <td className="py-3 px-3 text-sm text-gray-900">{item.sku.name}</td>
+                <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
+                  {(item.productionQuantity || item.purchaseQuantity).toLocaleString()}
+                </td>
+                <td className="py-3 px-3 text-sm text-gray-900">{item.material}</td>
+                <td className="py-3 px-3 text-sm text-gray-900">{item.packagingMethod}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -368,80 +945,65 @@ export const ProductionScheduling: React.FC = () => {
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            {activeTab === 'pre_schedule' && (
-              <button
-                onClick={handleExportSchedule}
-                className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <Download className="h-5 w-5" />
-                <span>导出排单表</span>
-              </button>
-            )}
-            {canManageProduction && (
-              <>
-                <button
-                  onClick={() => setShowBulkForm(true)}
-                  className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <Upload className="h-5 w-5" />
-                  <span>批量导入</span>
-                </button>
-                <button
-                  onClick={() => setShowScheduleForm(true)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Plus className="h-5 w-5" />
-                  <span>新增排单</span>
-                </button>
-              </>
-            )}
             <div className="flex items-center space-x-2">
-              <Factory className="h-5 w-5 text-blue-500" />
-              <span className="text-sm text-gray-600">
-                SKU: {filteredSchedules.length}
-              </span>
+              <Calendar className="h-5 w-5 text-blue-500" />
+              <span className="text-sm text-gray-600">SKU: {filteredData.length}</span>
             </div>
           </div>
         </div>
 
-        {/* Statistics Cards */}
+        {/* 权限提示 */}
+        {!isProductionStaff && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center space-x-2">
+              <Clock className="h-5 w-5 text-yellow-600" />
+              <div>
+                <h3 className="text-sm font-medium text-yellow-800">权限提示</h3>
+                <p className="text-sm text-yellow-700 mt-1">
+                  您当前是{user?.role === 'department_manager' ? '部门主管' : 
+                           user?.role === 'general_manager' ? '总经理' : 
+                           user?.role === 'purchasing_officer' ? '采购专员' : '其他角色'}，只能查看生产排单数据。只有生产人员可以编辑和操作。
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 统计卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center space-x-3">
               <Clock className="h-8 w-8 text-yellow-600" />
               <div>
                 <h3 className="text-sm font-medium text-gray-600">待排单</h3>
-                <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
+                <p className="text-2xl font-bold text-gray-900">{tabStats.pending}</p>
               </div>
             </div>
           </div>
-
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center space-x-3">
               <Calendar className="h-8 w-8 text-blue-600" />
               <div>
                 <h3 className="text-sm font-medium text-gray-600">预排单</h3>
-                <p className="text-2xl font-bold text-gray-900">{stats.inProduction}</p>
+                <p className="text-2xl font-bold text-gray-900">{tabStats.preScheduled}</p>
               </div>
             </div>
           </div>
-
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center space-x-3">
-              <Factory className="h-8 w-8 text-purple-600" />
+              <Play className="h-8 w-8 text-purple-600" />
               <div>
                 <h3 className="text-sm font-medium text-gray-600">生产中</h3>
-                <p className="text-2xl font-bold text-gray-900">{stats.inProduction}</p>
+                <p className="text-2xl font-bold text-gray-900">{tabStats.inProduction}</p>
               </div>
             </div>
           </div>
-
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center space-x-3">
               <CheckCircle className="h-8 w-8 text-green-600" />
               <div>
                 <h3 className="text-sm font-medium text-gray-600">已完成</h3>
-                <p className="text-2xl font-bold text-gray-900">{stats.completed}</p>
+                <p className="text-2xl font-bold text-gray-900">{tabStats.completed}</p>
               </div>
             </div>
           </div>
@@ -467,9 +1029,9 @@ export const ProductionScheduling: React.FC = () => {
               </span>
             </button>
             <button
-              onClick={() => setActiveTab('pre_schedule')}
+              onClick={() => setActiveTab('pre_scheduled')}
               className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'pre_schedule'
+                activeTab === 'pre_scheduled'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
@@ -477,9 +1039,9 @@ export const ProductionScheduling: React.FC = () => {
               <Calendar className="h-5 w-5" />
               <span>预排单</span>
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                activeTab === 'pre_schedule' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                activeTab === 'pre_scheduled' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
               }`}>
-                {tabStats.preSchedule}
+                {tabStats.preScheduled}
               </span>
             </button>
             <button
@@ -490,7 +1052,7 @@ export const ProductionScheduling: React.FC = () => {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <Factory className="h-5 w-5" />
+              <Play className="h-5 w-5" />
               <span>生产中</span>
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                 activeTab === 'in_production' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
@@ -517,403 +1079,275 @@ export const ProductionScheduling: React.FC = () => {
           </nav>
         </div>
 
-        {/* Action Bar for Pre-Schedule */}
-        {activeTab === 'pre_schedule' && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={handleSelectAll}
-                  className="flex items-center space-x-2 px-3 py-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
-                >
-                  {selectedSchedules.length === filteredSchedules.length && filteredSchedules.length > 0 ? (
-                    <CheckSquare className="w-5 h-5 text-blue-600" />
-                  ) : (
-                    <Square className="w-5 h-5 text-gray-400" />
-                  )}
-                  <span className="font-medium">全选SKU</span>
-                </button>
-                {selectedSchedules.length > 0 && (
-                  <span className="text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                    已选择 {selectedSchedules.length} 个SKU
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center space-x-4">
-                {canManageProduction && selectedSchedules.length > 0 && (
-                  <button
-                    onClick={handleBatchProduction}
-                    className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors shadow-sm"
-                  >
-                    <Play className="w-4 h-4" />
-                    <span>确认生产</span>
-                  </button>
-                )}
-                <div className="text-sm text-gray-500">
-                  预排单：已安排生产计划但未开始生产的SKU
-                </div>
+        {/* 操作栏 */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-600">
+                已选择 <span className="font-medium text-blue-600">{selectedItems.length}</span> 个SKU
               </div>
             </div>
+            {isProductionStaff && selectedItems.length > 0 && (
+              <div className="flex items-center space-x-3">
+                {activeTab === 'pending' && (
+                  <button
+                    onClick={handlePreSchedule}
+                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                    <span>预排单</span>
+                  </button>
+                )}
+                {activeTab === 'pre_scheduled' && (
+                  <>
+                    <button
+                      onClick={handleExportSchedule}
+                      className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>导出排单表</span>
+                    </button>
+                    <button
+                      onClick={handleConfirmProduction}
+                      className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Play className="h-4 w-4" />
+                      <span>确认生产</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
-        {/* Content */}
-        {filteredSchedules.length === 0 ? (
+        {/* 内容区域 */}
+        {filteredData.length === 0 ? (
           <div className="text-center py-12">
-            <Factory className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               {activeTab === 'pending' ? '没有待排单的SKU' : 
-               activeTab === 'pre_schedule' ? '没有预排单的SKU' : 
+               activeTab === 'pre_scheduled' ? '没有预排单的SKU' : 
                activeTab === 'in_production' ? '没有生产中的SKU' : 
                '没有已完成的SKU'}
             </h3>
             <p className="text-gray-600">
-              {activeTab === 'pending' ? '所有SKU都已安排生产' : 
-               activeTab === 'pre_schedule' ? '没有已安排的生产计划' : 
+              {activeTab === 'pending' ? '等待从自己包装模块流转SKU' : 
+               activeTab === 'pre_scheduled' ? '请从待排单中添加SKU' : 
                activeTab === 'in_production' ? '没有正在生产的SKU' : 
                '还没有完成生产的SKU'}
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    {activeTab === 'pre_schedule' && (
-                      <th className="text-left py-3 px-4 font-medium text-gray-900">
-                        <button
-                          onClick={handleSelectAll}
-                          className="flex items-center space-x-2"
-                        >
-                          {selectedSchedules.length === filteredSchedules.length && filteredSchedules.length > 0 ? (
-                            <CheckSquare className="h-4 w-4 text-blue-600" />
-                          ) : (
-                            <Square className="h-4 w-4 text-gray-400" />
-                          )}
-                        </button>
-                      </th>
-                    )}
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">订单编号</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">图片</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">SKU</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">品名</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">采购数量</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">生产数量</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">材质</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">包装方式</th>
-                    {activeTab !== 'pre_schedule' && (
-                      <>
-                        <th className="text-left py-3 px-4 font-medium text-gray-900">排单日期</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-900">机器</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-900">状态</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-900">操作员</th>
-                      </>
-                    )}
-                    <th className="text-center py-3 px-4 font-medium text-gray-900">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredSchedules.map((schedule) => (
-                    <tr key={schedule.id} className="hover:bg-gray-50">
-                      {activeTab === 'pre_schedule' && (
-                        <td className="py-4 px-4">
-                          <button
-                            onClick={() => handleSelectSchedule(schedule.id)}
-                            className="flex items-center"
-                          >
-                            {selectedSchedules.includes(schedule.id) ? (
-                              <CheckSquare className="h-4 w-4 text-blue-600" />
-                            ) : (
-                              <Square className="h-4 w-4 text-gray-400" />
-                            )}
-                          </button>
-                        </td>
-                      )}
-                      <td className="py-4 px-4">
-                        <div className="text-sm font-medium text-blue-600">
-                          {schedule.purchaseRequestNumber || 'N/A'}
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        {schedule.sku.imageUrl ? (
-                          <img 
-                            src={schedule.sku.imageUrl} 
-                            alt={schedule.sku.name}
-                            className="w-12 h-12 object-cover rounded border"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-12 h-12 bg-gray-200 rounded border flex items-center justify-center">
-                            <Package className="h-6 w-6 text-gray-400" />
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="text-sm font-medium text-gray-900">{schedule.sku.code}</div>
-                        <div className="text-sm text-gray-500">{schedule.sku.category}</div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="text-sm text-gray-900">{schedule.sku.name}</div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="text-sm text-gray-900">{schedule.plannedQuantity.toLocaleString()}</span>
-                      </td>
-                      <td className="py-4 px-4">
-                        {activeTab === 'pre_schedule' ? (
-                          <input
-                            type="number"
-                            min="1"
-                            defaultValue={schedule.plannedQuantity}
-                            className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center"
-                          />
-                        ) : (
-                          <span className="text-sm text-gray-900">{schedule.completedQuantity || schedule.plannedQuantity}</span>
-                        )}
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="text-sm text-gray-900">{schedule.sku.category}</span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="text-sm text-gray-900">{schedule.packagingMethod}</span>
-                      </td>
-                      {activeTab !== 'pre_schedule' && (
-                        <>
-                          <td className="py-4 px-4">
-                            <span className="text-sm text-gray-500">
-                              {schedule.scheduledDate.toLocaleDateString('zh-CN')}
-                            </span>
-                          </td>
-                          <td className="py-4 px-4">
-                            <span className="text-sm text-gray-900">{schedule.machine}</span>
-                          </td>
-                          <td className="py-4 px-4">
-                            <StatusBadge
-                              status={getStatusText(schedule.status)}
-                              color={getStatusColor(schedule.status)}
-                            />
-                          </td>
-                          <td className="py-4 px-4">
-                            <span className="text-sm text-gray-900">{schedule.operator?.name || '-'}</span>
-                          </td>
-                        </>
-                      )}
-                      <td className="py-4 px-4 text-center">
-                        <div className="flex items-center justify-center space-x-2">
-                          {activeTab === 'pre_schedule' ? (
-                            <button
-                              onClick={() => handleStatusUpdate([schedule.id], 'pending')}
-                              className="px-3 py-1 text-sm text-orange-600 border border-orange-600 rounded-lg hover:bg-orange-50 transition-colors"
-                            >
-                              退回
-                            </button>
-                          ) : (
-                            <>
-                              {canManageProduction && (
-                                <button 
-                                  onClick={() => setEditingSchedule(schedule)}
-                                  className="p-1 text-gray-400 hover:text-blue-600 rounded"
-                                  title="编辑"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </button>
-                              )}
-                              {canManageProduction && schedule.status === 'pending' && (
-                                <button 
-                                  onClick={() => handleDelete(schedule.id)}
-                                  className="p-1 text-gray-400 hover:text-red-600 rounded"
-                                  title="删除"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              )}
-                              {schedule.status === 'scheduled' && (
-                                <button
-                                  onClick={() => handleStatusUpdate([schedule.id], 'in_production')}
-                                  className="px-3 py-1 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors"
-                                >
-                                  开始生产
-                                </button>
-                              )}
-                              {schedule.status === 'in_production' && (
-                                <button
-                                  onClick={() => handleStatusUpdate([schedule.id], 'completed')}
-                                  className="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                                >
-                                  完成
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Batch Configuration */}
-        {activeTab === 'pre_schedule' && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <h3 className="text-lg font-medium text-blue-800 mb-4">批次生产配置</h3>
-            
-            {/* Scheduled Date */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                排单日期 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                value={batchConfig.scheduledDate}
-                onChange={(e) => setBatchConfig({...batchConfig, scheduledDate: e.target.value})}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
-
-            {/* Production Binding Configuration */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                生产绑卡 <span className="text-red-500">*</span>
-              </label>
-              <div className="space-y-3">
-                {batchConfig.productionBinding.map((binding, index) => (
-                  <div key={index} className="flex items-center space-x-3 bg-white p-3 rounded border">
-                    <select
-                      value={binding.machine}
-                      onChange={(e) => updateProductionBinding(index, 'machine', e.target.value)}
-                      className="border border-gray-300 rounded px-3 py-2 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">选择机器</option>
-                      <option value="大机器">大机器</option>
-                      <option value="小机器1">小机器1</option>
-                      <option value="小机器2">小机器2</option>
-                      <option value="绑卡机">绑卡机</option>
-                    </select>
-                    <input
-                      type="text"
-                      value={binding.operator}
-                      onChange={(e) => updateProductionBinding(index, 'operator', e.target.value)}
-                      placeholder="操作员"
-                      className="flex-1 border border-gray-300 rounded px-3 py-2 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    {batchConfig.productionBinding.length > 1 && (
-                      <button
-                        onClick={() => removeProductionBinding(index)}
-                        className="p-2 text-red-600 hover:text-red-800 rounded"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  onClick={addProductionBinding}
-                  className="flex items-center space-x-2 px-3 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>添加机器配置</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Other Operations */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  包中托 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={batchConfig.packaging.operator}
-                  onChange={(e) => setBatchConfig({
-                    ...batchConfig,
-                    packaging: { operator: e.target.value }
-                  })}
-                  placeholder="操作员"
-                  className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  吸塑包装 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={batchConfig.blisterPackaging.operator}
-                  onChange={(e) => setBatchConfig({
-                    ...batchConfig,
-                    blisterPackaging: { operator: e.target.value }
-                  })}
-                  placeholder="操作员"
-                  className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  打包外箱 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={batchConfig.outerBoxPacking.operator}
-                  onChange={(e) => setBatchConfig({
-                    ...batchConfig,
-                    outerBoxPacking: { operator: e.target.value }
-                  })}
-                  placeholder="操作员"
-                  className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            {/* Configuration Instructions */}
-            <div className="mt-6 bg-blue-100 border border-blue-300 rounded-lg p-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <Calendar className="h-5 w-5 text-blue-600" />
-                <h4 className="text-sm font-medium text-blue-800">批次配置说明</h4>
-              </div>
-              <div className="text-sm text-blue-700 space-y-1">
-                <p>• 排单日期：应用于所有选中的SKU</p>
-                <p>• 生产绑卡：可配置多组机器和操作员，支持并行生产</p>
-                <p>• 其他环节：包中托、吸塑包装、打包外箱各配置一名操作员</p>
-                <p>• 配置完成后点击"确认生产"将批次配置应用于所有选中SKU</p>
-              </div>
-            </div>
-          </div>
+          <>
+            {activeTab === 'pending' && renderPending()}
+            {activeTab === 'pre_scheduled' && renderPreScheduled()}
+            {activeTab === 'in_production' && renderInProduction()}
+            {activeTab === 'completed' && renderCompleted()}
+          </>
         )}
       </div>
 
-      {/* Schedule Form Modal */}
-      {showScheduleForm && (
-        <ScheduleForm 
-          onClose={() => setShowScheduleForm(false)}
-          onSuccess={() => setShowScheduleForm(false)}
-        />
+      {/* 图片放大模态框 */}
+      {zoomedImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-[60]">
+          <div className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center">
+            <button
+              onClick={() => setZoomedImage(null)}
+              className="absolute top-4 right-4 p-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full text-white transition-colors z-10"
+            >
+              <X className="h-6 w-6" />
+            </button>
+            <img
+              src={zoomedImage}
+              alt="放大图片"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              onClick={() => setZoomedImage(null)}
+            />
+          </div>
+        </div>
       )}
 
-      {/* Edit Schedule Modal */}
-      {editingSchedule && (
-        <ScheduleForm 
-          schedule={editingSchedule}
-          onClose={() => setEditingSchedule(null)}
-          onSuccess={() => setEditingSchedule(null)}
-        />
-      )}
-
-      {/* Bulk Schedule Form Modal */}
-      {showBulkForm && (
-        <BulkScheduleForm 
-          onClose={() => setShowBulkForm(false)}
-          onSuccess={() => setShowBulkForm(false)}
+    
         />
       )}
     </>
+  );
+};
+
+// 生产配置模态框组件
+interface ProductionConfigModalProps {
+  itemId: string;
+  onClose: () => void;
+  onSave: (config: any) => void;
+}
+
+const ProductionConfigModal: React.FC<ProductionConfigModalProps> = ({ itemId, onClose, onSave }) => {
+  const [bindingGroups, setBindingGroups] = useState<MachineOperatorGroup[]>([
+    { id: '1', machine: '', operator: '' }
+  ]);
+  const [trayOperator, setTrayOperator] = useState('');
+  const [blisterOperator, setBlisterOperator] = useState('');
+  const [packingOperator, setPackingOperator] = useState('');
+
+  const addBindingGroup = () => {
+    setBindingGroups([...bindingGroups, { id: Date.now().toString(), machine: '', operator: '' }]);
+  };
+
+  const removeBindingGroup = (id: string) => {
+    if (bindingGroups.length > 1) {
+      setBindingGroups(bindingGroups.filter(group => group.id !== id));
+    }
+  };
+
+  const updateBindingGroup = (id: string, field: 'machine' | 'operator', value: string) => {
+    setBindingGroups(bindingGroups.map(group => 
+      group.id === id ? { ...group, [field]: value } : group
+    ));
+  };
+
+  const handleSave = () => {
+    const config = {
+      bindingGroups,
+      trayOperator,
+      blisterOperator,
+      packingOperator
+    };
+    onSave(config);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-gray-900">生产环节配置</h2>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* 生产绑卡配置 */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">生产绑卡</h3>
+              <button
+                onClick={addBindingGroup}
+                className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                <span>添加组合</span>
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              {bindingGroups.map((group) => (
+                <div key={group.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">机器</label>
+                    <select
+                      value={group.machine}
+                      onChange={(e) => updateBindingGroup(group.id, 'machine', e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">请选择机器</option>
+                      {machineOptions.map(machine => (
+                        <option key={machine} value={machine}>{machine}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">操作员</label>
+                    <select
+                      value={group.operator}
+                      onChange={(e) => updateBindingGroup(group.id, 'operator', e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">请选择操作员</option>
+                      {operatorOptions.map(operator => (
+                        <option key={operator} value={operator}>{operator}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {bindingGroups.length > 1 && (
+                    <button
+                      onClick={() => removeBindingGroup(group.id)}
+                      className="p-2 text-red-600 hover:text-red-700 rounded"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 其他环节配置 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">包中托操作员</label>
+              <select
+                value={trayOperator}
+                onChange={(e) => setTrayOperator(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">请选择操作员</option>
+                {operatorOptions.map(operator => (
+                  <option key={operator} value={operator}>{operator}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">吸塑包装操作员</label>
+              <select
+                value={blisterOperator}
+                onChange={(e) => setBlisterOperator(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">请选择操作员</option>
+                {operatorOptions.map(operator => (
+                  <option key={operator} value={operator}>{operator}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">打包外箱操作员</label>
+              <select
+                value={packingOperator}
+                onChange={(e) => setPackingOperator(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">请选择操作员</option>
+                {operatorOptions.map(operator => (
+                  <option key={operator} value={operator}>{operator}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* 操作按钮 */}
+          <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleSave}
+              className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Save className="h-4 w-4" />
+              <span>保存配置</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
