@@ -1168,15 +1168,7 @@ export const ProductionScheduling: React.FC = () => {
         </div>
       )}
 
-      {/* 编辑配置模态框 */}
-      {editingItem && (
-        <ProductionConfigModal
-          itemId={editingItem}
-          onClose={() => setEditingItem(null)}
-          onSave={(config) => {
-            // 保存配置逻辑
-            setEditingItem(null);
-          }}
+    
         />
       )}
     </>
