@@ -142,7 +142,7 @@ export const InHouseProduction: React.FC = () => {
           cardProgress,
           accessoryProgress,
           readyForInspection,
-          request
+          request,
           inspectionStatus
         });
       });
