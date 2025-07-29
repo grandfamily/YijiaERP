@@ -423,16 +423,16 @@ export const InHouseProduction: React.FC = () => {
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="text-left py-3 px-3 font-medium text-gray-900">订单编号</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900">图片</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900">SKU编码</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900">品名</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900">材料</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900">包装方式</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900">采购数量</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900">到货数量</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900">验收照片</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900">验收意见</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900 w-32">订单编号</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900 w-16">图片</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900 w-24">SKU编码</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900 w-40">品名</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900 w-24">材料</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900 w-24">包装方式</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">采购数量</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">到货数量</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">验收照片</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">验收意见</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
