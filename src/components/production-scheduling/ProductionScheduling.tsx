@@ -345,43 +345,54 @@ export const ProductionScheduling: React.FC = () => {
         }
         return sku;
       })
+    );
+  };
+
+  // 处理导出排单表
+  const handleExportSchedule = () => {
+    if (selectedItems.length === 0) return;
+    
+    const selectedSchedules = productionSKUs.filter(sku => selectedItems.includes(sku.id));
+    const exportData: any[] = [];
+    
+    selectedSchedules.forEach(schedule => {
       // 获取批次生产配置 - 确保每个排单都有唯一的配置
-      const batchConfig = batchConfigurations[schedule.id];
+      const batchConfigForSchedule = batchConfig;
       
-      if (batchConfig && batchConfig.productionBinding && batchConfig.productionBinding.length > 0) {
+      if (batchConfigForSchedule && batchConfigForSchedule.productionBinding && batchConfigForSchedule.productionBinding.machines.length > 0) {
         // 如果有配置，根据机器配置数量生成对应行数
-        batchConfig.productionBinding.forEach((binding, index) => {
+        batchConfigForSchedule.productionBinding.machines.forEach((binding, index) => {
           const isFirstRow = index === 0;
           
           exportData.push({
-            '排单日期': batchConfig.scheduledDate.toLocaleDateString('zh-CN'),
-            '订单编号': schedule.purchaseRequestNumber || schedule.purchaseRequestId,
+            '排单日期': batchConfigForSchedule.scheduledDate,
+            '订单编号': schedule.orderNumber,
             'SKU编码': schedule.sku.code,
             '品名': schedule.sku.name,
-            '采购数量': schedule.plannedQuantity,
-            '生产数量': schedule.plannedQuantity,
-            '材质': schedule.packagingMethod || '标准',
-            '包装方式': schedule.packagingMethod || '标准包装',
+            '采购数量': schedule.purchaseQuantity,
+            '生产数量': schedule.productionQuantity || schedule.purchaseQuantity,
+            '材质': schedule.material,
+            '包装方式': schedule.packagingMethod,
             '生产绑卡机器': binding.machine,
             '生产绑卡操作员': binding.operator,
             // 其他操作员只在第一行显示，其他行为空
-            '包中托操作员': isFirstRow ? (batchConfig.packagingOperator || '') : '',
-            '吸塑包装操作员': isFirstRow ? (batchConfig.blisterOperator || '') : '',
-            '打包外箱操作员': isFirstRow ? (batchConfig.boxingOperator || '') : ''
+            '包中托操作员': isFirstRow ? (batchConfigForSchedule.packaging.operator || '') : '',
+            '吸塑包装操作员': isFirstRow ? (batchConfigForSchedule.blisterPackaging.operator || '') : '',
+            '打包外箱操作员': isFirstRow ? (batchConfigForSchedule.outerBoxPacking.operator || '') : ''
           });
         });
       } else {
         // 如果没有配置，生成一行默认数据
         exportData.push({
-          '排单日期': schedule.scheduledDate.toLocaleDateString('zh-CN'),
-          '订单编号': schedule.purchaseRequestNumber || schedule.purchaseRequestId,
+          '排单日期': schedule.scheduledDate?.toLocaleDateString('zh-CN') || '',
+          '订单编号': schedule.orderNumber,
           'SKU编码': schedule.sku.code,
           '品名': schedule.sku.name,
-          '采购数量': schedule.plannedQuantity,
-          '生产数量': schedule.plannedQuantity,
-          '材质': schedule.packagingMethod || '标准',
-          '包装方式': schedule.packagingMethod || '标准包装',
-          '生产绑卡机器': schedule.machine,
+          '采购数量': schedule.purchaseQuantity,
+          '生产数量': schedule.productionQuantity || schedule.purchaseQuantity,
+          '材质': schedule.material,
+          '包装方式': schedule.packagingMethod,
+          '生产绑卡机器': '',
           '生产绑卡操作员': '待分配',
           '包中托操作员': '待分配',
           '吸塑包装操作员': '待分配',
@@ -395,6 +406,8 @@ export const ProductionScheduling: React.FC = () => {
       '材质', '包装方式', '生产绑卡机器', '生产绑卡操作员', 
       '包中托操作员', '吸塑包装操作员', '打包外箱操作员'
     ];
+    
+    const exportRows = exportData.map(row => headers.map(header => row[header] || ''));
     
     const csvContent = [
       headers.join(','),
