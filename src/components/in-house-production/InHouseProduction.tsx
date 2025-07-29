@@ -150,7 +150,6 @@ export const InHouseProduction: React.FC = () => {
           request,
           inspectionStatus
         });
-      }
       });
     });
     
@@ -293,16 +292,17 @@ export const InHouseProduction: React.FC = () => {
       
       // 只有验收不合格时才清除临时数据
       if (decision === 'fail') {
-      setUploadedPhotos(prev => {
-        const newState = { ...prev };
-        delete newState[skuId];
-        return newState;
-      });
-      setArrivalQuantities(prev => {
-        const newState = { ...prev };
-        delete newState[skuId];
-        return newState;
-      });
+        setUploadedPhotos(prev => {
+          const newState = { ...prev };
+          delete newState[skuId];
+          return newState;
+        });
+        setArrivalQuantities(prev => {
+          const newState = { ...prev };
+          delete newState[skuId];
+          return newState;
+        });
+      }
       
       // 如果是验收通过，检查是否需要创建生产排单
       if (decision === 'pass') {
@@ -765,48 +765,48 @@ export const InHouseProduction: React.FC = () => {
                     {(() => {
                       const photos = completedInspectionData[skuData.id]?.photos || uploadedPhotos[skuData.id] || [];
                       return photos.length > 0 ? (
-                      <>
-                        <div className="text-xs text-green-600 font-medium">
-                          {photos.length} 张照片
-                        </div>
-                        <div className="flex flex-wrap gap-1 justify-center max-w-32">
-                          {photos.slice(0, 4).map((file, index) => (
-                            <div key={index} className="relative group">
-                              <img
-                                src={URL.createObjectURL(file)}
-                                alt={`验收照片${index + 1}`}
-                                className="w-8 h-8 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
-                                onClick={() => setZoomedImage(URL.createObjectURL(file))}
-                              />
-                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
-                                   onClick={() => setZoomedImage(URL.createObjectURL(file))}>
-                                <ZoomIn className="h-2 w-2 text-white" />
+                        <>
+                          <div className="text-xs text-green-600 font-medium">
+                            {photos.length} 张照片
+                          </div>
+                          <div className="flex flex-wrap gap-1 justify-center max-w-32">
+                            {photos.slice(0, 4).map((file, index) => (
+                              <div key={index} className="relative group">
+                                <img
+                                  src={URL.createObjectURL(file)}
+                                  alt={`验收照片${index + 1}`}
+                                  className="w-8 h-8 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                                  onClick={() => setZoomedImage(URL.createObjectURL(file))}
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
+                                     onClick={() => setZoomedImage(URL.createObjectURL(file))}>
+                                  <ZoomIn className="h-2 w-2 text-white" />
+                                </div>
                               </div>
-                            </div>
-                          ))}
-                          {photos.length > 4 && (
-                            <div className="w-8 h-8 bg-gray-200 rounded border flex items-center justify-center text-xs text-gray-600">
-                              +{photos.length - 4}
-                            </div>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => {
-                            // 下载所有照片的功能
-                            photos.forEach((file, index) => {
-                              const link = document.createElement('a');
-                              link.href = URL.createObjectURL(file);
-                              link.download = `${skuData.sku.code}_验收照片_${index + 1}.${file.name.split('.').pop()}`;
-                              link.click();
-                            });
-                          }}
-                          className="px-2 py-1 text-xs text-blue-600 border border-blue-600 rounded hover:bg-blue-50 transition-colors"
-                        >
-                          下载照片
-                        </button>
-                      </>
+                            ))}
+                            {photos.length > 4 && (
+                              <div className="w-8 h-8 bg-gray-200 rounded border flex items-center justify-center text-xs text-gray-600">
+                                +{photos.length - 4}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => {
+                              // 下载所有照片的功能
+                              photos.forEach((file, index) => {
+                                const link = document.createElement('a');
+                                link.href = URL.createObjectURL(file);
+                                link.download = `${skuData.sku.code}_验收照片_${index + 1}.${file.name.split('.').pop()}`;
+                                link.click();
+                              });
+                            }}
+                            className="px-2 py-1 text-xs text-blue-600 border border-blue-600 rounded hover:bg-blue-50 transition-colors"
+                          >
+                            下载照片
+                          </button>
+                        </>
                       ) : (
-                      <div className="text-xs text-gray-500">无照片</div>
+                        <div className="text-xs text-gray-500">无照片</div>
                       );
                     })()}
                   </div>
