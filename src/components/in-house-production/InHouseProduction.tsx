@@ -758,22 +758,20 @@ export const InHouseProduction: React.FC = () => {
                 {/* 到货数量 */}
                 <td className="py-3 px-3">
                   <div className="text-sm font-bold text-blue-600 text-center">
-                    {(completedInspectionData[skuData.id]?.arrivalQuantity || arrivalQuantities[skuData.id] || skuData.quantity).toLocaleString()}
+                    {(arrivalQuantities[skuData.id] || skuData.quantity).toLocaleString()}
                   </div>
                 </td>
                 
                 {/* 验收照片 */}
                 <td className="py-4 px-3 text-center">
                   <div className="flex flex-col items-center space-y-2">
-                    {(() => {
-                      const photos = completedInspectionData[skuData.id]?.photos || uploadedPhotos[skuData.id] || [];
-                      return photos.length > 0 ? (
+                    {uploadedPhotos[skuData.id] && uploadedPhotos[skuData.id].length > 0 ? (
                       <>
                         <div className="text-xs text-green-600 font-medium">
-                          {photos.length} 张照片
+                          {uploadedPhotos[skuData.id].length} 张照片
                         </div>
                         <div className="flex flex-wrap gap-1 justify-center max-w-32">
-                          {photos.slice(0, 4).map((file, index) => (
+                          {uploadedPhotos[skuData.id].slice(0, 4).map((file, index) => (
                             <div key={index} className="relative group">
                               <img
                                 src={URL.createObjectURL(file)}
@@ -787,16 +785,16 @@ export const InHouseProduction: React.FC = () => {
                               </div>
                             </div>
                           ))}
-                          {photos.length > 4 && (
+                          {uploadedPhotos[skuData.id].length > 4 && (
                             <div className="w-8 h-8 bg-gray-200 rounded border flex items-center justify-center text-xs text-gray-600">
-                              +{photos.length - 4}
+                              +{uploadedPhotos[skuData.id].length - 4}
                             </div>
                           )}
                         </div>
                         <button
                           onClick={() => {
                             // 下载所有照片的功能
-                            photos.forEach((file, index) => {
+                            uploadedPhotos[skuData.id].forEach((file, index) => {
                               const link = document.createElement('a');
                               link.href = URL.createObjectURL(file);
                               link.download = `${skuData.sku.code}_验收照片_${index + 1}.${file.name.split('.').pop()}`;
@@ -808,20 +806,19 @@ export const InHouseProduction: React.FC = () => {
                           下载照片
                         </button>
                       </>
-                      ) : (
+                    ) : (
                       <div className="text-xs text-gray-500">无照片</div>
-                      );
-                    })()}
+                    )}
                   </div>
                 </td>
                 
                 {/* 验收时间 */}
                 <td className="py-3 px-3 text-center">
                   <div className="text-sm text-gray-900">
-                    {(completedInspectionData[skuData.id]?.inspectionTime || new Date()).toLocaleDateString('zh-CN')}
+                    {new Date().toLocaleDateString('zh-CN')}
                   </div>
                   <div className="text-xs text-gray-500">
-                    {(completedInspectionData[skuData.id]?.inspectionTime || new Date()).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                    {new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </td>
                 
@@ -836,6 +833,20 @@ export const InHouseProduction: React.FC = () => {
                     />
                   </div>
                 </td>
+                
+                {/* 操作 */}
+                {canManageProduction && (
+                  <td className="py-3 px-3 text-center">
+                    <div className="flex flex-col space-y-1">
+                      <button className="px-2 py-1 text-xs text-blue-600 border border-blue-600 rounded hover:bg-blue-50 transition-colors">
+                        验收记录
+                      </button>
+                      <button className="px-2 py-1 text-xs text-green-600 border border-green-600 rounded hover:bg-green-50 transition-colors">
+                        下载报告
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
