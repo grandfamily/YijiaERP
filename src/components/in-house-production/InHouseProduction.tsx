@@ -37,6 +37,8 @@ export const InHouseProduction: React.FC = () => {
   const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
   const [showInspectionModal, setShowInspectionModal] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [uploadedPhotos, setUploadedPhotos] = useState<{[key: string]: File[]}>({});
+  const [arrivalQuantities, setArrivalQuantities] = useState<{[key: string]: number}>({});
   
   // 获取已分配的自己包装订单
   const { data: inHouseRequests } = getPurchaseRequests(
@@ -207,6 +209,43 @@ export const InHouseProduction: React.FC = () => {
     setZoomedImage(imageUrl);
   };
 
+  // 处理照片上传
+  const handlePhotoUpload = (skuId: string, files: FileList | null) => {
+    if (!files) return;
+    
+    const fileArray = Array.from(files);
+    const validFiles = fileArray.filter(file => {
+      const isValidType = file.type === 'image/jpeg' || file.type === 'image/png';
+      const isValidSize = file.size <= 10 * 1024 * 1024; // 10MB limit
+      return isValidType && isValidSize;
+    });
+    
+    if (validFiles.length !== fileArray.length) {
+      alert('部分文件格式不支持或文件过大（限制10MB），仅上传有效文件');
+    }
+    
+    setUploadedPhotos(prev => ({
+      ...prev,
+      [skuId]: [...(prev[skuId] || []), ...validFiles]
+    }));
+  };
+
+  // 处理到货数量变更
+  const handleArrivalQuantityChange = (skuId: string, quantity: number) => {
+    setArrivalQuantities(prev => ({
+      ...prev,
+      [skuId]: quantity
+    }));
+  };
+
+  // 移除上传的照片
+  const removePhoto = (skuId: string, photoIndex: number) => {
+    setUploadedPhotos(prev => ({
+      ...prev,
+      [skuId]: (prev[skuId] || []).filter((_, index) => index !== photoIndex)
+    }));
+  };
+
   // 获取统计数据
   const getTabStats = () => {
     const allSKUData = convertToSKULevelData();
@@ -224,9 +263,23 @@ export const InHouseProduction: React.FC = () => {
   // 处理验收决策
   const handleInspectionDecision = async (requestId: string, skuId: string, decision: 'pass' | 'fail') => {
     try {
+      const photos = uploadedPhotos[skuId] || [];
+      const arrivalQty = arrivalQuantities[skuId];
+      
+      // 验证必要信息
+      if (photos.length === 0) {
+        alert('请先上传验收照片');
+        return;
+      }
+      
+      if (!arrivalQty || arrivalQty <= 0) {
+        alert('请填写有效的到货数量');
+        return;
+      }
+      
       if (decision === 'pass') {
         // 验收通过：流转到已验收SKU和生产排单
-        console.log(`✅ SKU ${skuId} 验收通过，流转到已验收SKU和生产排单`);
+        console.log(`✅ SKU ${skuId} 验收通过，到货数量: ${arrivalQty}，照片数量: ${photos.length}`);
         
         // 更新订单状态为已完成
         await updatePurchaseRequest(requestId, {
@@ -236,21 +289,34 @@ export const InHouseProduction: React.FC = () => {
         
         // 自动创建生产排单
         const schedules = createSchedulesFromInHouseProduction(requestId);
-        console.log(`🔄 自动流转：创建了 ${schedules.length} 个SKU的生产排单`);
+        console.log(`🔄 自动流转：验收通过，创建了 ${schedules.length} 个SKU的生产排单`);
+        
+        // 清除该SKU的临时数据
+        setUploadedPhotos(prev => {
+          const newState = { ...prev };
+          delete newState[skuId];
+          return newState;
+        });
+        setArrivalQuantities(prev => {
+          const newState = { ...prev };
+          delete newState[skuId];
+          return newState;
+        });
+        
+        alert('验收通过！SKU已流转到已验收栏目和生产排单');
         
       } else {
         // 验收不合格：退回到采购进度的不合格订单
-        console.log(`❌ SKU ${skuId} 验收不合格，退回到采购进度不合格订单`);
+        console.log(`❌ SKU ${skuId} 验收不合格，到货数量: ${arrivalQty}，退回到采购进度不合格订单`);
         
         // 更新订单状态为质检不合格
         await updatePurchaseRequest(requestId, {
           status: 'quality_check',
           updatedAt: new Date()
         });
+        
+        alert('验收不合格！SKU已退回到采购进度的不合格订单');
       }
-      
-      // 刷新数据
-      window.location.reload();
       
     } catch (error) {
       console.error('处理验收决策失败:', error);
@@ -505,23 +571,24 @@ export const InHouseProduction: React.FC = () => {
                       type="number"
                       min="0"
                       max={skuData.quantity}
-                      defaultValue={skuData.quantity}
+                      value={arrivalQuantities[skuData.id] || skuData.quantity}
                       className="w-24 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       onChange={(e) => {
-                        // 处理到货数量变更
                         const newQuantity = parseInt(e.target.value) || 0;
-                        console.log(`更新SKU ${skuData.sku.code} 到货数量: ${newQuantity}`);
+                        handleArrivalQuantityChange(skuData.id, newQuantity);
                       }}
                     />
                   ) : (
-                    <div className="text-sm font-medium text-gray-900">{skuData.quantity.toLocaleString()}</div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {arrivalQuantities[skuData.id] || skuData.quantity}
+                    </div>
                   )}
                 </td>
                 
                 {/* 验收照片 */}
                 <td className="py-3 px-3 text-center">
                   {canManageProduction ? (
-                    <div className="flex flex-col items-center space-y-1">
+                    <div className="flex flex-col items-center space-y-2">
                       <input
                         type="file"
                         accept="image/*"
@@ -529,9 +596,7 @@ export const InHouseProduction: React.FC = () => {
                         className="hidden"
                         id={`photo-upload-${skuData.id}`}
                         onChange={(e) => {
-                          // 处理照片上传
-                          const files = Array.from(e.target.files || []);
-                          console.log(`SKU ${skuData.sku.code} 上传验收照片:`, files);
+                          handlePhotoUpload(skuData.id, e.target.files);
                         }}
                       />
                       <label
@@ -540,10 +605,42 @@ export const InHouseProduction: React.FC = () => {
                       >
                         上传照片
                       </label>
-                      <div className="text-xs text-gray-500 mt-1">支持JPG/PNG</div>
+                      <div className="text-xs text-gray-500">支持JPG/PNG</div>
+                      {uploadedPhotos[skuData.id] && uploadedPhotos[skuData.id].length > 0 && (
+                        <div className="mt-2">
+                          <div className="text-xs text-green-600 font-medium">
+                            已上传 {uploadedPhotos[skuData.id].length} 张照片
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-1 max-w-32">
+                            {uploadedPhotos[skuData.id].slice(0, 3).map((file, index) => (
+                              <div key={index} className="relative group">
+                                <img
+                                  src={URL.createObjectURL(file)}
+                                  alt={`验收照片${index + 1}`}
+                                  className="w-8 h-8 object-cover rounded border cursor-pointer"
+                                  onClick={() => setZoomedImage(URL.createObjectURL(file))}
+                                />
+                                <button
+                                  onClick={() => removePhoto(skuData.id, index)}
+                                  className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                            {uploadedPhotos[skuData.id].length > 3 && (
+                              <div className="w-8 h-8 bg-gray-200 rounded border flex items-center justify-center text-xs text-gray-600">
+                                +{uploadedPhotos[skuData.id].length - 3}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
-                    <div className="text-xs text-gray-500">-</div>
+                    <div className="text-xs text-gray-500">
+                      {uploadedPhotos[skuData.id] ? `${uploadedPhotos[skuData.id].length} 张照片` : '无照片'}
+                    </div>
                   )}
                 </td>
                 
