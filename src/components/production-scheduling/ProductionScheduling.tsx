@@ -589,13 +589,6 @@ export const ProductionScheduling: React.FC = () => {
                   <td className="py-3 px-3 text-center">
                     <div className="flex items-center space-x-1">
                       <button
-                        onClick={() => setEditingItem(item.id)}
-                        className="px-2 py-1 text-xs text-blue-600 border border-blue-600 rounded hover:bg-blue-50 transition-colors"
-                        title="编辑配置"
-                      >
-                        编辑
-                      </button>
-                      <button
                         onClick={() => handleReturnToPending(item.id)}
                         className="px-2 py-1 text-xs text-orange-600 border border-orange-600 rounded hover:bg-orange-50 transition-colors"
                         title="退回"
