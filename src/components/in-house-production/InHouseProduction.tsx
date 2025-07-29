@@ -423,24 +423,21 @@ export const InHouseProduction: React.FC = () => {
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="text-left py-3 px-3 font-medium text-gray-900 w-32">订单编号</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900 w-16">图片</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900 w-24">SKU编码</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900 w-40">品名</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900 w-24">材料</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900 w-24">包装方式</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">采购数量</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">到货数量</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">验收照片</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">验收意见</th>
-              {canManageProduction && (
-                <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">操作</th>
-              )}
+              <th className="text-left py-3 px-3 font-medium text-gray-900">订单编号</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">图片</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">SKU编码</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">品名</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">材料</th>
+              <th className="text-left py-3 px-3 font-medium text-gray-900">包装方式</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">采购数量</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">到货数量</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">验收照片</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900">验收意见</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {filteredSKUData.map((skuData) => (
-              <tr key={skuData.id} className="hover:bg-gray-50 h-20">
+              <tr key={skuData.id} className="hover:bg-gray-50">
                 {/* 订单编号 */}
                 <td className="py-3 px-3">
                   <div className="text-sm font-medium text-blue-600">{skuData.requestNumber}</div>
@@ -487,7 +484,7 @@ export const InHouseProduction: React.FC = () => {
                 </td>
                 
                 {/* 材料 */}
-                <td className="py-3 px-3 text-center">
+                <td className="py-3 px-3">
                   <div className="text-sm text-gray-900">{skuData.material}</div>
                 </td>
                 
@@ -497,26 +494,27 @@ export const InHouseProduction: React.FC = () => {
                 </td>
                 
                 {/* 采购数量 */}
-                <td className="py-3 px-3">
-                  <div className="text-sm font-bold text-gray-900">{skuData.quantity.toLocaleString()}</div>
+                <td className="py-3 px-3 text-center">
+                  <div className="text-sm font-medium text-gray-900">{skuData.quantity.toLocaleString()}</div>
                 </td>
                 
                 {/* 到货数量 */}
-                <td className="py-3 px-3">
+                <td className="py-3 px-3 text-center">
                   {canManageProduction ? (
                     <input
                       type="number"
                       min="0"
+                      max={skuData.quantity}
                       defaultValue={skuData.quantity}
-                      className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-24 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       onChange={(e) => {
                         // 处理到货数量变更
                         const newQuantity = parseInt(e.target.value) || 0;
-                        // 这里可以添加状态更新逻辑
+                        console.log(`更新SKU ${skuData.sku.code} 到货数量: ${newQuantity}`);
                       }}
                     />
                   ) : (
-                    <div className="text-sm font-bold text-gray-900">{skuData.quantity.toLocaleString()}</div>
+                    <div className="text-sm font-medium text-gray-900">{skuData.quantity.toLocaleString()}</div>
                   )}
                 </td>
                 
@@ -533,19 +531,19 @@ export const InHouseProduction: React.FC = () => {
                         onChange={(e) => {
                           // 处理照片上传
                           const files = Array.from(e.target.files || []);
-                          console.log('上传照片:', files);
+                          console.log(`SKU ${skuData.sku.code} 上传验收照片:`, files);
                         }}
                       />
                       <label
                         htmlFor={`photo-upload-${skuData.id}`}
-                        className="cursor-pointer px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                        className="cursor-pointer px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                       >
                         上传照片
                       </label>
-                      <span className="text-xs text-gray-500">支持JPG/PNG</span>
+                      <div className="text-xs text-gray-500 mt-1">支持JPG/PNG</div>
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-500">-</span>
+                    <div className="text-xs text-gray-500">-</div>
                   )}
                 </td>
                 
@@ -555,30 +553,21 @@ export const InHouseProduction: React.FC = () => {
                     <div className="flex flex-col space-y-1">
                       <button
                         onClick={() => handleInspectionDecision(skuData.requestId, skuData.id, 'pass')}
-                        className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                        className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                       >
                         验收通过
                       </button>
                       <button
                         onClick={() => handleInspectionDecision(skuData.requestId, skuData.id, 'fail')}
-                        className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                        className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
                       >
                         验收不合格
                       </button>
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-500">待验收</span>
+                    <div className="text-xs text-gray-500">待验收</div>
                   )}
                 </td>
-                
-                {/* 操作 */}
-                {canManageProduction && (
-                  <td className="py-3 px-3 text-center">
-                    <button className="px-2 py-1 text-xs text-blue-600 border border-blue-600 rounded hover:bg-blue-50 transition-colors">
-                      详情
-                    </button>
-                  </td>
-                )}
               </tr>
             ))}
           </tbody>
