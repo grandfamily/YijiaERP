@@ -263,23 +263,9 @@ export const InHouseProduction: React.FC = () => {
   // 处理验收决策
   const handleInspectionDecision = async (requestId: string, skuId: string, decision: 'pass' | 'fail') => {
     try {
-      const photos = uploadedPhotos[skuId] || [];
-      const arrivalQty = arrivalQuantities[skuId];
-      
-      // 验证必要信息
-      if (photos.length === 0) {
-        alert('请先上传验收照片');
-        return;
-      }
-      
-      if (!arrivalQty || arrivalQty <= 0) {
-        alert('请填写有效的到货数量');
-        return;
-      }
-      
       if (decision === 'pass') {
         // 验收通过：流转到已验收SKU和生产排单
-        console.log(`✅ SKU ${skuId} 验收通过，到货数量: ${arrivalQty}，照片数量: ${photos.length}`);
+        console.log(`✅ SKU ${skuId} 验收通过`);
         
         // 更新订单状态为已完成
         await updatePurchaseRequest(requestId, {
@@ -289,7 +275,7 @@ export const InHouseProduction: React.FC = () => {
         
         // 自动创建生产排单
         const schedules = createSchedulesFromInHouseProduction(requestId);
-        console.log(`🔄 自动流转：验收通过，创建了 ${schedules.length} 个SKU的生产排单`);
+        console.log(`🔄 自动流转：验收通过，创建了生产排单`);
         
         // 清除该SKU的临时数据
         setUploadedPhotos(prev => {
@@ -307,7 +293,7 @@ export const InHouseProduction: React.FC = () => {
         
       } else {
         // 验收不合格：退回到采购进度的不合格订单
-        console.log(`❌ SKU ${skuId} 验收不合格，到货数量: ${arrivalQty}，退回到采购进度不合格订单`);
+        console.log(`❌ SKU ${skuId} 验收不合格，退回到采购进度不合格订单`);
         
         // 更新订单状态为质检不合格
         await updatePurchaseRequest(requestId, {
