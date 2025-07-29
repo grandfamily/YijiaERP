@@ -29,7 +29,7 @@ import { InspectionModal } from './InspectionModal';
 type TabType = 'in_progress' | 'pending_inspection' | 'completed_inspection';
 
 export const InHouseProduction: React.FC = () => {
-  const { getPurchaseRequests, getProcurementProgress, getCardProgress, getAccessoryProgress, getOrderAllocations } = useProcurement();
+  const { getPurchaseRequests, getProcurementProgress, getCardProgress, getAccessoryProgress, getOrderAllocations, updatePurchaseRequest } = useProcurement();
   const { createSchedulesFromInHouseProduction } = useProduction();
   const { user, hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('in_progress');
