@@ -264,18 +264,11 @@ export const InHouseProduction: React.FC = () => {
   const handleInspectionDecision = async (requestId: string, skuId: string, decision: 'pass' | 'fail') => {
     try {
       if (decision === 'pass') {
-        // 验收通过：流转到已验收SKU和生产排单
-        console.log(`✅ SKU ${skuId} 验收通过`);
-        
         // 更新订单状态为已完成
         await updatePurchaseRequest(requestId, {
           status: 'completed',
           updatedAt: new Date()
         });
-        
-        // 自动创建生产排单
-        const schedules = createSchedulesFromInHouseProduction(requestId);
-        console.log(`🔄 自动流转：验收通过，创建了生产排单`);
         
         // 清除该SKU的临时数据
         setUploadedPhotos(prev => {
@@ -289,24 +282,19 @@ export const InHouseProduction: React.FC = () => {
           return newState;
         });
         
-        alert('验收通过！SKU已流转到已验收栏目和生产排单');
+        // 自动创建生产排单
+        createSchedulesFromInHouseProduction(requestId);
         
       } else {
-        // 验收不合格：退回到采购进度的不合格订单
-        console.log(`❌ SKU ${skuId} 验收不合格，退回到采购进度不合格订单`);
-        
         // 更新订单状态为质检不合格
         await updatePurchaseRequest(requestId, {
           status: 'quality_check',
           updatedAt: new Date()
         });
-        
-        alert('验收不合格！SKU已退回到采购进度的不合格订单');
       }
       
     } catch (error) {
       console.error('处理验收决策失败:', error);
-      alert('操作失败，请重试');
     }
   };
 
