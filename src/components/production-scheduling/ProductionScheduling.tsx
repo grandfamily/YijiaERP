@@ -353,81 +353,108 @@ export const ProductionScheduling: React.FC = () => {
     if (selectedItems.length === 0) return;
     
     const selectedSchedules = productionSKUs.filter(sku => selectedItems.includes(sku.id));
-    const exportData: any[] = [];
-    
-    selectedSchedules.forEach(schedule => {
-      // 获取批次生产配置 - 确保每个排单都有唯一的配置
-      const batchConfigForSchedule = batchConfig;
-      
-      if (batchConfigForSchedule && batchConfigForSchedule.productionBinding && batchConfigForSchedule.productionBinding.machines.length > 0) {
-        // 如果有配置，根据机器配置数量生成对应行数
-        batchConfigForSchedule.productionBinding.machines.forEach((binding, index) => {
-          const isFirstRow = index === 0;
-          
-          exportData.push({
-            '排单日期': batchConfigForSchedule.scheduledDate,
-            '订单编号': schedule.orderNumber,
-            'SKU编码': schedule.sku.code,
-            '品名': schedule.sku.name,
-            '采购数量': schedule.purchaseQuantity,
-            '生产数量': schedule.productionQuantity || schedule.purchaseQuantity,
-            '材质': schedule.material,
-            '包装方式': schedule.packagingMethod,
-            '生产绑卡机器': binding.machine,
-            '生产绑卡操作员': binding.operator,
-            // 其他操作员只在第一行显示，其他行为空
-            '包中托操作员': isFirstRow ? (batchConfigForSchedule.packaging.operator || '') : '',
-            '吸塑包装操作员': isFirstRow ? (batchConfigForSchedule.blisterPackaging.operator || '') : '',
-            '打包外箱操作员': isFirstRow ? (batchConfigForSchedule.outerBoxPacking.operator || '') : ''
-          });
-        });
-      } else {
-        // 如果没有配置，生成一行默认数据
+      // 第一部分：SKU基础信息
+      preScheduleData.forEach(schedule => {
         exportData.push({
-          '排单日期': schedule.scheduledDate?.toLocaleDateString('zh-CN') || '',
-          '订单编号': schedule.orderNumber,
+          '排单日期': schedule.scheduledDate.toLocaleDateString('zh-CN').replace(/\//g, '/'),
+          '订单编号': schedule.purchaseRequestNumber || '',
           'SKU编码': schedule.sku.code,
           '品名': schedule.sku.name,
-          '采购数量': schedule.purchaseQuantity,
-          '生产数量': schedule.productionQuantity || schedule.purchaseQuantity,
-          '材质': schedule.material,
-          '包装方式': schedule.packagingMethod,
-          '生产绑卡机器': '',
-          '生产绑卡操作员': '待分配',
-          '包中托操作员': '待分配',
-          '吸塑包装操作员': '待分配',
-          '打包外箱操作员': '待分配'
+          '采购数量': schedule.plannedQuantity,
+          '生产数量': schedule.plannedQuantity,
+          '材质': schedule.packagingMethod || '',
+          '包装方式': schedule.packagingMethod || ''
         });
+      });
+      
+      // 添加空行分隔
+      exportData.push({
+        '排单日期': '',
+        '订单编号': '',
+        'SKU编码': '',
+        '品名': '',
+        '采购数量': '',
+        '生产数量': '',
+        '材质': '',
+        '包装方式': ''
+      });
+      
+      // 第二部分：批次生产配置信息
+      // 添加配置标题行
+      exportData.push({
+        '排单日期': '生产绑卡机器',
+        '订单编号': '生产绑卡操作员', 
+        'SKU编码': '包中托操作员',
+        '品名': '吸塑包装操作员',
+        '采购数量': '打包外箱操作员',
+        '生产数量': '',
+        '材质': '',
+        '包装方式': ''
+      });
+      
+      // 找出最大配置数量
+      let maxConfigs = 0;
+      preScheduleData.forEach(schedule => {
+        const batchConfig = batchConfigs[schedule.id];
+        if (batchConfig && batchConfig.productionBinding) {
+          maxConfigs = Math.max(maxConfigs, batchConfig.productionBinding.length);
+        }
+      });
+      
+      // 如果没有配置，至少显示一行
+      if (maxConfigs === 0) {
+        maxConfigs = 1;
       }
-    });
-
-    const headers = [
-      '排单日期', '订单编号', 'SKU编码', '品名', '采购数量', '生产数量', 
-      '材质', '包装方式', '生产绑卡机器', '生产绑卡操作员', 
-      '包中托操作员', '吸塑包装操作员', '打包外箱操作员'
-    ];
-    
-    const exportRows = exportData.map(row => headers.map(header => row[header] || ''));
-    
-    const csvContent = [
-      headers.join(','),
-      ...exportRows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    const dateStr = batchConfig.scheduledDate ? new Date(batchConfig.scheduledDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-    link.download = `生产排单表_${dateStr}.csv`;
-    link.click();
-  };
-
-  // 处理图片点击
-  const handleImageClick = (imageUrl: string) => {
-    setZoomedImage(imageUrl);
-  };
-
-  // 获取统计数据
+      
+      // 生成配置数据行
+      for (let configIndex = 0; configIndex < maxConfigs; configIndex++) {
+        const configRow: any = {
+          '排单日期': '',
+          '订单编号': '',
+          'SKU编码': '',
+          '品名': '',
+          '采购数量': '',
+          '生产数量': '',
+          '材质': '',
+          '包装方式': ''
+        };
+        
+        // 收集所有SKU在当前配置索引下的机器和操作员信息
+        const machines: string[] = [];
+        const operators: string[] = [];
+        let packingOperator = '';
+        let blisterOperator = '';
+        let boxingOperator = '';
+        
+        preScheduleData.forEach(schedule => {
+          const batchConfig = batchConfigs[schedule.id];
+          if (batchConfig && batchConfig.productionBinding && batchConfig.productionBinding[configIndex]) {
+            const binding = batchConfig.productionBinding[configIndex];
+            machines.push(binding.machine || '');
+            operators.push(binding.operator || '');
+          } else {
+            // 如果没有配置，显示默认值
+            machines.push('待分配');
+            operators.push('待分配');
+          }
+          
+          // 只在第一个配置行显示其他操作员
+          if (configIndex === 0 && batchConfig && batchConfig.otherOperators) {
+            if (!packingOperator) packingOperator = batchConfig.otherOperators.packingOperator || '';
+            if (!blisterOperator) blisterOperator = batchConfig.otherOperators.blisterOperator || '';
+            if (!boxingOperator) boxingOperator = batchConfig.otherOperators.boxingOperator || '';
+          }
+        });
+        
+        // 设置配置行数据
+        configRow['排单日期'] = machines.join('\n');
+        configRow['订单编号'] = operators.join('\n');
+        configRow['SKU编码'] = configIndex === 0 ? packingOperator : '';
+        configRow['品名'] = configIndex === 0 ? blisterOperator : '';
+        configRow['采购数量'] = configIndex === 0 ? boxingOperator : '';
+        
+        exportData.push(configRow);
+      }
   const getTabStats = () => {
     const pending = productionSKUs.filter(item => item.status === 'pending').length;
     const preScheduled = productionSKUs.filter(item => item.status === 'pre_scheduled').length;
@@ -1208,7 +1235,7 @@ interface ProductionConfigModalProps {
   itemId: string;
   onClose: () => void;
   onSave: (config: any) => void;
-}
+      const headers = ['排单日期', '订单编号', 'SKU编码', '品名', '采购数量', '生产数量', '材质', '包装方式'];
 
 const ProductionConfigModal: React.FC<ProductionConfigModalProps> = ({ itemId, onClose, onSave }) => {
   const [bindingGroups, setBindingGroups] = useState<MachineOperatorGroup[]>([
