@@ -1497,7 +1497,7 @@ class ProcurementStore {
         name: '收货确认',
         status: 'not_started',
         order: 7
-      }
+      },
       { id: 'stage-4', name: '到货确认', status: 'not_started', order: 4 },
       { id: 'stage-5', name: '验收确认', status: 'not_started', order: 5 }
     ];
