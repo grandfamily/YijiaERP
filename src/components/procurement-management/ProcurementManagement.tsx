@@ -414,20 +414,6 @@ export const ProcurementManagement: React.FC = () => {
       return allocation?.type === 'in_house' && request.status === 'completed';
     }).length;
     
-    const rejected = allocatedRequests.filter(request => 
-      request.status === 'quality_check'
-    ).length;
-    
-    return { inProgress, externalCompleted, inHouseCompleted, rejected };
-  };
-
-  const tabStats = getTabStats();
-
-  // 处理图片点击
-  const handleImageClick = (imageUrl: string) => {
-    setZoomedImage(imageUrl);
-  };
-
   // 渲染进行中订单
   const renderInProgressOrders = () => (
     <div className="space-y-6">
