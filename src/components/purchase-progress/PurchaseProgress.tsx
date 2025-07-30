@@ -500,16 +500,6 @@ export const PurchaseProgress: React.FC = () => {
             setTimeout(() => setNotificationMessage(null), 3000);
             return;
           }
-          
-          // 如果是"到货确认"完成，自动将"验收确认"设为进行中
-          if (stageName === '到货确认') {
-            const verificationStage = progress.stages.find(s => s.name === '验收确认');
-            if (verificationStage && verificationStage.status === 'not_started') {
-              updates.push(updateProcurementProgressStage(progress.id, '验收确认', {
-                status: 'in_progress'
-              }));
-            }
-          }
         }
       }
       
