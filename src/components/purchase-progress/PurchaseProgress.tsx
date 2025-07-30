@@ -728,7 +728,6 @@ export const PurchaseProgress: React.FC = () => {
                 <th className="text-left py-3 px-4 font-medium text-gray-900 w-40">品名</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-900 w-24">采购数量</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-900 w-32">完成时间</th>
-                <th className="text-center py-3 px-3 font-medium text-gray-900">到货数量</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
