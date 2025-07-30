@@ -46,6 +46,11 @@ const sidebarItems: SidebarItem[] = [
     icon: <FileText className="h-5 w-5" />,
   },
   {
+    id: 'procurement-management',
+    label: '采购管理',
+    icon: <Package className="h-5 w-5" />,
+  },
+  {
     id: 'card-progress',
     label: '纸卡进度',
     icon: <CreditCard className="h-5 w-5" />,

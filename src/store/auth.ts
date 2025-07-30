@@ -169,7 +169,9 @@ class AuthStore {
         'manage_procurement_progress',
         'update_procurement_progress',
         'view_procurement_progress',
-        'complete_receiving_confirmation'  // 新增：收货确认专属权限
+        'complete_receiving_confirmation',  // 新增：收货确认专属权限
+        'manage_procurement_management',    // 新增：采购管理权限
+        'edit_procurement_stages'           // 新增：编辑采购阶段权限
       ],
       department_manager: [
         'view_purchase_requests',
