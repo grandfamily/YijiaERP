@@ -40,6 +40,18 @@ type PurchaseTypeFilter = 'all' | 'external' | 'in_house';
 type DepositPaymentFilter = 'all' | 'no_deposit' | 'deposit_paid' | 'deposit_unpaid';
 type FinalPaymentFilter = 'all' | 'no_final' | 'final_paid' | 'final_unpaid';
 
+// 流程节点配置
+const STAGE_ORDER = [
+  '定金支付', '安排生产', '纸卡提供', '包装生产', 
+  '尾款支付', '安排发货', '验收确认'
+];
+
+// 系统联动节点（不可手动操作）
+const SYSTEM_LINKED_STAGES = ['定金支付', '纸卡提供', '尾款支付', '验收确认'];
+
+// 采购专员可操作节点
+const MANUAL_STAGES = ['安排生产', '包装生产', '安排发货'];
+
 export const PurchaseProgress: React.FC = () => {
   const { 
     getPurchaseRequests, 
