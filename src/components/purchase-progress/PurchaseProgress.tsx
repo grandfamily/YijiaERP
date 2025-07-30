@@ -728,6 +728,7 @@ export const PurchaseProgress: React.FC = () => {
                 <th className="text-left py-3 px-4 font-medium text-gray-900 w-40">品名</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-900 w-24">采购数量</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-900 w-32">完成时间</th>
+                <th className="text-center py-3 px-3 font-medium text-gray-900">到货数量</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -1443,7 +1444,6 @@ export const PurchaseProgress: React.FC = () => {
                                       {/* 催付类按钮 */}
                                       {stage.name === '定金支付' && (
                                         <button
-                                        : stageName === '到货确认' ? 'bg-green-600 text-white border-green-700 hover:bg-green-700'
                                           onClick={() => handlePaymentReminder('deposit', request.id)}
                                           className="px-2 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors flex items-center space-x-1 mx-auto"
                                         >
