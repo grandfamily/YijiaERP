@@ -384,20 +384,6 @@ export const ProcurementManagement: React.FC = () => {
     );
   };
 
-  // 获取节点状态
-  const getStageStatus = (requestId: string, stageName: string) => {
-    // 优先检查本地状态
-    if (stageCompletionStatus[requestId]?.[stageName]) {
-      return 'completed';
-    }
-    
-    const progress = getProcurementProgressByRequest(requestId);
-    if (!progress) return 'not_started';
-    
-    const stage = progress.stages.find(s => s.name === stageName);
-    return stage?.status || 'not_started';
-  };
-
   // 获取统计数据
   const getTabStats = () => {
     const inProgress = allocatedRequests.filter(request => 
@@ -414,6 +400,37 @@ export const ProcurementManagement: React.FC = () => {
       return allocation?.type === 'in_house' && request.status === 'completed';
     }).length;
     
+    const rejected = allocatedRequests.filter(request => 
+      request.status === 'quality_check'
+    ).length;
+
+    return {
+      inProgress,
+      externalCompleted,
+      inHouseCompleted,
+      rejected
+    };
+  };
+
+  const tabStats = getTabStats();
+
+  // 处理图片点击
+  const handleImageClick = (imageUrl: string) => {
+    setZoomedImage(imageUrl);
+  };
+
+  // 检查付款是否已确认
+  const isPaymentConfirmed = (requestId: string, type: 'deposit' | 'final'): boolean => {
+    // 这里需要与财务模块联动，检查付款确认状态
+    return false;
+  };
+
+  // 获取纸卡进度
+  const getCardProgressByRequestId = (requestId: string) => {
+    // 这里需要与纸卡设计模块联动，获取纸卡进度
+    return [];
+  };
+  
   // 渲染进行中订单
   const renderInProgressOrders = () => (
     <div className="space-y-6">
