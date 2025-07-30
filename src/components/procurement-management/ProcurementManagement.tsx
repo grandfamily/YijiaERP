@@ -44,9 +44,24 @@ export const ProcurementManagement: React.FC = () => {
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [stageCompletionStatus, setStageCompletionStatus] = useState<{[key: string]: {[key: string]: boolean}}>({});
+  
+  // 节点状态枚举
+  type StageStatus = 'not_started' | 'in_progress' | 'completed' | 'no_deposit_required';
+  
+  // 流程节点配置
+  const STAGE_ORDER = [
+    '定金支付', '安排生产', '纸卡提供', '包装生产', 
+    '尾款支付', '安排发货', '到货确认', '验收确认'
+  ];
+  
+  // 系统联动节点（不可手动操作）
+  const SYSTEM_LINKED_STAGES = ['定金支付', '纸卡提供', '尾款支付', '验收确认'];
+  
+  // 采购专员可操作节点
+  const MANUAL_STAGES = ['安排生产', '包装生产', '安排发货', '到货确认'];
 
   // 权限检查
-  const isProcurementStaff = user?.role === 'purchasing_officer' || user?.role === 'production_staff';
+  const isProcurementStaff = user?.role === 'purchasing_officer';
   const canEdit = isProcurementStaff;
 
   // 获取已分配的订单（从订单分配流转而来）
@@ -67,9 +82,132 @@ export const ProcurementManagement: React.FC = () => {
   const getProcurementProgressByRequest = (requestId: string) => {
     return procurementProgressData.find(p => p.purchaseRequestId === requestId);
   };
+  
+  // 检查是否需要定金
+  const needsDeposit = (requestId: string): boolean => {
+    const allocation = getOrderAllocation(requestId);
+    if (!allocation) return false;
+    
+    // 账期付款或定金金额为0时不需要定金
+    return allocation.paymentMethod !== 'credit_terms' && (allocation.prepaymentAmount || 0) > 0;
+  };
+  
+  // 获取节点状态
+  const getStageStatus = (requestId: string, stageName: string): StageStatus => {
+    // 特殊处理定金支付节点
+    if (stageName === '定金支付') {
+      if (!needsDeposit(requestId)) {
+        return 'no_deposit_required';
+      }
+      // 检查是否已确认付款
+      const isDepositPaid = isPaymentConfirmed(requestId, 'deposit');
+      return isDepositPaid ? 'completed' : 'in_progress';
+    }
+    
+    // 检查本地状态
+    if (stageCompletionStatus[requestId]?.[stageName]) {
+      return 'completed';
+    }
+    
+    // 检查系统联动状态
+    if (stageName === '纸卡提供') {
+      // 检查纸卡进度是否完成
+      const cardProgress = getCardProgressByRequestId(requestId);
+      if (cardProgress && cardProgress.length > 0) {
+        const allCompleted = cardProgress.every(cp => cp.overallProgress === 100);
+        if (allCompleted) return 'completed';
+      }
+    }
+    
+    if (stageName === '尾款支付') {
+      // 检查尾款是否已确认
+      const isFinalPaid = isPaymentConfirmed(requestId, 'final');
+      return isFinalPaid ? 'completed' : 'not_started';
+    }
+    
+    if (stageName === '验收确认') {
+      // 检查验收是否完成
+      const allocation = getOrderAllocation(requestId);
+      if (allocation?.type === 'external') {
+        // 厂家包装：检查验货入库状态
+        // 这里需要与验货入库模块联动
+        return 'not_started';
+      } else {
+        // 自己包装：检查自己包装验收状态
+        // 这里需要与自己包装模块联动
+        return 'not_started';
+      }
+    }
+    
+    // 检查前置节点状态决定当前节点状态
+    const currentIndex = STAGE_ORDER.indexOf(stageName);
+    if (currentIndex === 0) {
+      // 第一个节点（定金支付）已在上面处理
+      return 'not_started';
+    }
+    
+    // 检查前一个节点是否完成
+    const previousStage = STAGE_ORDER[currentIndex - 1];
+    const previousStatus = getStageStatus(requestId, previousStage);
+    
+    if (previousStatus === 'completed' || previousStatus === 'no_deposit_required') {
+      return 'in_progress';
+    }
+    
+    return 'not_started';
+  };
+  
+  // 获取节点显示文本
+  const getStageDisplayText = (status: StageStatus): string => {
+    switch (status) {
+      case 'completed': return '已完成';
+      case 'in_progress': return '进行中';
+      case 'no_deposit_required': return '无需定金';
+      case 'not_started': return '未开始';
+      default: return '未开始';
+    }
+  };
+  
+  // 获取节点显示颜色
+  const getStageDisplayColor = (status: StageStatus): string => {
+    switch (status) {
+      case 'completed': return 'green';
+      case 'in_progress': return 'yellow';
+      case 'no_deposit_required': return 'blue';
+      case 'not_started': return 'gray';
+      default: return 'gray';
+    }
+  };
+  
+  // 检查节点是否可以操作
+  const canOperateStage = (requestId: string, stageName: string): boolean => {
+    if (!canEdit) return false;
+    if (SYSTEM_LINKED_STAGES.includes(stageName)) return false;
+    
+    const status = getStageStatus(requestId, stageName);
+    return status === 'in_progress';
+  };
+  
+  // 检查批量按钮是否可用
+  const canBatchOperate = (stageName: string): boolean => {
+    if (!canEdit) return false;
+    if (selectedOrders.length === 0) return false;
+    
+    // 检查所有选中订单的该节点是否都可以操作
+    return selectedOrders.every(requestId => {
+      const status = getStageStatus(requestId, stageName);
+      return status === 'in_progress';
+    });
+  };
 
   // 处理节点完成
   const handleStageComplete = async (requestId: string, stageName: string) => {
+    if (!canOperateStage(requestId, stageName)) {
+      setNotificationMessage('该节点当前不可操作');
+      setTimeout(() => setNotificationMessage(null), 3000);
+      return;
+    }
+    
     try {
       const progress = getProcurementProgressByRequest(requestId);
       if (!progress) return;
@@ -87,14 +225,29 @@ export const ProcurementManagement: React.FC = () => {
           [stageName]: true
         }
       }));
+      
+      setNotificationMessage(`${stageName}节点完成成功！`);
+      setTimeout(() => setNotificationMessage(null), 3000);
     } catch (error) {
       console.error('完成节点失败:', error);
+      setNotificationMessage('操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
     }
   };
 
   // 处理批量完成节点
   const handleBatchCompleteStage = async (stageName: string) => {
-    if (selectedOrders.length === 0) return;
+    if (selectedOrders.length === 0) {
+      setNotificationMessage('请先选择要操作的订单');
+      setTimeout(() => setNotificationMessage(null), 3000);
+      return;
+    }
+    
+    if (!canBatchOperate(stageName)) {
+      setNotificationMessage('选中的订单中有些不满足操作条件');
+      setTimeout(() => setNotificationMessage(null), 3000);
+      return;
+    }
 
     try {
       const updates = [];
@@ -122,7 +275,8 @@ export const ProcurementManagement: React.FC = () => {
       setSelectedOrders([]);
       
       // 显示成功通知
-      setNotificationMessage(`${stageName}节点批量完成成功！已完成 ${selectedOrders.length} 个订单的${stageName}节点`);
+      const completedCount = selectedOrders.length;
+      setNotificationMessage(`${stageName}节点批量完成成功！已完成 ${completedCount} 个订单的${stageName}节点`);
       setTimeout(() => setNotificationMessage(null), 3000);
     } catch (error) {
       console.error('批量完成失败:', error);
@@ -495,25 +649,24 @@ export const ProcurementManagement: React.FC = () => {
                           </td>
                           
                           {/* 流程节点 */}
-                          {stages.map((stageName) => {
+                          {STAGE_ORDER.map((stageName) => {
                             const stageStatus = getStageStatus(request.id, stageName);
-                            const isCompleted = stageStatus === 'completed';
-                            const isSystemStage = ['定金支付', '纸卡提供', '尾款支付', '验收确认'].includes(stageName);
+                            const canOperate = canOperateStage(request.id, stageName);
                             
                             return (
                               <td key={stageName} className="py-3 px-3 text-center">
                                 <div className="flex flex-col items-center space-y-2">
                                   <StatusBadge
-                                    status={isCompleted ? '已完成' : '未完成'}
-                                    color={isCompleted ? 'green' : 'gray'}
+                                    status={getStageDisplayText(stageStatus)}
+                                    color={getStageDisplayColor(stageStatus)}
                                     size="sm"
                                   />
-                                  {isCompleted && (
+                                  {stageStatus === 'completed' && (
                                     <div className="text-xs text-gray-500">
                                       {new Date().toLocaleDateString('zh-CN')}
                                     </div>
                                   )}
-                                  {canEdit && !isSystemStage && !isCompleted && (
+                                  {canOperate && (
                                     <button
                                       onClick={() => handleStageComplete(request.id, stageName)}
                                       className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
@@ -537,82 +690,103 @@ export const ProcurementManagement: React.FC = () => {
                         <td className="py-3 px-3 text-sm font-medium text-gray-700" colSpan={5}>
                           批量操作
                         </td>
-                        {/* 定金支付 - 催付按钮 */}
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            onClick={() => handlePaymentReminder('deposit')}
-                            className="px-3 py-1.5 text-xs bg-orange-600 text-white rounded-full hover:bg-orange-700 transition-colors shadow-sm border border-orange-700 font-medium"
-                            title="发送定金催付通知"
-                          >
-                            催付定金
-                          </button>
-                        </td>
-                        {/* 安排生产 - 批量完成 */}
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            onClick={() => handleBatchCompleteStage('安排生产')}
-                            className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors shadow-sm border border-blue-700 font-medium"
-                            title="批量完成所有订单的安排生产节点"
-                          >
-                            批量完成
-                          </button>
-                        </td>
-                        {/* 纸卡提供 - 催要按钮 */}
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            onClick={handleCardDeliveryRequest}
-                            className="px-3 py-1.5 text-xs bg-yellow-600 text-white rounded-full hover:bg-yellow-700 transition-colors shadow-sm border border-yellow-700 font-medium"
-                            title="发送纸卡催要通知"
-                          >
-                            催要纸卡
-                          </button>
-                        </td>
-                        {/* 包装生产 - 批量完成 */}
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            onClick={() => handleBatchCompleteStage('包装生产')}
-                            className="px-3 py-1.5 text-xs bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors shadow-sm border border-purple-700 font-medium"
-                            title="批量完成所有订单的包装生产节点"
-                          >
-                            批量完成
-                          </button>
-                        </td>
-                        {/* 尾款支付 - 催付按钮 */}
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            onClick={() => handlePaymentReminder('final')}
-                            className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors shadow-sm border border-red-700 font-medium"
-                            title="发送尾款催付通知"
-                          >
-                            催付尾款
-                          </button>
-                        </td>
-                        {/* 安排发货 - 批量完成 */}
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            onClick={() => handleBatchCompleteStage('安排发货')}
-                            className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition-colors shadow-sm border border-indigo-700 font-medium"
-                            title="批量完成所有订单的安排发货节点"
-                          >
-                            批量完成
-                          </button>
-                        </td>
-                        {/* 到货确认 - 批量完成 */}
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            onClick={() => handleBatchCompleteStage('到货确认')}
-                            className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-full hover:bg-green-700 transition-colors shadow-sm border border-green-700 font-medium"
-                            title="批量完成所有订单的到货确认节点"
-                          >
-                            批量完成
-                          </button>
-                        </td>
-                        {/* 验收确认 - 系统联动，不显示按钮 */}
-                        <td className="py-3 px-3 text-center">
-                          <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded-full border border-gray-200 font-medium">
-                            系统联动
-                          </span>
-                        </td>
+                        
+                        {/* 动态生成批量操作按钮 */}
+                        {STAGE_ORDER.map((stageName) => {
+                          if (stageName === '定金支付') {
+                            return (
+                              <td key={stageName} className="py-3 px-3 text-center">
+                                <button
+                                  onClick={() => handlePaymentReminder('deposit')}
+                                  disabled={selectedOrders.length === 0}
+                                  className={`px-3 py-1.5 text-xs rounded-full transition-colors shadow-sm border font-medium ${
+                                    selectedOrders.length === 0
+                                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                      : 'bg-orange-600 text-white border-orange-700 hover:bg-orange-700'
+                                  }`}
+                                  title="发送定金催付通知"
+                                >
+                                  催付定金
+                                </button>
+                              </td>
+                            );
+                          }
+                          
+                          if (stageName === '纸卡提供') {
+                            return (
+                              <td key={stageName} className="py-3 px-3 text-center">
+                                <button
+                                  onClick={handleCardDeliveryRequest}
+                                  disabled={selectedOrders.length === 0}
+                                  className={`px-3 py-1.5 text-xs rounded-full transition-colors shadow-sm border font-medium ${
+                                    selectedOrders.length === 0
+                                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                      : 'bg-yellow-600 text-white border-yellow-700 hover:bg-yellow-700'
+                                  }`}
+                                  title="发送纸卡催要通知"
+                                >
+                                  催要纸卡
+                                </button>
+                              </td>
+                            );
+                          }
+                          
+                          if (stageName === '尾款支付') {
+                            return (
+                              <td key={stageName} className="py-3 px-3 text-center">
+                                <button
+                                  onClick={() => handlePaymentReminder('final')}
+                                  disabled={selectedOrders.length === 0}
+                                  className={`px-3 py-1.5 text-xs rounded-full transition-colors shadow-sm border font-medium ${
+                                    selectedOrders.length === 0
+                                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                      : 'bg-red-600 text-white border-red-700 hover:bg-red-700'
+                                  }`}
+                                  title="发送尾款催付通知"
+                                >
+                                  催付尾款
+                                </button>
+                              </td>
+                            );
+                          }
+                          
+                          if (stageName === '验收确认') {
+                            return (
+                              <td key={stageName} className="py-3 px-3 text-center">
+                                <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded-full border border-gray-200 font-medium">
+                                  系统联动
+                                </span>
+                              </td>
+                            );
+                          }
+                          
+                          // 采购专员可操作节点
+                          if (MANUAL_STAGES.includes(stageName)) {
+                            const canOperate = canBatchOperate(stageName);
+                            
+                            return (
+                              <td key={stageName} className="py-3 px-3 text-center">
+                                <button
+                                  onClick={() => handleBatchCompleteStage(stageName)}
+                                  disabled={!canOperate}
+                                  className={`px-3 py-1.5 text-xs rounded-full transition-colors shadow-sm border font-medium ${
+                                    !canOperate
+                                      ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
+                                      : stageName === '安排生产' ? 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
+                                      : stageName === '包装生产' ? 'bg-purple-600 text-white border-purple-700 hover:bg-purple-700'
+                                      : stageName === '安排发货' ? 'bg-indigo-600 text-white border-indigo-700 hover:bg-indigo-700'
+                                      : 'bg-green-600 text-white border-green-700 hover:bg-green-700'
+                                  }`}
+                                  title={canOperate ? `批量完成所有订单的${stageName}节点` : '等待前置节点完成'}
+                                >
+                                  {canOperate ? '批量完成' : '等待前置节点'}
+                                </button>
+                              </td>
+                            );
+                          }
+                          
+                          return null;
+                        })}
                       </tr>
                     </tbody>
                   )}
