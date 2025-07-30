@@ -44,6 +44,7 @@ export const InHouseProduction: React.FC = () => {
     photos: File[];
     arrivalQuantity: number;
     inspectionTime: Date;
+    isPermanentlyCompleted: boolean; // 新增：标记为永久完成状态
   }}>({});
   
   // 获取已分配的自己包装订单
@@ -94,7 +95,14 @@ export const InHouseProduction: React.FC = () => {
 
   // 新的待验收条件：采购进度100% + 辅料进度>80%
   const isReadyForInspection = (requestId: string): boolean => {
-    return isProcurementCompleted(requestId) && isAccessoryProgressAbove80(requestId);
+    // 修复：如果SKU已经验收完成，不应该再显示为待验收
+    const hasCompletedSKUs = Object.keys(completedInspectionData).some(skuId => 
+      skuId.startsWith(requestId) && completedInspectionData[skuId].isPermanentlyCompleted
+    );
+    
+    return isProcurementCompleted(requestId) && 
+           isAccessoryProgressAbove80(requestId) && 
+           !hasCompletedSKUs; // 如果有已完成的SKU，整个订单不再显示为待验收
   };
 
   // 获取纸卡进度百分比
@@ -130,9 +138,14 @@ export const InHouseProduction: React.FC = () => {
         const procurementProgress = getProcurementProgressPercentage(request.id);
         const cardProgress = getCardProgressPercentage(request.id);
         const accessoryProgress = getAccessoryProgressPercentage(request.id);
-        const readyForInspection = isReadyForInspection(request.id);
         const skuId = `${request.id}-${item.id}`;
         const inspectionStatus = skuInspectionStatus[skuId];
+        
+        // 修复：检查SKU是否已永久完成验收
+        const isPermanentlyCompleted = completedInspectionData[skuId]?.isPermanentlyCompleted || false;
+        const readyForInspection = !isPermanentlyCompleted && 
+                                 procurementProgress === 100 && 
+                                 accessoryProgress > 80;
         
         skuData.push({
           id: skuId,
@@ -148,7 +161,8 @@ export const InHouseProduction: React.FC = () => {
           accessoryProgress,
           readyForInspection,
           request,
-          inspectionStatus
+          inspectionStatus,
+          isPermanentlyCompleted
         });
       });
     });
@@ -165,15 +179,25 @@ export const InHouseProduction: React.FC = () => {
     // 根据标签页过滤
     switch (activeTab) {
       case 'in_progress':
-        filtered = allSKUData.filter(skuData => !skuData.readyForInspection || skuData.inspectionStatus === 'failed');
+        // 修复：待完成SKU = 未达到验收条件 OR 验收不合格 AND 未永久完成
+        filtered = allSKUData.filter(skuData => 
+          !skuData.isPermanentlyCompleted && 
+          (!skuData.readyForInspection || skuData.inspectionStatus === 'failed')
+        );
         break;
       case 'pending_inspection':
+        // 修复：待验收SKU = 达到验收条件 AND 未验收 AND 未永久完成
         filtered = allSKUData.filter(skuData => 
-          skuData.readyForInspection && !skuData.inspectionStatus
+          !skuData.isPermanentlyCompleted &&
+          skuData.readyForInspection && 
+          !skuData.inspectionStatus
         );
         break;
       case 'completed_inspection':
-        filtered = allSKUData.filter(skuData => skuData.inspectionStatus === 'passed');
+        // 修复：已验收SKU = 验收通过 OR 永久完成
+        filtered = allSKUData.filter(skuData => 
+          skuData.inspectionStatus === 'passed' || skuData.isPermanentlyCompleted
+        );
         break;
     }
 
@@ -258,11 +282,18 @@ export const InHouseProduction: React.FC = () => {
   // 获取统计数据
   const getTabStats = () => {
     const allSKUData = convertToSKULevelData();
-    const inProgress = allSKUData.filter(s => !s.readyForInspection || s.inspectionStatus === 'failed').length;
-    const pendingInspection = allSKUData.filter(s => 
-      s.readyForInspection && !s.inspectionStatus
+    const inProgress = allSKUData.filter(s => 
+      !s.isPermanentlyCompleted && 
+      (!s.readyForInspection || s.inspectionStatus === 'failed')
     ).length;
-    const completedInspection = allSKUData.filter(s => s.inspectionStatus === 'passed').length;
+    const pendingInspection = allSKUData.filter(s => 
+      !s.isPermanentlyCompleted &&
+      s.readyForInspection && 
+      !s.inspectionStatus
+    ).length;
+    const completedInspection = allSKUData.filter(s => 
+      s.inspectionStatus === 'passed' || s.isPermanentlyCompleted
+    ).length;
     
     return { inProgress, pendingInspection, completedInspection };
   };
@@ -272,16 +303,28 @@ export const InHouseProduction: React.FC = () => {
   // 处理验收决策
   const handleInspectionDecision = async (skuId: string, decision: 'pass' | 'fail') => {
     try {
-      // 保存验收数据到已完成记录中
+      console.log(`🎯 验收决策: SKU ${skuId} - ${decision === 'pass' ? '通过' : '不合格'}`);
+      
       if (decision === 'pass') {
+        // 保存验收数据到已完成记录中，标记为永久完成
         setCompletedInspectionData(prev => ({
           ...prev,
           [skuId]: {
             photos: uploadedPhotos[skuId] || [],
             arrivalQuantity: arrivalQuantities[skuId] || 0,
-            inspectionTime: new Date()
+            inspectionTime: new Date(),
+            isPermanentlyCompleted: true // 关键：标记为永久完成
           }
         }));
+        
+        // 🎯 新增：自动创建生产排单
+        const requestId = skuId.split('-')[0];
+        try {
+          const schedules = createSchedulesFromInHouseProduction(requestId);
+          console.log(`✅ 验收完成：SKU ${skuId} 已自动创建生产排单，共 ${schedules.length} 个排单记录`);
+        } catch (error) {
+          console.error('创建生产排单失败:', error);
+        }
       }
       
       // 更新SKU级别的验收状态
@@ -290,7 +333,7 @@ export const InHouseProduction: React.FC = () => {
         [skuId]: decision === 'pass' ? 'passed' : 'failed'
       }));
       
-      // 只有验收不合格时才清除临时数据
+      // 验收不合格时清除临时数据
       if (decision === 'fail') {
         setUploadedPhotos(prev => {
           const newState = { ...prev };
@@ -302,24 +345,6 @@ export const InHouseProduction: React.FC = () => {
           delete newState[skuId];
           return newState;
         });
-      }
-      
-      // 如果是验收通过，检查是否需要创建生产排单
-      if (decision === 'pass') {
-        // 从skuId中提取requestId
-        const requestId = skuId.split('-')[0];
-        
-        // 检查该订单的所有SKU是否都已验收通过
-        const allSKUData = convertToSKULevelData();
-        const orderSKUs = allSKUData.filter(s => s.requestId === requestId);
-        const allPassed = orderSKUs.every(s => 
-          skuInspectionStatus[s.id] === 'passed' || s.id === skuId
-        );
-        
-        // 如果所有SKU都验收通过，则创建生产排单
-        if (allPassed) {
-          createSchedulesFromInHouseProduction(requestId);
-        }
       }
       
     } catch (error) {
@@ -765,7 +790,96 @@ export const InHouseProduction: React.FC = () => {
                 {/* 验收照片 */}
                 <td className="py-4 px-3 text-center">
                   <div className="flex flex-col items-center space-y-2">
-                    {uploadedPhotos[skuData.id] && uploadedPhotos[skuData.id].length > 0 ? (
+                    {(() => {
+                      // 优先显示已保存的验收照片，回退到临时照片
+                      const savedPhotos = completedInspectionData[skuData.id]?.photos || [];
+                      const tempPhotos = uploadedPhotos[skuData.id] || [];
+                      const photosToShow = savedPhotos.length > 0 ? savedPhotos : tempPhotos;
+                      
+                      if (photosToShow.length > 0) {
+                        return (
+                          <>
+                            <div className="text-xs text-green-600 font-medium">
+                              {photosToShow.length} 张照片
+                            </div>
+                            <div className="flex flex-wrap gap-1 justify-center max-w-32">
+                              {photosToShow.slice(0, 4).map((file, index) => (
+                                <div key={index} className="relative group">
+                                  <img
+                                    src={URL.createObjectURL(file)}
+                                    alt={`验收照片${index + 1}`}
+                                    className="w-8 h-8 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                                    onClick={() => setZoomedImage(URL.createObjectURL(file))}
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
+                                       onClick={() => setZoomedImage(URL.createObjectURL(file))}>
+                                    <ZoomIn className="h-2 w-2 text-white" />
+                                  </div>
+                                </div>
+                              ))}
+                              {photosToShow.length > 4 && (
+                                <div className="w-8 h-8 bg-gray-200 rounded border flex items-center justify-center text-xs text-gray-600">
+                                  +{photosToShow.length - 4}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => {
+                                // 下载所有照片的功能
+                                photosToShow.forEach((file, index) => {
+                                  const link = document.createElement('a');
+                                  link.href = URL.createObjectURL(file);
+                                  link.download = `${skuData.sku.code}_验收照片_${index + 1}.${file.name.split('.').pop()}`;
+                                  link.click();
+                                });
+                              }}
+                              className="px-2 py-1 text-xs text-blue-600 border border-blue-600 rounded hover:bg-blue-50 transition-colors"
+                            >
+                              下载照片
+                            </button>
+                          </>
+                        );
+                      } else {
+                        return <div className="text-xs text-gray-500">无照片</div>;
+                      }
+                    })()}
+                  </div>
+                </td>
+                
+                {/* 验收时间 */}
+                <td className="py-3 px-3 text-center">
+                  <div className="text-sm text-gray-900">
+                    {(() => {
+                      const inspectionTime = completedInspectionData[skuData.id]?.inspectionTime || new Date();
+                      return inspectionTime.toLocaleDateString('zh-CN');
+                    })()}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {(() => {
+                      const inspectionTime = completedInspectionData[skuData.id]?.inspectionTime || new Date();
+                      return inspectionTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                    })()}
+                  </div>
+                </td>
+                
+                {/* 验收状态 */}
+                <td className="py-3 px-3 text-center">
+                  <div className="flex items-center justify-center space-x-1">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <StatusBadge 
+                      status="已验收" 
+                      color="green" 
+                      size="sm" 
+                    />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
                       <>
                         <div className="text-xs text-green-600 font-medium">
                           {uploadedPhotos[skuData.id].length} 张照片
