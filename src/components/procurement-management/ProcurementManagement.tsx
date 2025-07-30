@@ -287,7 +287,11 @@ export const ProcurementManagement: React.FC = () => {
 
   // 处理催付操作
   const handlePaymentReminder = async (type: 'deposit' | 'final') => {
-    if (selectedOrders.length === 0) return;
+    if (selectedOrders.length === 0) {
+      setNotificationMessage('请先选择要催付的订单');
+      setTimeout(() => setNotificationMessage(null), 3000);
+      return;
+    }
 
     try {
       for (const requestId of selectedOrders) {
@@ -306,7 +310,11 @@ export const ProcurementManagement: React.FC = () => {
 
   // 处理催要纸卡
   const handleCardDeliveryRequest = async () => {
-    if (selectedOrders.length === 0) return;
+    if (selectedOrders.length === 0) {
+      setNotificationMessage('请先选择要催要纸卡的订单');
+      setTimeout(() => setNotificationMessage(null), 3000);
+      return;
+    }
 
     try {
       for (const requestId of selectedOrders) {
@@ -701,10 +709,10 @@ export const ProcurementManagement: React.FC = () => {
                               <td key={stageName} className="py-3 px-3 text-center">
                                 <button
                                   onClick={() => handlePaymentReminder('deposit')}
-                                  disabled={selectedOrders.length === 0}
+                                  disabled={false} // 修复：催付按钮始终可点击
                                   className={`px-3 py-1.5 text-xs rounded-full transition-colors shadow-sm border font-medium ${
                                     selectedOrders.length === 0
-                                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                      ? 'bg-orange-600 text-white border-orange-700 hover:bg-orange-700'
                                       : 'bg-orange-600 text-white border-orange-700 hover:bg-orange-700'
                                   }`}
                                   title="发送定金催付通知"
@@ -720,10 +728,10 @@ export const ProcurementManagement: React.FC = () => {
                               <td key={stageName} className="py-3 px-3 text-center">
                                 <button
                                   onClick={handleCardDeliveryRequest}
-                                  disabled={selectedOrders.length === 0}
+                                  disabled={false} // 修复：催要按钮始终可点击
                                   className={`px-3 py-1.5 text-xs rounded-full transition-colors shadow-sm border font-medium ${
                                     selectedOrders.length === 0
-                                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                      ? 'bg-yellow-600 text-white border-yellow-700 hover:bg-yellow-700'
                                       : 'bg-yellow-600 text-white border-yellow-700 hover:bg-yellow-700'
                                   }`}
                                   title="发送纸卡催要通知"
@@ -739,10 +747,10 @@ export const ProcurementManagement: React.FC = () => {
                               <td key={stageName} className="py-3 px-3 text-center">
                                 <button
                                   onClick={() => handlePaymentReminder('final')}
-                                  disabled={selectedOrders.length === 0}
+                                  disabled={false} // 修复：催付按钮始终可点击
                                   className={`px-3 py-1.5 text-xs rounded-full transition-colors shadow-sm border font-medium ${
                                     selectedOrders.length === 0
-                                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                      ? 'bg-red-600 text-white border-red-700 hover:bg-red-700'
                                       : 'bg-red-600 text-white border-red-700 hover:bg-red-700'
                                   }`}
                                   title="发送尾款催付通知"
@@ -765,7 +773,13 @@ export const ProcurementManagement: React.FC = () => {
                           
                           // 采购专员可操作节点
                           if (MANUAL_STAGES.includes(stageName)) {
-                            const canOperate = canBatchOperate(stageName);
+                            // 修复：当有选中订单且节点为进行中时，按钮应该可点击
+                            const hasSelectedOrders = selectedOrders.length > 0;
+                            const hasInProgressStages = selectedOrders.some(requestId => {
+                              const status = getStageStatus(requestId, stageName);
+                              return status === 'in_progress';
+                            });
+                            const canOperate = hasSelectedOrders && hasInProgressStages;
                             
                             return (
                               <td key={stageName} className="py-3 px-3 text-center">
@@ -780,9 +794,9 @@ export const ProcurementManagement: React.FC = () => {
                                       : stageName === '安排发货' ? 'bg-indigo-600 text-white border-indigo-700 hover:bg-indigo-700'
                                       : 'bg-green-600 text-white border-green-700 hover:bg-green-700'
                                   }`}
-                                  title={canOperate ? `批量完成所有订单的${stageName}节点` : '等待前置节点完成'}
+                                  title={canOperate ? `批量完成所有订单的${stageName}节点` : hasSelectedOrders ? '等待前置节点完成' : '请先选择订单'}
                                 >
-                                  {canOperate ? '批量完成' : '等待前置节点'}
+                                  {canOperate ? '批量完成' : hasSelectedOrders ? '等待前置节点' : '批量完成'}
                                 </button>
                               </td>
                             );
