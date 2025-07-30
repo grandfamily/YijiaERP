@@ -40,9 +40,6 @@ type PurchaseTypeFilter = 'all' | 'external' | 'in_house';
 type DepositPaymentFilter = 'all' | 'no_deposit' | 'deposit_paid' | 'deposit_unpaid';
 type FinalPaymentFilter = 'all' | 'no_final' | 'final_paid' | 'final_unpaid';
 
-// 流程节点顺序常量
-const STAGE_ORDER = ['定金支付', '安排生产', '纸卡提供', '包装生产', '尾款支付', '安排发货', '收货确认'];
-
 export const PurchaseProgress: React.FC = () => {
   const { 
     getPurchaseRequests, 
@@ -853,6 +850,24 @@ export const PurchaseProgress: React.FC = () => {
     return skuData;
   };
 
+  // 渲染进行中标签页
+  const renderInProgressTab = () => {
+    return <div>进行中标签页内容</div>;
+  };
+
+  // 渲染已完成标签页
+  const renderCompletedTab = (type: string) => {
+    return <div>已完成标签页内容 - {type}</div>;
+  };
+
+  // 渲染不合格订单标签页
+  const renderFailedOrdersTab = () => {
+    return <div>不合格订单标签页内容</div>;
+  };
+
+  // 定义阶段顺序
+  const STAGE_ORDER = ['定金支付', '安排生产', '纸卡提供', '包装生产', '尾款支付', '安排发货', '收货确认'];
+
   return (
     <>
       <div className="p-6 space-y-6">
@@ -1376,12 +1391,11 @@ export const PurchaseProgress: React.FC = () => {
                         {/* Batch Complete Row */}
                         {canEdit && activeTab === 'in_progress' && (
                           <tr className="bg-gray-50">
-                            <td className="py-3 px-4 text-sm font-medium text-gray-700" colSpan={5}>
+                            <td className="py-3 px-3 text-sm font-medium text-gray-700" colSpan={6}>
                               批量操作
                             </td>
                             {/* 为每个节点创建对应的批量操作按钮 */}
                             {currentProgress.stages.map((stage, stageIndex) => {
-
                               // 检查是否可以操作此节点（前置节点必须已完成）
                               const canOperateStage = () => {
                                 if (stageIndex === 0) return true; // 第一个节点总是可以操作
