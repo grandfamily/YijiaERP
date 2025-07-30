@@ -1506,7 +1506,7 @@ export const PurchaseProgress: React.FC = () => {
                                           onClick={() => handleCompleteStage(request.id, stage.name)}
                                           className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                                         >
-                                          批量完成
+                                          {stage.name === '到货确认' ? '批量到货确认' : '批量完成'}
                                         </button>
                                       )}
                                     </>
