@@ -42,9 +42,11 @@ export const ProcurementManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
+  const [stageCompletionStatus, setStageCompletionStatus] = useState<{[key: string]: {[key: string]: boolean}}>({});
 
   // 权限检查
-  const isProcurementStaff = user?.role === 'purchasing_officer';
+  const isProcurementStaff = user?.role === 'purchasing_officer' || user?.role === 'production_staff';
   const canEdit = isProcurementStaff;
 
   // 获取已分配的订单（从订单分配流转而来）
@@ -76,6 +78,15 @@ export const ProcurementManagement: React.FC = () => {
         status: 'completed',
         completedDate: new Date()
       });
+
+      // 更新本地状态
+      setStageCompletionStatus(prev => ({
+        ...prev,
+        [requestId]: {
+          ...prev[requestId],
+          [stageName]: true
+        }
+      }));
     } catch (error) {
       console.error('完成节点失败:', error);
     }
@@ -97,9 +108,26 @@ export const ProcurementManagement: React.FC = () => {
         }
       }
       await Promise.all(updates);
+
+      // 更新本地状态
+      const newStageStatus = { ...stageCompletionStatus };
+      selectedOrders.forEach(requestId => {
+        if (!newStageStatus[requestId]) {
+          newStageStatus[requestId] = {};
+        }
+        newStageStatus[requestId][stageName] = true;
+      });
+      setStageCompletionStatus(newStageStatus);
+
       setSelectedOrders([]);
+      
+      // 显示成功通知
+      setNotificationMessage(`${stageName}节点批量完成成功！已完成 ${selectedOrders.length} 个订单的${stageName}节点`);
+      setTimeout(() => setNotificationMessage(null), 3000);
     } catch (error) {
       console.error('批量完成失败:', error);
+      setNotificationMessage('批量完成失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
     }
   };
 
@@ -112,9 +140,13 @@ export const ProcurementManagement: React.FC = () => {
         await addPaymentReminder(requestId, type);
       }
       setSelectedOrders([]);
-      alert(`已发送${type === 'deposit' ? '定金' : '尾款'}催付通知`);
+      const paymentTypeName = type === 'deposit' ? '定金' : '尾款';
+      setNotificationMessage(`${paymentTypeName}催付通知已发送，财务人员将收到提醒`);
+      setTimeout(() => setNotificationMessage(null), 3000);
     } catch (error) {
       console.error('催付失败:', error);
+      setNotificationMessage('发送催付通知失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
     }
   };
 
@@ -127,9 +159,12 @@ export const ProcurementManagement: React.FC = () => {
         await requestCardDelivery(requestId);
       }
       setSelectedOrders([]);
-      alert('已发送纸卡催要通知');
+      setNotificationMessage('催要纸卡通知已发送，纸卡设计人员将收到提醒');
+      setTimeout(() => setNotificationMessage(null), 3000);
     } catch (error) {
       console.error('催要纸卡失败:', error);
+      setNotificationMessage('发送催要纸卡通知失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
     }
   };
 
@@ -197,6 +232,11 @@ export const ProcurementManagement: React.FC = () => {
 
   // 获取节点状态
   const getStageStatus = (requestId: string, stageName: string) => {
+    // 优先检查本地状态
+    if (stageCompletionStatus[requestId]?.[stageName]) {
+      return 'completed';
+    }
+    
     const progress = getProcurementProgressByRequest(requestId);
     if (!progress) return 'not_started';
     
@@ -468,6 +508,11 @@ export const ProcurementManagement: React.FC = () => {
                                     color={isCompleted ? 'green' : 'gray'}
                                     size="sm"
                                   />
+                                  {isCompleted && (
+                                    <div className="text-xs text-gray-500">
+                                      {new Date().toLocaleDateString('zh-CN')}
+                                    </div>
+                                  )}
                                   {canEdit && !isSystemStage && !isCompleted && (
                                     <button
                                       onClick={() => handleStageComplete(request.id, stageName)}
@@ -600,6 +645,15 @@ export const ProcurementManagement: React.FC = () => {
                     </span>
                   </div>
                 </div>
+                
+                {/* 催要时间显示 - 右下角 */}
+                {cardReminderTime && (
+                  <div className="mt-2 text-right">
+                    <span className="text-sm text-orange-600 font-medium">
+                      纸卡催要时间: {cardReminderTime.toLocaleDateString('zh-CN')} {cardReminderTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           );
