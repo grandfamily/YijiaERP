@@ -258,6 +258,8 @@ class AuthStore {
         'upload_inspection_images',
         'complete_inspection',
         'view_inspection_history'
+        'manage_procurement_management',    // 新增：采购管理权限
+        'edit_procurement_stages'           // 新增：编辑采购阶段权限
       ]
     };
 
