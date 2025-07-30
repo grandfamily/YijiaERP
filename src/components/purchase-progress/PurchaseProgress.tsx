@@ -1443,6 +1443,7 @@ export const PurchaseProgress: React.FC = () => {
                                       {/* 催付类按钮 */}
                                       {stage.name === '定金支付' && (
                                         <button
+                                        : stageName === '到货确认' ? 'bg-green-600 text-white border-green-700 hover:bg-green-700'
                                           onClick={() => handlePaymentReminder('deposit', request.id)}
                                           className="px-2 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors flex items-center space-x-1 mx-auto"
                                         >
