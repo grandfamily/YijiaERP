@@ -484,6 +484,93 @@ export const ProcurementManagement: React.FC = () => {
                       );
                     })}
                   </tbody>
+                  
+                  {/* 批量操作按钮行 */}
+                  {canEdit && (
+                    <tbody>
+                      <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-t-2 border-gray-200">
+                        <td className="py-3 px-3 text-sm font-medium text-gray-700" colSpan={5}>
+                          批量操作
+                        </td>
+                        {/* 定金支付 - 催付按钮 */}
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            onClick={() => handlePaymentReminder('deposit')}
+                            className="px-3 py-1.5 text-xs bg-orange-600 text-white rounded-full hover:bg-orange-700 transition-colors shadow-sm border border-orange-700 font-medium"
+                            title="发送定金催付通知"
+                          >
+                            催付定金
+                          </button>
+                        </td>
+                        {/* 安排生产 - 批量完成 */}
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            onClick={() => handleBatchCompleteStage('安排生产')}
+                            className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors shadow-sm border border-blue-700 font-medium"
+                            title="批量完成所有订单的安排生产节点"
+                          >
+                            批量完成
+                          </button>
+                        </td>
+                        {/* 纸卡提供 - 催要按钮 */}
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            onClick={handleCardDeliveryRequest}
+                            className="px-3 py-1.5 text-xs bg-yellow-600 text-white rounded-full hover:bg-yellow-700 transition-colors shadow-sm border border-yellow-700 font-medium"
+                            title="发送纸卡催要通知"
+                          >
+                            催要纸卡
+                          </button>
+                        </td>
+                        {/* 包装生产 - 批量完成 */}
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            onClick={() => handleBatchCompleteStage('包装生产')}
+                            className="px-3 py-1.5 text-xs bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors shadow-sm border border-purple-700 font-medium"
+                            title="批量完成所有订单的包装生产节点"
+                          >
+                            批量完成
+                          </button>
+                        </td>
+                        {/* 尾款支付 - 催付按钮 */}
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            onClick={() => handlePaymentReminder('final')}
+                            className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors shadow-sm border border-red-700 font-medium"
+                            title="发送尾款催付通知"
+                          >
+                            催付尾款
+                          </button>
+                        </td>
+                        {/* 安排发货 - 批量完成 */}
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            onClick={() => handleBatchCompleteStage('安排发货')}
+                            className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition-colors shadow-sm border border-indigo-700 font-medium"
+                            title="批量完成所有订单的安排发货节点"
+                          >
+                            批量完成
+                          </button>
+                        </td>
+                        {/* 到货确认 - 批量完成 */}
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            onClick={() => handleBatchCompleteStage('到货确认')}
+                            className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-full hover:bg-green-700 transition-colors shadow-sm border border-green-700 font-medium"
+                            title="批量完成所有订单的到货确认节点"
+                          >
+                            批量完成
+                          </button>
+                        </td>
+                        {/* 验收确认 - 系统联动，不显示按钮 */}
+                        <td className="py-3 px-3 text-center">
+                          <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded-full border border-gray-200 font-medium">
+                            系统联动
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  )}
                 </table>
               </div>
 
