@@ -728,6 +728,7 @@ export const PurchaseProgress: React.FC = () => {
                 <th className="text-left py-3 px-4 font-medium text-gray-900 w-40">品名</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-900 w-24">采购数量</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-900 w-32">完成时间</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-900 w-32">到货数量</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -795,6 +796,35 @@ export const PurchaseProgress: React.FC = () => {
                       </div>
                       <div className="text-xs text-gray-500">
                         {completedDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </td>
+                    
+                    {/* 到货数量（可编辑） */}
+                    <td className="py-4 px-4 text-center">
+                      <div className="flex flex-col items-center space-y-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max={item.quantity}
+                          defaultValue={item.quantity}
+                          className="w-20 text-center border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="数量"
+                          onBlur={(e) => {
+                            const arrivalQuantity = parseInt(e.target.value) || 0;
+                            if (arrivalQuantity !== item.quantity) {
+                              handleArrivalQuantityUpdate(progress.id, item.id, arrivalQuantity);
+                            }
+                          }}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              const arrivalQuantity = parseInt((e.target as HTMLInputElement).value) || 0;
+                              handleArrivalQuantityUpdate(progress.id, item.id, arrivalQuantity);
+                            }
+                          }}
+                        />
+                        <div className="text-xs text-gray-500">
+                          最大: {item.quantity.toLocaleString()}
+                        </div>
                       </div>
                     </td>
                   </tr>
