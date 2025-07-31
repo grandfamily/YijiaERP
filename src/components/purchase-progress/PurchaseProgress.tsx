@@ -1504,7 +1504,9 @@ export const PurchaseProgress: React.FC = () => {
                           const skuProgressPercentage = skuCompleted ? 100 : progressPercentage;
                           
                           // 检查SKU是否应该显示在当前栏目
-                               {/* 验收确认节点批量操作：不显示任何状态文本 */}
+                          const shouldShowInCurrentTab = activeTab === 'external_completed' ? skuCompleted : !skuCompleted;
+                          
+                          // 如果SKU不应该在当前栏目显示，则跳过
                           if (!shouldShowInCurrentTab) {
                             return null;
                           }
