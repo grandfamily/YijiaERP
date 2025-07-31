@@ -92,15 +92,6 @@ export const ProcurementManagement: React.FC = () => {
     return allocation.paymentMethod !== 'credit_terms' && (allocation.prepaymentAmount || 0) > 0;
   };
   
-  // 检查是否需要定金
-  const needsDeposit = (requestId: string): boolean => {
-    const allocation = getOrderAllocation(requestId);
-    if (!allocation) return false;
-    
-    // 账期付款或定金金额为0时不需要定金
-    return allocation.paymentMethod !== 'credit_terms' && (allocation.prepaymentAmount || 0) > 0;
-  };
-  
   // 获取节点状态
   const getStageStatus = (requestId: string, stageName: string): StageStatus => {
     // 特殊处理定金支付节点
@@ -157,6 +148,14 @@ export const ProcurementManagement: React.FC = () => {
     
     // 检查前一个节点是否完成
     const previousStage = STAGE_ORDER[currentIndex - 1];
+    const previousStatus = getStageStatus(requestId, previousStage);
+    if (previousStatus === 'completed' || previousStatus === 'no_deposit_required') {
+      return 'in_progress';
+    }
+    
+    return 'not_started';
+  };
+  
   // 获取节点显示文本
   const getStageDisplayText = (status: StageStatus): string => {
     switch (status) {
