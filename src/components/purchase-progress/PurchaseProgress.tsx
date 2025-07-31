@@ -74,6 +74,24 @@ export const PurchaseProgress: React.FC = () => {
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [arrivalQuantities, setArrivalQuantities] = useState<{[key: string]: number}>({});
+  // Helper function to determine if an order should be shown in current tab
+  const shouldShowInCurrentTab = (request: any) => {
+    switch (activeTab) {
+      case 'in_progress':
+        return ['allocated', 'in_production', 'quality_check', 'ready_to_ship', 'shipped'].includes(request.status);
+      case 'external_completed':
+        const allocation = getOrderAllocation(request.id);
+        return allocation?.type === 'external' && request.status === 'completed';
+      case 'in_house_completed':
+        const allocationInHouse = getOrderAllocation(request.id);
+        return allocationInHouse?.type === 'in_house' && request.status === 'completed';
+      case 'rejected':
+        return request.status === 'quality_check';
+      default:
+        return false;
+    }
+  };
+
 
   // 筛选状态
   const [filters, setFilters] = useState({
