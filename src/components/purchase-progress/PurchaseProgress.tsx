@@ -40,6 +40,18 @@ type PurchaseTypeFilter = 'all' | 'external' | 'in_house';
 type DepositPaymentFilter = 'all' | 'no_deposit' | 'deposit_paid' | 'deposit_unpaid';
 type FinalPaymentFilter = 'all' | 'no_final' | 'final_paid' | 'final_unpaid';
 
+// 流程节点配置
+const STAGE_ORDER = [
+  '定金支付', '安排生产', '纸卡提供', '包装生产', 
+  '尾款支付', '安排发货', '收货确认', '验收确认'
+];
+
+// 系统联动节点（不可手动操作）
+const SYSTEM_LINKED_STAGES = ['定金支付', '纸卡提供', '尾款支付', '验收确认'];
+
+// 采购专员可操作节点
+const MANUAL_STAGES = ['安排生产', '包装生产', '安排发货', '收货确认'];
+
 export const PurchaseProgress: React.FC = () => {
   const { 
     getPurchaseRequests, 
@@ -157,6 +169,73 @@ export const PurchaseProgress: React.FC = () => {
     return user?.role === 'purchasing_officer' || 
            user?.role === 'department_manager' || 
            user?.role === 'general_manager';
+  };
+
+  // 获取节点状态
+  const getStageStatus = (requestId: string, stageName: string): StageStatus => {
+    // 特殊处理定金支付节点
+    if (stageName === '定金支付') {
+      if (!needsDeposit(requestId)) {
+        return 'no_deposit_required';
+      }
+      // 检查是否已确认付款
+      const isDepositPaid = isPaymentConfirmed(requestId, 'deposit');
+      return isDepositPaid ? 'completed' : 'in_progress';
+    }
+    
+    // 🎯 新增：验收确认节点特殊处理
+    if (stageName === '验收确认') {
+      // 检查本地完成状态
+      if (stageCompletionStatus[requestId]?.[stageName]) {
+        return 'completed';
+      }
+      
+      // 检查前置节点"收货确认"是否完成
+      const goodsReceiptCompleted = stageCompletionStatus[requestId]?.['收货确认'];
+      if (goodsReceiptCompleted) {
+        return 'in_progress';
+      }
+      
+      return 'not_started';
+    }
+    
+    // 检查本地状态
+    if (stageCompletionStatus[requestId]?.[stageName]) {
+      return 'completed';
+    }
+    
+    // 检查系统联动状态
+    if (stageName === '纸卡提供') {
+      // 检查纸卡进度是否完成
+      const cardProgress = getCardProgressByRequestId(requestId);
+      if (cardProgress && cardProgress.length > 0) {
+        const allCompleted = cardProgress.every(cp => cp.overallProgress === 100);
+        if (allCompleted) return 'completed';
+      }
+    }
+    
+    if (stageName === '尾款支付') {
+      // 检查尾款是否已确认
+      const isFinalPaid = isPaymentConfirmed(requestId, 'final');
+      return isFinalPaid ? 'completed' : 'not_started';
+    }
+    
+    // 检查前置节点状态决定当前节点状态
+    const currentIndex = STAGE_ORDER.indexOf(stageName);
+    if (currentIndex === 0) {
+      // 第一个节点（定金支付）已在上面处理
+      return 'not_started';
+    }
+    
+    // 检查前一个节点是否完成
+    const previousStage = STAGE_ORDER[currentIndex - 1];
+    const previousStatus = getStageStatus(requestId, previousStage);
+    
+    if (previousStatus === 'completed' || previousStatus === 'no_deposit_required') {
+      return 'in_progress';
+    }
+    
+    return 'not_started';
   };
 
   // 检查定金支付状态
@@ -477,6 +556,56 @@ export const PurchaseProgress: React.FC = () => {
     setZoomedImage(imageUrl);
   };
 
+  // 处理节点完成
+  const handleStageComplete = async (requestId: string, stageName: string) => {
+    if (!canOperateStage(requestId, stageName)) {
+      setNotificationMessage('该节点当前不可操作');
+      setTimeout(() => setNotificationMessage(null), 3000);
+      return;
+    }
+    
+    try {
+      const progress = getProcurementProgressByRequest(requestId);
+      if (!progress) return;
+
+      await updateProcurementProgressStage(progress.id, stageName, {
+        status: 'completed',
+        completedDate: new Date()
+      });
+
+      // 更新本地状态
+      setStageCompletionStatus(prev => ({
+        ...prev,
+        [requestId]: {
+          ...prev[requestId],
+          [stageName]: true
+        }
+      }));
+      
+      // 🎯 新增：收货确认完成后，自动将验收确认设为进行中
+      if (stageName === '收货确认') {
+        // 自动设置验收确认为进行中状态
+        setTimeout(() => {
+          setNotificationMessage('收货确认完成！验收确认节点已自动进入"进行中"状态');
+          setTimeout(() => setNotificationMessage(null), 3000);
+        }, 500);
+      }
+      
+      // 🎯 新增：验收确认完成提示
+      if (stageName === '验收确认') {
+        setNotificationMessage('验收确认完成！该SKU的采购流程已全部完成');
+        setTimeout(() => setNotificationMessage(null), 3000);
+      }
+      
+      setNotificationMessage(`${stageName}节点完成成功！`);
+      setTimeout(() => setNotificationMessage(null), 3000);
+    } catch (error) {
+      console.error('完成节点失败:', error);
+      setNotificationMessage('操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
+
   // 处理阶段完成
   const handleCompleteStage = async (requestId: string, stageName: string) => {
     try {
@@ -530,6 +659,77 @@ export const PurchaseProgress: React.FC = () => {
       console.error('完成阶段失败:', error);
       alert('操作失败，请重试');
       setNotificationMessage('操作失败，请重试');
+      setTimeout(() => setNotificationMessage(null), 3000);
+    }
+  };
+
+  // 处理批量完成节点
+  const handleBatchCompleteStage = async (stageName: string) => {
+    if (selectedOrders.length === 0) {
+      setNotificationMessage('请先选择要操作的订单');
+      setTimeout(() => setNotificationMessage(null), 3000);
+      return;
+    }
+    
+    if (!canBatchOperate(stageName)) {
+      setNotificationMessage('选中的订单中有些不满足操作条件');
+      setTimeout(() => setNotificationMessage(null), 3000);
+      return;
+    }
+
+    try {
+      const updates = [];
+      for (const requestId of selectedOrders) {
+        const progress = getProcurementProgressByRequest(requestId);
+        if (progress) {
+          updates.push(updateProcurementProgressStage(progress.id, stageName, {
+            status: 'completed',
+            completedDate: new Date()
+          }));
+        }
+      }
+      await Promise.all(updates);
+
+      // 更新本地状态
+      const newStageStatus = { ...stageCompletionStatus };
+      selectedOrders.forEach(requestId => {
+        if (!newStageStatus[requestId]) {
+          newStageStatus[requestId] = {};
+        }
+        newStageStatus[requestId][stageName] = true;
+      });
+      setStageCompletionStatus(newStageStatus);
+
+      // 🎯 新增：收货确认批量完成后的自动流转逻辑
+      if (stageName === '收货确认') {
+        // 批量设置验收确认为进行中状态
+        setTimeout(() => {
+          const completedCount = selectedOrders.length;
+          setNotificationMessage(`收货确认批量完成成功！已有 ${completedCount} 个订单的验收确认节点进入"进行中"状态`);
+          setTimeout(() => setNotificationMessage(null), 3000);
+        }, 500);
+      }
+      
+      // 🎯 新增：验收确认批量完成提示
+      if (stageName === '验收确认') {
+        const completedCount = selectedOrders.length;
+        setNotificationMessage(`验收确认批量完成成功！已有 ${completedCount} 个订单的采购流程全部完成`);
+        setTimeout(() => setNotificationMessage(null), 3000);
+        
+        // 清空选择，因为订单已完成
+        setSelectedOrders([]);
+        return;
+      }
+
+      setSelectedOrders([]);
+      
+      // 显示成功通知
+      const completedCount = selectedOrders.length;
+      setNotificationMessage(`${stageName}节点批量完成成功！已完成 ${completedCount} 个订单的${stageName}节点`);
+      setTimeout(() => setNotificationMessage(null), 3000);
+    } catch (error) {
+      console.error('批量完成失败:', error);
+      setNotificationMessage('批量完成失败，请重试');
       setTimeout(() => setNotificationMessage(null), 3000);
     }
   };
