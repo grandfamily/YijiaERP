@@ -93,28 +93,6 @@ export const PurchaseProgress: React.FC = () => {
     { field: 'updatedAt', direction: 'desc' }
   );
   // 获取已分配的订单（从订单分配流转而来）
-  const { data: allocatedRequests } = getPurchaseRequests(
-    { status: ['allocated', 'in_production', 'quality_check', 'ready_to_ship', 'shipped', 'completed'] },
-    { field: 'updatedAt', direction: 'desc' }
-  );
-
-  const orderAllocations = getOrderAllocations();
-  const procurementProgressData = getProcurementProgress();
-
-  // 获取订单的分配信息
-  const getOrderAllocation = (requestId: string) => {
-    return orderAllocations.find(a => a.purchaseRequestId === requestId);
-  };
-
-  // 检查是否需要定金
-  const needsDeposit = (requestId: string): boolean => {
-    const allocation = getOrderAllocation(requestId);
-    if (!allocation) return false;
-    
-    // 账期付款或定金金额为0时不需要定金
-    return allocation.paymentMethod !== 'credit_terms' && (allocation.prepaymentAmount || 0) > 0;
-  };
-
   // 获取所有订单分配信息
   const orderAllocations = getOrderAllocations();
 
