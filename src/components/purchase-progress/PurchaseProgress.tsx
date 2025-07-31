@@ -1271,6 +1271,7 @@ export const PurchaseProgress: React.FC = () => {
                           <th className="text-center py-3 px-4 font-medium text-gray-900">尾款支付</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">安排发货</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">收货确认</th>
+                          <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">验收确认</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -1518,6 +1519,24 @@ export const PurchaseProgress: React.FC = () => {
                                 </td>
                               );
                             })}
+                          
+                          {/* 验收确认批量操作按钮 */}
+                          <td className="py-3 px-3 text-center">
+                            <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded-full border border-gray-200 font-medium">
+                              系统联动
+                            </span>
+                          </td>
+                          
+                          {/* 验收确认节点 - 单独处理确保显示 */}
+                          <td className="py-3 px-3 text-center">
+                            <div className="flex flex-col items-center space-y-2">
+                              <StatusBadge
+                                status="未开始"
+                                color="gray"
+                                size="sm"
+                              />
+                            </div>
+                          </td>
                           </tr>
                         )}
                       </tbody>
