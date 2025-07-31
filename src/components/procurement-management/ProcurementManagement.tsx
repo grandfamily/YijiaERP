@@ -93,10 +93,10 @@ export const ProcurementManagement: React.FC = () => {
   };
   
   // 获取节点状态
-  const getStageStatus = (requestId: string, stageName: string): StageStatus => {
+  const getStageStatus = (requestId: string, stageName: string, needsDepositFn: (id: string) => boolean): StageStatus => {
     // 特殊处理定金支付节点
     if (stageName === '定金支付') {
-      if (!needsDeposit(requestId)) {
+      if (!needsDepositFn(requestId)) {
         return 'no_deposit_required';
       }
       // 检查是否已确认付款
@@ -148,7 +148,7 @@ export const ProcurementManagement: React.FC = () => {
     
     // 检查前一个节点是否完成
     const previousStage = STAGE_ORDER[currentIndex - 1];
-    const previousStatus = getStageStatus(requestId, previousStage);
+    const previousStatus = getStageStatus(requestId, previousStage, needsDepositFn);
     if (previousStatus === 'completed' || previousStatus === 'no_deposit_required') {
       return 'in_progress';
     }
@@ -183,7 +183,7 @@ export const ProcurementManagement: React.FC = () => {
     if (!canEdit) return false;
     if (SYSTEM_LINKED_STAGES.includes(stageName)) return false;
     
-    const status = getStageStatus(requestId, stageName);
+    const status = getStageStatus(requestId, stageName, needsDeposit);
     return status === 'in_progress';
   };
   
@@ -194,7 +194,7 @@ export const ProcurementManagement: React.FC = () => {
     
     // 检查所有选中订单的该节点是否都可以操作
     return selectedOrders.every(requestId => {
-      const status = getStageStatus(requestId, stageName);
+      const status = getStageStatus(requestId, stageName, needsDeposit);
       return status === 'in_progress';
     });
   };
@@ -660,7 +660,7 @@ export const ProcurementManagement: React.FC = () => {
                           
                           {/* 流程节点 */}
                           {STAGE_ORDER.map((stageName) => {
-                            const stageStatus = getStageStatus(request.id, stageName);
+                            const stageStatus = getStageStatus(request.id, stageName, needsDeposit);
                             const canOperate = canOperateStage(request.id, stageName);
                             
                             return (
@@ -775,7 +775,7 @@ export const ProcurementManagement: React.FC = () => {
                             // 修复：当有选中订单且节点为进行中时，按钮应该可点击
                             const hasSelectedOrders = selectedOrders.length > 0;
                             const hasInProgressStages = selectedOrders.some(requestId => {
-                              const status = getStageStatus(requestId, stageName);
+                              const status = getStageStatus(requestId, stageName, needsDeposit);
                               return status === 'in_progress';
                             });
                             const canOperate = hasSelectedOrders && hasInProgressStages;
