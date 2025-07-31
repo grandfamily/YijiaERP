@@ -149,6 +149,7 @@ export const ProcurementManagement: React.FC = () => {
     // 检查前一个节点是否完成
     const previousStage = STAGE_ORDER[currentIndex - 1];
     const previousStatus = getStageStatus(requestId, previousStage);
+    
     if (previousStatus === 'completed' || previousStatus === 'no_deposit_required') {
       return 'in_progress';
     }
