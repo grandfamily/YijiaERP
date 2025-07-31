@@ -220,6 +220,20 @@ export const PurchaseProgress: React.FC = () => {
       return isFinalPaid ? 'completed' : 'not_started';
     }
     
+    if (stageName === '验收确认') {
+      // 检查验收是否完成
+      const allocation = getOrderAllocation(requestId);
+      if (allocation?.type === 'external') {
+        // 厂家包装：检查验货入库状态
+        // 这里需要与验货入库模块联动
+        return 'not_started';
+      } else {
+        // 自己包装：检查自己包装验收状态
+        // 这里需要与自己包装模块联动
+        return 'not_started';
+      }
+    }
+    
     // 检查前置节点状态决定当前节点状态
     const currentIndex = STAGE_ORDER.indexOf(stageName);
     if (currentIndex === 0) {
@@ -232,6 +246,11 @@ export const PurchaseProgress: React.FC = () => {
     const previousStatus = getStageStatus(requestId, previousStage);
     
     if (previousStatus === 'completed' || previousStatus === 'no_deposit_required') {
+      // 特殊处理：验收确认需要等待收货确认完成
+      if (stageName === '验收确认') {
+        const goodsReceiptStatus = stageCompletionStatus[requestId]?.['收货确认'];
+        return goodsReceiptStatus ? 'in_progress' : 'not_started';
+      }
       return 'in_progress';
     }
     
