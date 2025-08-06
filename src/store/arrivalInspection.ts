@@ -457,7 +457,7 @@ class ArrivalInspectionStore {
   // 🎯 获取生产排单Store的引用方法
   getProductionStore() {
     try {
-      // 动态导入生产排单Store
+      return import("./production").then((module) => module.productionStore);
       return import('../production').then(module => module.productionStore);
     } catch (error) {
       console.error('获取生产排单Store失败:', error);
