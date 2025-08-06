@@ -18,6 +18,7 @@ export type UserRole =
   | 'logistics_staff'      // 物流专员
   | 'finance_personnel'     // 财务人员
   | 'accessory_staff'      // 辅料人员
+  | 'qc_officer'          // 质检专员
   | 'production_staff';    // 生产人员
 
 export interface SKU {
@@ -428,4 +429,43 @@ export interface PaginationOptions {
   page: number;
   pageSize: number;
   total: number;
+}
+
+// 到货检验相关类型
+export interface ArrivalInspection {
+  id: string;
+  purchaseRequestId: string;
+  skuId: string;
+  sku: SKU;
+  purchaseRequestNumber: string;
+  purchaseQuantity: number;
+  arrivalQuantity?: number;
+  isArrived: boolean;              // 是否到货
+  arrivalDate?: Date;              // 到货日期
+  inspectionStatus: ArrivalInspectionStatus;
+  inspectionDate?: Date;
+  inspectorId?: string;
+  inspector?: User;
+  inspectionPhotos: InspectionPhoto[];
+  inspectionNotes?: string;
+  qualityResult?: 'passed' | 'failed';
+  productType: 'semi_finished' | 'finished'; // 半成品 | 成品
+  procurementProgress: number;     // 采购进度
+  cardProgress: number;            // 纸卡进度
+  accessoryProgress: number;       // 辅料进度
+  remarks?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type ArrivalInspectionStatus = 
+  | 'pending'           // 待验收
+  | 'completed';        // 已验收
+
+export interface InspectionPhoto {
+  id: string;
+  file: File;
+  preview: string;
+  description?: string;
+  uploadDate: Date;
 }

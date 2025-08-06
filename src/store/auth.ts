@@ -66,6 +66,15 @@ const mockUsers: User[] = [
    createdAt: new Date('2024-01-01')
   },
   {
+    id: '10',
+    name: '刘十二',
+    email: 'liu.shier@company.com',
+    role: 'qc_officer',
+    department: '质检部',
+    isActive: true,
+    createdAt: new Date('2024-01-01')
+  },
+  {
     id: '8',
     name: '吴十',
     email: 'wu.shi@company.com',
@@ -216,7 +225,11 @@ class AuthStore {
         'reject_items',
         'view_receiving',
         'view_card_progress',
-        'view_order_allocation'
+        'view_order_allocation',
+        'manage_arrival_inspection',
+        'edit_arrival_inspection',
+        'view_arrival_inspection',
+        'complete_arrival_inspection'
       ],
       logistics_staff: [
         'view_shipments',
@@ -279,7 +292,8 @@ export const getRoleDisplayName = (role: UserRole): string => {
     warehouse_staff: '仓管人员',
     logistics_staff: '物流专员',
     accessory_staff: '辅料人员',
-    finance_personnel: '财务人员',
+    finance_personnel: '财务人员', 
+    qc_officer: '质检专员',
     production_staff: '生产人员'
   };
   return roleNames[role];

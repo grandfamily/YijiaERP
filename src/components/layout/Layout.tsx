@@ -17,6 +17,7 @@ import { Inventory } from '../inventory/Inventory';
 import { FinanceManagement } from '../finance/FinanceManagement';
 import { ProductionScheduling } from '../production-scheduling/ProductionScheduling';
 import { ShippingOutbound } from '../shipping-outbound/ShippingOutbound';
+import { ArrivalInspection } from '../arrival-inspection/ArrivalInspection';
 
 export const Layout: React.FC = () => {
   const [activeItem, setActiveItem] = useState('dashboard');
@@ -33,6 +34,8 @@ export const Layout: React.FC = () => {
         return <OrderAllocation />;
       case 'in-house-production':
         return <InHouseProduction />;
+      case 'arrival-inspection':
+        return <ArrivalInspection />;
       case 'production-scheduling':
         return <ProductionScheduling />;
       case 'purchase-progress':

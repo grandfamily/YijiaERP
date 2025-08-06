@@ -61,6 +61,11 @@ const sidebarItems: SidebarItem[] = [
     icon: <Factory className="h-5 w-5" />,
   },
   {
+    id: 'arrival-inspection',
+    label: '到货检验',
+    icon: <QrCode className="h-5 w-5" />,
+  },
+  {
     id: 'production-scheduling',
     label: '生产排单',
     icon: <Calendar className="h-5 w-5" />
