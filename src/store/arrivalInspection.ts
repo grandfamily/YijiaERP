@@ -359,14 +359,63 @@ class ArrivalInspectionStore {
       if (inspection.productType === 'semi_finished') {
         // 半成品验收通过 → 自动同步至生产排单的待排单
         console.log(`🔄 自动流转：半成品SKU ${inspection.sku.code} 验收通过，已同步至生产排单`);
-        // 这里可以调用生产排单的创建方法
+        // 调用生产排单的创建方法
+        this.createProductionScheduleFromInspection(inspection);
       } else if (inspection.productType === 'finished') {
         // 成品验收通过 → 自动同步至统计入库的待验收
         console.log(`🔄 自动流转：成品SKU ${inspection.sku.code} 验收通过，已同步至统计入库`);
-        // 这里可以调用统计入库的创建方法
+        // 调用统计入库的创建方法
+        this.createQualityControlFromInspection(inspection);
       }
     } catch (error) {
       console.error('自动流转处理失败:', error);
+    }
+  }
+
+  // 🎯 创建生产排单记录
+  private createProductionScheduleFromInspection(inspection: ArrivalInspection) {
+    try {
+      // 导入生产排单Store
+      import('../production').then(({ productionStore }) => {
+        // 检查是否已存在该SKU的生产排单
+        const existingSchedules = productionStore.getProductionSchedules().filter(
+          s => s.purchaseRequestId === inspection.purchaseRequestId && s.skuId === inspection.skuId
+        );
+
+        if (existingSchedules.length === 0) {
+          // 创建新的生产排单
+          const newSchedule = productionStore.createProductionSchedule({
+            skuId: inspection.skuId,
+            sku: inspection.sku,
+            purchaseRequestId: inspection.purchaseRequestId,
+            purchaseRequestNumber: inspection.purchaseRequestNumber,
+            scheduledDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 默认排期一周后
+            plannedQuantity: inspection.arrivalQuantity || inspection.purchaseQuantity,
+            packagingMethod: '标准包装', // 默认包装方式
+            machine: '包装机A', // 默认机器
+            status: 'pending'
+          });
+          
+          console.log(`✅ 自动创建生产排单：SKU ${inspection.sku.code}，排单ID ${newSchedule.id}`);
+        } else {
+          console.log(`⚠️ SKU ${inspection.sku.code} 已存在生产排单，跳过创建`);
+        }
+      }).catch(error => {
+        console.error('导入生产排单Store失败:', error);
+      });
+    } catch (error) {
+      console.error('创建生产排单失败:', error);
+    }
+  }
+
+  // 🎯 创建统计入库记录
+  private createQualityControlFromInspection(inspection: ArrivalInspection) {
+    try {
+      console.log(`🔄 成品验收通过，准备同步至统计入库：SKU ${inspection.sku.code}`);
+      // 这里可以添加统计入库的创建逻辑
+      // 由于统计入库使用的是模拟数据，暂时只记录日志
+    } catch (error) {
+      console.error('创建统计入库记录失败:', error);
     }
   }
 
@@ -403,6 +452,17 @@ class ArrivalInspectionStore {
     console.log(`✅ 已更新 ${updatedInspections.length} 个SKU的到货状态为"已到货"`);
     
     return updatedInspections;
+  }
+
+  // 🎯 获取生产排单Store的引用方法
+  getProductionStore() {
+    try {
+      // 动态导入生产排单Store
+      return import('../production').then(module => module.productionStore);
+    } catch (error) {
+      console.error('获取生产排单Store失败:', error);
+      return null;
+    }
   }
 }
 
