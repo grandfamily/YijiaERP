@@ -140,6 +140,38 @@ type TabType = 'pending' | 'completed';
 export const QualityControl: React.FC = () => {
   const { user, hasPermission } = useAuth();
   const [qualityControlData, setQualityControlData] = useState(mockQualityControlData);
+  
+  // 🎯 监听从到货检验流转过来的数据
+  React.useEffect(() => {
+    const handleAddQualityControlRecord = (event: CustomEvent) => {
+      const newRecord = event.detail;
+      console.log(`🔄 统计入库：接收到从到货检验流转的记录`, newRecord);
+      
+      setQualityControlData(prev => {
+        // 检查是否已存在相同的记录
+        const exists = prev.some(item => 
+          item.purchaseRequestNumber === newRecord.purchaseRequestNumber && 
+          item.skuId === newRecord.skuId
+        );
+        
+        if (!exists) {
+          console.log(`✅ 统计入库：新增记录 SKU ${newRecord.sku.code}`);
+          return [...prev, newRecord];
+        } else {
+          console.log(`⚠️ 统计入库：记录已存在，跳过添加 SKU ${newRecord.sku.code}`);
+          return prev;
+        }
+      });
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('addQualityControlRecord', handleAddQualityControlRecord as EventListener);
+      return () => {
+        window.removeEventListener('addQualityControlRecord', handleAddQualityControlRecord as EventListener);
+      };
+    }
+  }, []);
+  
   const [activeTab, setActiveTab] = useState<TabType>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
