@@ -358,12 +358,12 @@ class ArrivalInspectionStore {
     try {
       if (inspection.productType === 'semi_finished') {
         // 半成品验收通过 → 自动同步至生产排单的待排单
-        console.log(`🔄 自动流转：半成品SKU ${inspection.sku.code} 验收通过，已同步至生产排单`);
+        console.log(`自动流转：半成品SKU ${inspection.sku.code} 验收通过，已同步至生产排单`);
         // 调用生产排单的创建方法
         this.createProductionScheduleFromInspection(inspection);
       } else if (inspection.productType === 'finished') {
         // 成品验收通过 → 自动同步至统计入库的待验收
-        console.log(`🔄 自动流转：成品SKU ${inspection.sku.code} 验收通过，已同步至统计入库`);
+        console.log(`自动流转：成品SKU ${inspection.sku.code} 验收通过，已同步至统计入库`);
         // 调用统计入库的创建方法
         this.createQualityControlFromInspection(inspection);
       }
@@ -375,7 +375,7 @@ class ArrivalInspectionStore {
   // 🎯 创建生产排单记录
   private createProductionScheduleFromInspection(inspection: ArrivalInspection) {
     try {
-      console.log(`🔄 开始创建生产排单：SKU ${inspection.sku.code}`);
+      console.log(`开始创建生产排单：SKU ${inspection.sku.code}`);
       
       // 使用异步导入避免循环依赖
       import('./production').then(({ productionStore }) => {
@@ -396,10 +396,10 @@ class ArrivalInspectionStore {
             status: 'pending'
           });
           
-          console.log(`✅ 半成品验收通过 → 生产排单创建成功`);
-          console.log(`📋 新排单ID: ${newSchedule.id}, SKU: ${inspection.sku.code}`);
+          console.log(`半成品验收通过 -> 生产排单创建成功`);
+          console.log(`新排单ID: ${newSchedule.id}, SKU: ${inspection.sku.code}`);
         } else {
-          console.log(`⚠️ SKU ${inspection.sku.code} 已存在生产排单，跳过创建`);
+          console.log(`SKU ${inspection.sku.code} 已存在生产排单，跳过创建`);
         }
       }).catch(error => {
         console.error('导入生产排单Store失败:', error);
@@ -412,7 +412,7 @@ class ArrivalInspectionStore {
   // 🎯 创建统计入库记录
   private createQualityControlFromInspection(inspection: ArrivalInspection) {
     try {
-      console.log(`🔄 开始创建统计入库记录：SKU ${inspection.sku.code}`);
+      console.log(`开始创建统计入库记录：SKU ${inspection.sku.code}`);
       
       // 创建统计入库记录，直接添加到质检模块的数据中
       // 由于质检模块使用独立的模拟数据，我们需要通过全局方式添加
@@ -452,8 +452,8 @@ class ArrivalInspectionStore {
         window.dispatchEvent(event);
       }
       
-      console.log(`✅ 成品验收通过 → 统计入库创建成功`);
-      console.log(`📋 新记录ID: ${qualityControlRecord.id}, SKU: ${inspection.sku.code}`);
+      console.log(`成品验收通过 -> 统计入库创建成功`);
+      console.log(`新记录ID: ${qualityControlRecord.id}, SKU: ${inspection.sku.code}`);
       
     } catch (error) {
       console.error('创建统计入库记录失败:', error);
