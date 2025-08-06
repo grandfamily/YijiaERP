@@ -66,8 +66,8 @@ const sidebarItems: SidebarItem[] = [
     icon: <Calendar className="h-5 w-5" />
   },
   {
-    id: 'quality-control', 
-    label: '验货入库',
+    id: 'quality-control',
+    label: '统计入库',
     icon: <QrCode className="h-5 w-5" />,
   },
   {
