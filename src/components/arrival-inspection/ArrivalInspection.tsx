@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useArrivalInspection } from '../../hooks/useArrivalInspection';
 import { useAuth } from '../../hooks/useAuth';
-import { ArrivalInspection, InspectionPhoto } from '../../types';
+import { ArrivalInspection as ArrivalInspectionType, InspectionPhoto } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
 import { ProgressBar } from '../ui/ProgressBar';
 
@@ -40,7 +40,7 @@ export const ArrivalInspection: React.FC = () => {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [sortByArrival, setSortByArrival] = useState<'asc' | 'desc' | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const [editingInspection, setEditingInspection] = useState<ArrivalInspection | null>(null);
+  const [editingInspection, setEditingInspection] = useState<ArrivalInspectionType | null>(null);
   const [uploadedPhotos, setUploadedPhotos] = useState<{[key: string]: InspectionPhoto[]}>({});
   const [arrivalQuantities, setArrivalQuantities] = useState<{[key: string]: number}>({});
   const [inspectionNotes, setInspectionNotes] = useState<{[key: string]: string}>({});
