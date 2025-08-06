@@ -166,6 +166,87 @@ export const ArrivalInspection: React.FC = () => {
         return;
       }
       
+      // 🎯 验收通过后的自动流转逻辑
+      if (qualityResult === 'passed' && inspection) {
+        if (inspection.productType === 'semi_finished') {
+          // 半成品验收通过 → 自动流转到生产排单
+          console.log(`🔄 半成品验收通过：SKU ${inspection.sku.code} 开始流转到生产排单`);
+          
+          // 动态导入生产排单Store并创建排单
+          try {
+            const { productionStore } = await import('../../store/production');
+            
+            // 检查是否已存在排单
+            const existingSchedules = productionStore.getProductionSchedules().filter(
+              s => s.purchaseRequestId === inspection.purchaseRequestId && s.skuId === inspection.skuId
+            );
+            
+            if (existingSchedules.length === 0) {
+              const newSchedule = productionStore.createProductionSchedule({
+                skuId: inspection.skuId,
+                sku: inspection.sku,
+                purchaseRequestId: inspection.purchaseRequestId,
+                purchaseRequestNumber: inspection.purchaseRequestNumber,
+                scheduledDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 默认一周后
+                plannedQuantity: arrivalQuantity,
+                packagingMethod: '标准包装',
+                machine: '包装机A',
+                status: 'pending'
+              });
+              
+              console.log(`✅ 半成品验收通过 → 生产排单创建成功，排单ID: ${newSchedule.id}`);
+              alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到生产排单的待排单栏目`);
+            } else {
+              console.log(`⚠️ SKU ${inspection.sku.code} 已存在生产排单，跳过创建`);
+            }
+          } catch (error) {
+            console.error('创建生产排单失败:', error);
+            alert('验收完成，但自动创建生产排单失败，请手动处理');
+          }
+        } else if (inspection.productType === 'finished') {
+          // 成品验收通过 → 自动流转到统计入库
+          console.log(`🔄 成品验收通过：SKU ${inspection.sku.code} 开始流转到统计入库`);
+          
+          // 创建统计入库记录
+          const qualityControlRecord = {
+            id: `qc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            purchaseRequestNumber: inspection.purchaseRequestNumber,
+            skuId: inspection.skuId,
+            sku: inspection.sku,
+            expectedQuantity: inspection.purchaseQuantity,
+            receivedQuantity: arrivalQuantity,
+            inspectionStatus: 'pending',
+            inspectionDate: null,
+            inspectorId: null,
+            inspector: null,
+            packageCount: 0,
+            totalPieces: 0,
+            piecesPerUnit: 0,
+            boxLength: 0,
+            boxWidth: 0,
+            boxHeight: 0,
+            unitWeight: 0,
+            totalQuantity: null,
+            boxVolume: null,
+            totalVolume: null,
+            totalWeight: null,
+            remarks: `从到货检验自动流转 - 验收人员: ${user.name}`,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+
+          // 通过自定义事件通知统计入库模块
+          if (typeof window !== 'undefined') {
+            const event = new CustomEvent('addQualityControlRecord', {
+              detail: qualityControlRecord
+            });
+            window.dispatchEvent(event);
+            
+            console.log(`✅ 成品验收通过 → 统计入库记录创建成功，记录ID: ${qualityControlRecord.id}`);
+            alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到统计入库的待验收栏目`);
+          }
+        }
+      }
 
       await completeInspection(
         inspectionId,
