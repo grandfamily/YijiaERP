@@ -109,6 +109,8 @@ class ArrivalInspectionStore {
   private listeners: Array<() => void> = [];
 
   constructor() {
+    // 立即执行一次数据同步
+    this.syncFromProcurementProgress();
     this.initializeAutoFlowListeners();
   }
 
@@ -125,25 +127,33 @@ class ArrivalInspectionStore {
 
   // 🎯 自动流转监听器
   private initializeAutoFlowListeners() {
-    // 监听采购进度变化，自动同步到货检验数据
-    procurementStore.subscribe(() => {
-      this.syncFromProcurementProgress();
-    });
+    // 监听采购订单变化，自动同步到货检验数据
+    try {
+      procurementStore.subscribe(() => {
+        this.syncFromProcurementProgress();
+      });
+    } catch (error) {
+      console.error('初始化自动流转监听器失败:', error);
+    }
   }
 
   // 🎯 从采购进度同步数据
   private syncFromProcurementProgress() {
     try {
-      // 获取进行中的自己包装和厂家包装订单
-      const inProgressRequests = procurementStore.getPurchaseRequests(
-        { status: ['allocated', 'in_production', 'quality_check', 'ready_to_ship', 'shipped'] }
-      ).data;
+      // 获取已分配的订单（从订单分配流转而来）
+      const { data: inProgressRequests } = procurementStore.getPurchaseRequests(
+        { status: ['allocated', 'in_production', 'quality_check', 'ready_to_ship', 'shipped'] },
+        { field: 'updatedAt', direction: 'desc' }
+      );
 
       const orderAllocations = procurementStore.getOrderAllocations();
 
       inProgressRequests.forEach(request => {
         const allocation = orderAllocations.find(a => a.purchaseRequestId === request.id);
-        if (!allocation) return;
+        if (!allocation) {
+          console.log(`订单 ${request.requestNumber} 没有找到分配信息，跳过`);
+          return;
+        }
 
         request.items.forEach(item => {
           // 检查是否已存在检验记录
@@ -152,6 +162,7 @@ class ArrivalInspectionStore {
           );
 
           if (!existingInspection) {
+            console.log(`创建新的到货检验记录: 订单 ${request.requestNumber}, SKU ${item.sku.code}, 类型 ${allocation.type}`);
             // 创建新的检验记录
             const productType = allocation.type === 'external' ? 'finished' : 'semi_finished';
             
@@ -174,10 +185,23 @@ class ArrivalInspectionStore {
             };
 
             this.arrivalInspections.push(newInspection);
+          } else {
+            // 更新现有记录的进度信息
+            const index = this.arrivalInspections.findIndex(ai => ai.id === existingInspection.id);
+            if (index !== -1) {
+              this.arrivalInspections[index] = {
+                ...this.arrivalInspections[index],
+                procurementProgress: this.getProcurementProgress(request.id),
+                cardProgress: this.getCardProgress(request.id),
+                accessoryProgress: this.getAccessoryProgress(request.id),
+                updatedAt: new Date()
+              };
+            }
           }
         });
       });
 
+      console.log(`到货检验数据同步完成，当前记录数: ${this.arrivalInspections.length}`);
       this.notify();
     } catch (error) {
       console.error('同步采购进度数据失败:', error);

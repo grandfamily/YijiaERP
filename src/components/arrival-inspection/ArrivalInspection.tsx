@@ -51,11 +51,26 @@ export const ArrivalInspection: React.FC = () => {
 
   // 获取当前标签页的数据
   const getCurrentTabData = () => {
-    const [productType, status] = activeTab.split('_') as ['semi' | 'finished', 'finished' | 'pending' | 'completed'];
-    const actualProductType = productType === 'semi' ? 'semi_finished' : 'finished';
-    const actualStatus = status === 'pending' ? 'pending' : 'completed';
+    let actualProductType: 'semi_finished' | 'finished';
+    let actualStatus: 'pending' | 'completed';
     
-    return getArrivalInspectionsByType(actualProductType, actualStatus);
+    if (activeTab === 'semi_finished_pending') {
+      actualProductType = 'semi_finished';
+      actualStatus = 'pending';
+    } else if (activeTab === 'semi_finished_completed') {
+      actualProductType = 'semi_finished';
+      actualStatus = 'completed';
+    } else if (activeTab === 'finished_pending') {
+      actualProductType = 'finished';
+      actualStatus = 'pending';
+    } else { // finished_completed
+      actualProductType = 'finished';
+      actualStatus = 'completed';
+    }
+    
+    const data = getArrivalInspectionsByType(actualProductType, actualStatus);
+    console.log(`获取${actualProductType === 'semi_finished' ? '半成品' : '成品'}${actualStatus === 'pending' ? '待验收' : '已验收'}数据:`, data.length, '条记录');
+    return data;
   };
 
   // 过滤和排序数据
@@ -207,6 +222,13 @@ export const ArrivalInspection: React.FC = () => {
 
   // 获取统计数据
   const stats = getInspectionStats();
+  
+  // 调试信息
+  React.useEffect(() => {
+    console.log('到货检验统计数据:', stats);
+    console.log('当前标签页:', activeTab);
+    console.log('当前数据:', getCurrentTabData());
+  }, [activeTab, stats]);
 
   // 渲染待验收栏目
   const renderPendingInspection = () => (
