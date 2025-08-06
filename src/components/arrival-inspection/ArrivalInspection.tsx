@@ -157,7 +157,8 @@ export const ArrivalInspection: React.FC = () => {
     
     try {
       const photos = uploadedPhotos[inspectionId] || [];
-      const arrivalQuantity = arrivalQuantities[inspectionId] || 0;
+      const inspection = filteredData.find(item => item.id === inspectionId);
+      const arrivalQuantity = arrivalQuantities[inspectionId] || inspection?.arrivalQuantity || inspection?.purchaseQuantity || 0;
       const notes = inspectionNotes[inspectionId] || '';
       
       if (photos.length === 0) {
@@ -165,10 +166,6 @@ export const ArrivalInspection: React.FC = () => {
         return;
       }
       
-      if (arrivalQuantity <= 0) {
-        alert('请填写到货数量');
-        return;
-      }
 
       await completeInspection(
         inspectionId,
