@@ -10,7 +10,6 @@ import { InHouseProduction } from '../in-house-production/InHouseProduction';
 import { CardProgress } from '../card-progress/CardProgress';
 import { AccessoryProgress } from '../accessory-progress/AccessoryProgress';
 import { AccessoryStaffProgress } from '../accessory-progress/AccessoryStaffProgress';
-import { PurchaseProgress } from '../purchase-progress/PurchaseProgress';
 import { QualityControl } from '../quality-control/QualityControl';
 import { Shipping } from '../shipping/Shipping';
 import { Inventory } from '../inventory/Inventory';
@@ -32,8 +31,6 @@ export const Layout: React.FC = () => {
         return <Approvals />;
       case 'order-allocation':
         return <OrderAllocation />;
-      case 'in-house-production':
-        return <InHouseProduction />;
       case 'arrival-inspection':
         return <ArrivalInspection />;
       case 'production-scheduling':
