@@ -376,7 +376,7 @@ class ArrivalInspectionStore {
   private createProductionScheduleFromInspection(inspection: ArrivalInspection) {
     try {
       // 导入生产排单Store
-      import('../production').then(({ productionStore }) => {
+      import('./production').then(({ productionStore }) => {
         // 检查是否已存在该SKU的生产排单
         const existingSchedules = productionStore.getProductionSchedules().filter(
           s => s.purchaseRequestId === inspection.purchaseRequestId && s.skuId === inspection.skuId
