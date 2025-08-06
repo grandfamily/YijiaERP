@@ -341,7 +341,7 @@ export const QualityControl: React.FC = () => {
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">验货入库</h1>
+            <h1 className="text-2xl font-bold text-gray-900">统计入库</h1>
             <p className="text-gray-600">管理货物验收和入库检验，以SKU为单位进行详细数据记录</p>
           </div>
           <div className="flex items-center space-x-4">
