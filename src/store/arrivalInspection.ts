@@ -458,7 +458,6 @@ class ArrivalInspectionStore {
   getProductionStore() {
     try {
       return import("./production").then((module) => module.productionStore);
-      return import('../production').then(module => module.productionStore);
     } catch (error) {
       console.error('获取生产排单Store失败:', error);
       return null;
