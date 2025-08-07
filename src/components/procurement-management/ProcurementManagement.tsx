@@ -1093,7 +1093,7 @@ export const ProcurementManagement: React.FC = () => {
         </table>
       </div>
     </div>
-
+    );
   };
 
   return (
