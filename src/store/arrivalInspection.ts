@@ -377,41 +377,33 @@ class ArrivalInspectionStore {
     try {
       console.log(`📋 开始创建生产排单：SKU ${inspection.sku.code}`);
       
-      // 直接导入生产排单Store
-      import('./production').then(({ productionStore }) => {
-        const existingSchedules = productionStore.getProductionSchedules().filter(
-          s => s.purchaseRequestId === inspection.purchaseRequestId && s.skuId === inspection.skuId
-        );
-
-        if (existingSchedules.length === 0) {
-          const newSchedule = productionStore.createProductionSchedule({
-            skuId: inspection.skuId,
-            sku: inspection.sku,
-            purchaseRequestId: inspection.purchaseRequestId,
-            purchaseRequestNumber: inspection.purchaseRequestNumber,
-            scheduledDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            plannedQuantity: inspection.arrivalQuantity || inspection.purchaseQuantity,
-            packagingMethod: '标准包装',
-            machine: '包装机A',
-            status: 'pending'
-          });
-          
-          console.log(`✅ 半成品验收通过 -> 生产排单创建成功`);
-          console.log(`📋 新排单ID: ${newSchedule.id}, SKU: ${inspection.sku.code}, 状态: pending(待排单)`);
-          
-          // 触发全局事件通知生产排单模块更新
-          if (typeof window !== 'undefined') {
-            const event = new CustomEvent('productionScheduleCreated', {
-              detail: { schedule: newSchedule, source: 'arrival_inspection' }
-            });
-            window.dispatchEvent(event);
-          }
-        } else {
-          console.log(`⚠️ SKU ${inspection.sku.code} 已存在生产排单，跳过创建`);
-        }
-      }).catch(error => {
-        console.error('导入生产排单Store失败:', error);
-      });
+      // 创建生产排单记录数据
+      const newSchedule = {
+        id: `ps-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        skuId: inspection.skuId,
+        sku: inspection.sku,
+        purchaseRequestId: inspection.purchaseRequestId,
+        purchaseRequestNumber: inspection.purchaseRequestNumber,
+        scheduledDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        plannedQuantity: inspection.arrivalQuantity || inspection.purchaseQuantity,
+        packagingMethod: '标准包装',
+        machine: '包装机A',
+        status: 'pending' as const,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      console.log(`✅ 半成品验收通过 -> 生产排单记录准备完成`);
+      console.log(`📋 新排单: ID=${newSchedule.id}, SKU=${inspection.sku.code}, 状态=pending(待排单)`);
+      
+      // 触发全局事件通知生产排单模块更新
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('productionScheduleCreated', {
+          detail: { schedule: newSchedule, source: 'arrival_inspection' }
+        });
+        window.dispatchEvent(event);
+        console.log(`🔔 已发送生产排单创建事件`);
+      }
     } catch (error) {
       console.error('创建生产排单失败:', error);
     }

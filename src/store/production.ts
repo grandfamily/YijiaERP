@@ -176,6 +176,7 @@ class ProductionStore {
           );
           
           if (!exists) {
+            // 直接添加到Store中
             this.productionSchedules.push(schedule);
             this.notify();
             console.log(`✅ 生产排单：新增待排单记录 SKU ${schedule.sku.code}`);

@@ -136,6 +136,56 @@ export const ProductionScheduling: React.FC = () => {
   const [productionSKUs, setProductionSKUs] = useState<ProductionSKU[]>(mockProductionSKUs);
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [productionSchedules, setProductionSchedules] = useState<ProductionSchedule[]>([]);
+
+  // 🎯 监听从到货检验流转过来的生产排单
+  React.useEffect(() => {
+    const handleProductionScheduleCreated = (event: CustomEvent) => {
+      const { schedule, source } = event.detail;
+      
+      if (source === 'arrival_inspection') {
+        console.log(`📋 生产排单：接收到从到货检验流转的排单记录 SKU ${schedule.sku.code}`);
+        
+        setProductionSchedules(prev => {
+          // 检查是否已存在相同的记录
+          const exists = prev.some(s => 
+            s.purchaseRequestId === schedule.purchaseRequestId && 
+            s.skuId === schedule.skuId
+          );
+          
+          if (!exists) {
+            console.log(`✅ 生产排单：新增待排单记录 SKU ${schedule.sku.code}`);
+            return [...prev, schedule];
+          } else {
+            console.log(`⚠️ 生产排单：记录已存在，跳过添加 SKU ${schedule.sku.code}`);
+            return prev;
+          }
+        });
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('productionScheduleCreated', handleProductionScheduleCreated as EventListener);
+      return () => {
+        window.removeEventListener('productionScheduleCreated', handleProductionScheduleCreated as EventListener);
+      };
+    }
+  }, []);
+
+  // 合并Store数据和流转数据
+  const getAllSchedules = () => {
+    const storeSchedules = getProductionSchedules();
+    const allSchedules = [...storeSchedules, ...productionSchedules];
+    
+    // 去重：基于purchaseRequestId和skuId
+    const uniqueSchedules = allSchedules.filter((schedule, index, self) => 
+      index === self.findIndex(s => 
+        s.purchaseRequestId === schedule.purchaseRequestId && s.skuId === schedule.skuId
+      )
+    );
+    
+    return uniqueSchedules;
+  };
   const [batchConfig, setBatchConfig] = useState({
     scheduledDate: new Date().toISOString().split('T')[0],
     productionBinding: {
@@ -158,6 +208,8 @@ export const ProductionScheduling: React.FC = () => {
   // 根据标签页过滤数据
   const getFilteredData = () => {
     return productionSKUs.filter(item => {
+    const allSchedules = getAllSchedules();
+    
       const matchesTab = item.status === activeTab;
       const matchesSearch = !searchTerm || 
         item.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -401,15 +453,15 @@ export const ProductionScheduling: React.FC = () => {
     const csvContent = '\uFEFF' + [
       // SKU信息部分
       skuHeaders.join(','),
-      ...skuData.map(row => skuHeaders.map(header => `"${row[header]}"`).join(',')),
+        return allSchedules.filter(s => s.status === 'pending');
       '', // 空行分隔
-      '', // 空行分隔
+        return allSchedules.filter(s => s.status === 'scheduled');
       // 批次生产配置部分
-      configHeaders.join(','),
+        return allSchedules.filter(s => s.status === 'in_production');
       ...configData.map(row => configHeaders.map(header => `"${row[header]}"`).join(','))
-    ].join('\n');
+        return allSchedules.filter(s => s.status === 'completed');
 
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        return allSchedules.filter(s => s.status === 'pending');
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     const dateStr = batchConfig.scheduledDate ? new Date(batchConfig.scheduledDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
@@ -424,7 +476,12 @@ export const ProductionScheduling: React.FC = () => {
 
   // 获取统计数据
   const getTabStats = () => {
-    const pending = productionSKUs.filter(item => item.status === 'pending').length;
+    const allSchedules = getAllSchedules();
+    const pending = allSchedules.filter(s => s.status === 'pending').length;
+    const scheduled = allSchedules.filter(s => s.status === 'scheduled').length;
+    const inProduction = allSchedules.filter(s => s.status === 'in_production').length;
+    const completed = allSchedules.filter(s => s.status === 'completed').length;
+    
     const preScheduled = productionSKUs.filter(item => item.status === 'pre_scheduled').length;
     const inProduction = productionSKUs.filter(item => item.status === 'in_production').length;
     const completed = productionSKUs.filter(item => item.status === 'completed').length;
@@ -1231,10 +1288,10 @@ const ProductionConfigModal: React.FC<ProductionConfigModalProps> = ({ itemId, o
 
   const handleSave = () => {
     const config = {
-      bindingGroups,
-      trayOperator,
-      blisterOperator,
-      packingOperator
+      pending,
+      scheduled,
+      inProduction,
+      completed
     };
     onSave(config);
   };
