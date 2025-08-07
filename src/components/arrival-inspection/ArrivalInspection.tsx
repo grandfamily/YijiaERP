@@ -176,95 +176,83 @@ export const ArrivalInspection: React.FC = () => {
         notes
       );
 
-      // 🎯 验收通过后的自动流转逻辑
+      // 🎯 验收通过后立即执行流转逻辑
       if (qualityResult === 'passed' && inspection) {
+        console.log(`🎯 开始执行流转逻辑: SKU ${inspection.sku.code}, 产品类型: ${inspection.productType}`);
+        
         if (inspection.productType === 'semi_finished') {
-          // 半成品验收通过 → 直接创建生产排单记录
+          // 半成品验收通过 → 生产排单
           console.log(`🔄 半成品验收通过：SKU ${inspection.sku.code} 开始创建生产排单记录`);
           
-          try {
-            // 直接导入生产排单Store
-            const productionModule = await import('../../store/production');
-            const productionStore = productionModule.productionStore;
-            
-            // 检查是否已存在排单
-            const existingSchedules = productionStore.getProductionSchedules().filter(
-              s => s.purchaseRequestId === inspection.purchaseRequestId && s.skuId === inspection.skuId
-            );
-            
-            if (existingSchedules.length === 0) {
-              // 创建新的生产排单记录
-              const newSchedule = productionStore.createProductionSchedule({
-                skuId: inspection.skuId,
-                sku: inspection.sku,
-                purchaseRequestId: inspection.purchaseRequestId,
-                purchaseRequestNumber: inspection.purchaseRequestNumber,
-                scheduledDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 默认一周后
-                plannedQuantity: arrivalQuantity,
-                packagingMethod: '标准包装',
-                machine: '包装机A',
-                status: 'pending'
-              });
-              
-              console.log(`✅ 半成品验收通过 -> 生产排单创建成功`);
-              console.log(`📋 新排单记录: ID=${newSchedule.id}, SKU=${inspection.sku.code}, 状态=pending(待排单)`);
-              alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到生产排单的待排单子栏目`);
-            } else {
-              console.log(`⚠️ SKU ${inspection.sku.code} 已存在生产排单记录，跳过创建`);
-              alert(`验收完成！SKU ${inspection.sku.code} 的生产排单记录已存在`);
-            }
-          } catch (error) {
-            console.error('创建生产排单失败:', error);
-            alert(`验收完成，但自动流转到生产排单失败，请联系管理员`);
+          // 创建生产排单记录
+          const productionScheduleData = {
+            id: `ps-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            skuId: inspection.skuId,
+            sku: inspection.sku,
+            purchaseRequestId: inspection.purchaseRequestId,
+            purchaseRequestNumber: inspection.purchaseRequestNumber,
+            scheduledDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            plannedQuantity: arrivalQuantity,
+            packagingMethod: '标准包装',
+            machine: '包装机A',
+            status: 'pending',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+          
+          // 通过事件通知生产排单模块
+          if (typeof window !== 'undefined') {
+            const event = new CustomEvent('addProductionSchedule', {
+              detail: productionScheduleData
+            });
+            window.dispatchEvent(event);
+            console.log(`🔔 已发送生产排单创建事件: SKU ${inspection.sku.code}`);
           }
+          
+          alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到生产排单的待排单子栏目`);
+          
         } else if (inspection.productType === 'finished') {
-          // 成品验收通过 → 直接创建统计入库记录
+          // 成品验收通过 → 统计入库
           console.log(`🔄 成品验收通过：SKU ${inspection.sku.code} 开始创建统计入库记录`);
           
-          try {
-            // 创建统计入库记录
-            const qualityControlRecord = {
-              id: `qc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              purchaseRequestNumber: inspection.purchaseRequestNumber,
-              skuId: inspection.skuId,
-              sku: inspection.sku,
-              expectedQuantity: inspection.purchaseQuantity,
-              receivedQuantity: arrivalQuantity,
-              inspectionStatus: 'pending',
-              inspectionDate: null,
-              inspectorId: null,
-              inspector: null,
-              packageCount: 0,
-              totalPieces: 0,
-              piecesPerUnit: 0,
-              boxLength: 0,
-              boxWidth: 0,
-              boxHeight: 0,
-              unitWeight: 0,
-              totalQuantity: null,
-              boxVolume: null,
-              totalVolume: null,
-              totalWeight: null,
-              remarks: `从到货检验自动流转 - 验收人员: ${user?.name || '未知'}`,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            };
+          // 创建统计入库记录
+          const qualityControlRecord = {
+            id: `qc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            purchaseRequestNumber: inspection.purchaseRequestNumber,
+            skuId: inspection.skuId,
+            sku: inspection.sku,
+            expectedQuantity: inspection.purchaseQuantity,
+            receivedQuantity: arrivalQuantity,
+            inspectionStatus: 'pending',
+            inspectionDate: null,
+            inspectorId: null,
+            inspector: null,
+            packageCount: 0,
+            totalPieces: 0,
+            piecesPerUnit: 0,
+            boxLength: 0,
+            boxWidth: 0,
+            boxHeight: 0,
+            unitWeight: 0,
+            totalQuantity: null,
+            boxVolume: null,
+            totalVolume: null,
+            totalWeight: null,
+            remarks: `从到货检验自动流转 - 验收人员: ${user?.name || '未知'}`,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
 
-            // 通过自定义事件通知统计入库模块
-            if (typeof window !== 'undefined') {
-              const event = new CustomEvent('addQualityControlRecord', {
-                detail: qualityControlRecord
-              });
-              window.dispatchEvent(event);
-              
-              console.log(`✅ 成品验收通过 -> 统计入库记录创建成功`);
-              console.log(`📦 新记录: ID=${qualityControlRecord.id}, SKU=${inspection.sku.code}, 状态=pending(待验收)`);
-              alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到统计入库的待验收子栏目`);
-            }
-          } catch (error) {
-            console.error('创建统计入库记录失败:', error);
-            alert(`验收完成，但自动流转到统计入库失败，请联系管理员`);
+          // 通过事件通知统计入库模块
+          if (typeof window !== 'undefined') {
+            const event = new CustomEvent('addQualityControlRecord', {
+              detail: qualityControlRecord
+            });
+            window.dispatchEvent(event);
+            console.log(`🔔 已发送统计入库创建事件: SKU ${inspection.sku.code}`);
           }
+          
+          alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到统计入库的待验收子栏目`);
         }
       }
 
