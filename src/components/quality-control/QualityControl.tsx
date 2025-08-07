@@ -145,7 +145,7 @@ export const QualityControl: React.FC = () => {
   React.useEffect(() => {
     const handleAddQualityControlRecord = (event: CustomEvent) => {
       const newRecord = event.detail;
-      console.log(`🔄 统计入库：接收到从到货检验流转的记录`, newRecord);
+      console.log(`📦 统计入库：接收到从到货检验流转的记录 SKU ${newRecord.sku.code}`);
       
       setQualityControlData(prev => {
         // 检查是否已存在相同的记录
@@ -155,7 +155,7 @@ export const QualityControl: React.FC = () => {
         );
         
         if (!exists) {
-          console.log(`✅ 统计入库：新增记录 SKU ${newRecord.sku.code}`);
+          console.log(`✅ 统计入库：新增待验收记录 SKU ${newRecord.sku.code}`);
           return [...prev, newRecord];
         } else {
           console.log(`⚠️ 统计入库：记录已存在，跳过添加 SKU ${newRecord.sku.code}`);
@@ -171,6 +171,53 @@ export const QualityControl: React.FC = () => {
       };
     }
   }, []);
+  
+  // 🎯 监听统计入库验收完成，自动流转到发货出柜
+  React.useEffect(() => {
+    const handleQualityControlCompleted = () => {
+      // 获取已验收完成的SKU
+      const completedItems = qualityControlData.filter(item => item.inspectionStatus === 'completed');
+      
+      completedItems.forEach(item => {
+        // 创建发货出柜记录
+        const shippingRecord = {
+          id: `ship-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          purchaseRequestNumber: item.purchaseRequestNumber,
+          skuId: item.skuId,
+          sku: item.sku,
+          packageCount: item.packageCount,
+          totalPieces: item.totalPieces,
+          piecesPerUnit: item.piecesPerUnit,
+          boxLength: item.boxLength,
+          boxWidth: item.boxWidth,
+          boxHeight: item.boxHeight,
+          unitWeight: item.unitWeight,
+          totalQuantity: item.totalQuantity,
+          boxVolume: item.boxVolume,
+          totalVolume: item.totalVolume,
+          totalWeight: item.totalWeight,
+          inspectionDate: item.inspectionDate,
+          status: 'pending_shipment', // 待发货状态
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        
+        // 通过自定义事件通知发货出柜模块
+        if (typeof window !== 'undefined') {
+          const event = new CustomEvent('addShippingRecord', {
+            detail: shippingRecord
+          });
+          window.dispatchEvent(event);
+          
+          console.log(`🚚 统计入库验收完成 -> 发货出柜记录创建成功`);
+          console.log(`📦 新记录ID: ${shippingRecord.id}, SKU: ${item.sku.code}, 状态: pending_shipment(待发货)`);
+        }
+      });
+    };
+    
+    // 监听数据变化，当有新的已验收记录时触发流转
+    handleQualityControlCompleted();
+  }, [qualityControlData]);
   
   const [activeTab, setActiveTab] = useState<TabType>('pending');
   const [searchTerm, setSearchTerm] = useState('');
@@ -215,14 +262,14 @@ export const QualityControl: React.FC = () => {
   const handleSave = (itemId: string) => {
     // 权限检查：只有仓管人员可以保存
     if (!isWarehouseStaff) {
-      console.warn('权限不足：只有仓管人员可以保存数据');
+      alert('权限不足：只有仓管人员可以保存数据');
       return;
     }
 
     try {
       const item = qualityControlData.find(i => i.id === itemId);
       if (!item) {
-        console.error('未找到对应的SKU数据');
+        alert('未找到对应的SKU数据');
         return;
       }
 
@@ -245,7 +292,7 @@ export const QualityControl: React.FC = () => {
 
       if (emptyFields.length > 0) {
         const fieldNames = emptyFields.map(f => f.name).join('、');
-        console.warn(`请填写完整信息：${fieldNames}`);
+        alert(`请填写完整信息：${fieldNames}`);
         return;
       }
 
@@ -260,7 +307,7 @@ export const QualityControl: React.FC = () => {
 
       // 验证数值有效性
       if (totalPieces <= 0 || piecesPerUnit <= 0 || boxLength <= 0 || boxWidth <= 0 || boxHeight <= 0 || unitWeight <= 0) {
-        console.warn('所有数值必须大于0');
+        alert('所有数值必须大于0');
         return;
       }
 
@@ -270,7 +317,7 @@ export const QualityControl: React.FC = () => {
       const totalVolume = totalPieces * boxVolume;
       const totalWeight = totalPieces * unitWeight;
 
-      // 更新数据
+      // 更新数据并标记为已验收
       setQualityControlData(prevData => 
         prevData.map(i => 
           i.id === itemId 
@@ -300,11 +347,65 @@ export const QualityControl: React.FC = () => {
         )
       );
 
+      // 🎯 验收完成后自动流转到发货出柜
+      const updatedItem = {
+        ...item,
+        packageCount,
+        totalPieces,
+        piecesPerUnit,
+        boxLength,
+        boxWidth,
+        boxHeight,
+        unitWeight,
+        totalQuantity,
+        boxVolume,
+        totalVolume,
+        totalWeight,
+        inspectionStatus: 'completed',
+        inspectionDate: new Date(),
+        inspectorId: user?.id || '',
+        inspector: user
+      };
+      
+      // 创建发货出柜记录
+      const shippingRecord = {
+        id: `ship-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        purchaseRequestNumber: updatedItem.purchaseRequestNumber,
+        skuId: updatedItem.skuId,
+        sku: updatedItem.sku,
+        packageCount: updatedItem.packageCount,
+        totalPieces: updatedItem.totalPieces,
+        piecesPerUnit: updatedItem.piecesPerUnit,
+        boxLength: updatedItem.boxLength,
+        boxWidth: updatedItem.boxWidth,
+        boxHeight: updatedItem.boxHeight,
+        unitWeight: updatedItem.unitWeight,
+        totalQuantity: updatedItem.totalQuantity,
+        boxVolume: updatedItem.boxVolume,
+        totalVolume: updatedItem.totalVolume,
+        totalWeight: updatedItem.totalWeight,
+        inspectionDate: updatedItem.inspectionDate,
+        status: 'pending_shipment', // 待发货状态
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      // 通过自定义事件通知发货出柜模块
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('addShippingRecord', {
+          detail: shippingRecord
+        });
+        window.dispatchEvent(event);
+        
+        console.log(`🚚 统计入库验收完成 -> 发货出柜记录创建成功`);
+        console.log(`📦 新记录ID: ${shippingRecord.id}, SKU: ${updatedItem.sku.code}, 状态: pending_shipment(待发货)`);
+      }
+      
       // 显示成功提示
-      console.log('验收数据保存成功！');
+      alert(`验收数据保存成功！SKU ${updatedItem.sku.code} 已自动流转到发货出柜的"待发货"子栏目`);
     } catch (error) {
       console.error('保存失败:', error);
-      console.error('保存失败，请重试');
+      alert('保存失败，请重试');
     }
   };
 

@@ -177,6 +177,37 @@ export const ShippingOutbound: React.FC = () => {
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [viewingBatch, setViewingBatch] = useState<any>(null);
 
+  // 🎯 监听从统计入库流转过来的数据
+  React.useEffect(() => {
+    const handleAddShippingRecord = (event: CustomEvent) => {
+      const newRecord = event.detail;
+      console.log(`🚚 发货出柜：接收到从统计入库流转的记录 SKU ${newRecord.sku.code}`);
+      
+      setShippingData(prev => {
+        // 检查是否已存在相同的记录
+        const exists = prev.some(item => 
+          item.purchaseRequestNumber === newRecord.purchaseRequestNumber && 
+          item.skuId === newRecord.skuId
+        );
+        
+        if (!exists) {
+          console.log(`✅ 发货出柜：新增待发货记录 SKU ${newRecord.sku.code}`);
+          return [...prev, newRecord];
+        } else {
+          console.log(`⚠️ 发货出柜：记录已存在，跳过添加 SKU ${newRecord.sku.code}`);
+          return prev;
+        }
+      });
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('addShippingRecord', handleAddShippingRecord as EventListener);
+      return () => {
+        window.removeEventListener('addShippingRecord', handleAddShippingRecord as EventListener);
+      };
+    }
+  }, []);
+
   // 权限检查：是否为物流专员
   const isLogisticsStaff = user?.role === 'logistics_staff';
 

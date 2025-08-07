@@ -170,7 +170,7 @@ export const ArrivalInspection: React.FC = () => {
       if (qualityResult === 'passed' && inspection) {
         if (inspection.productType === 'semi_finished') {
           // 半成品验收通过 → 自动流转到生产排单
-          console.log(`半成品验收通过：SKU ${inspection.sku.code} 开始流转到生产排单`);
+          console.log(`🔄 半成品验收通过：SKU ${inspection.sku.code} 开始流转到生产排单`);
           
           // 动态导入生产排单Store并创建排单
           try {
@@ -194,19 +194,19 @@ export const ArrivalInspection: React.FC = () => {
                 status: 'pending'
               });
               
-              console.log(`半成品验收通过 -> 生产排单创建成功，排单ID: ${newSchedule.id}`);
-              alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到生产排单的待排单栏目`);
+              console.log(`✅ 半成品验收通过 -> 生产排单创建成功，排单ID: ${newSchedule.id}`);
+              alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到生产排单的"待排单"子栏目`);
             } else {
-              console.log(`SKU ${inspection.sku.code} 已存在生产排单，跳过创建`);
-              alert(`验收完成！SKU ${inspection.sku.code} 已存在生产排单记录`);
+              console.log(`⚠️ SKU ${inspection.sku.code} 已存在生产排单，跳过创建`);
+              alert(`验收完成！SKU ${inspection.sku.code} 的生产排单记录已存在`);
             }
           } catch (error) {
             console.error('创建生产排单失败:', error);
-            alert('验收完成，但自动创建生产排单失败，请手动处理');
+            alert(`验收完成，但自动流转到生产排单失败：${error instanceof Error ? error.message : '未知错误'}`);
           }
         } else if (inspection.productType === 'finished') {
           // 成品验收通过 → 自动流转到统计入库
-          console.log(`成品验收通过：SKU ${inspection.sku.code} 开始流转到统计入库`);
+          console.log(`🔄 成品验收通过：SKU ${inspection.sku.code} 开始流转到统计入库`);
           
           // 创建统计入库记录
           const qualityControlRecord = {
@@ -231,7 +231,7 @@ export const ArrivalInspection: React.FC = () => {
             boxVolume: null,
             totalVolume: null,
             totalWeight: null,
-            remarks: `从到货检验自动流转 - 验收人员: ${user.name}`,
+            remarks: `从到货检验自动流转 - 验收人员: ${user?.name || '未知'}`,
             createdAt: new Date(),
             updatedAt: new Date()
           };
@@ -243,8 +243,8 @@ export const ArrivalInspection: React.FC = () => {
             });
             window.dispatchEvent(event);
             
-            console.log(`成品验收通过 -> 统计入库记录创建成功，记录ID: ${qualityControlRecord.id}`);
-            alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到统计入库的待验收栏目`);
+            console.log(`✅ 成品验收通过 -> 统计入库记录创建成功，记录ID: ${qualityControlRecord.id}`);
+            alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到统计入库的"待验收"子栏目`);
           }
         }
       }

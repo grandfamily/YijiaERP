@@ -150,14 +150,43 @@ class ProductionStore {
   private listeners: Array<() => void> = [];
 
   constructor() {
-    // 🎯 初始化自动流转监听器
     this.initializeListeners();
     this.initializeAutoFlowListeners();
+    this.initializeArrivalInspectionFlowListeners();
   }
 
   private initializeListeners() {
     // 在实际应用中，这里会监听采购进度的变化
     // 目前使用模拟数据，所以不需要实际实现
+  }
+
+  // 🎯 新增：监听从到货检验流转过来的生产排单
+  private initializeArrivalInspectionFlowListeners() {
+    if (typeof window !== 'undefined') {
+      const handleProductionScheduleCreated = (event: CustomEvent) => {
+        const { schedule, source } = event.detail;
+        
+        if (source === 'arrival_inspection') {
+          console.log(`📋 生产排单：接收到从到货检验流转的排单记录 SKU ${schedule.sku.code}`);
+          
+          // 检查是否已存在相同的记录
+          const exists = this.productionSchedules.some(s => 
+            s.purchaseRequestId === schedule.purchaseRequestId && 
+            s.skuId === schedule.skuId
+          );
+          
+          if (!exists) {
+            this.productionSchedules.push(schedule);
+            this.notify();
+            console.log(`✅ 生产排单：新增待排单记录 SKU ${schedule.sku.code}`);
+          } else {
+            console.log(`⚠️ 生产排单：记录已存在，跳过添加 SKU ${schedule.sku.code}`);
+          }
+        }
+      };
+      
+      window.addEventListener('productionScheduleCreated', handleProductionScheduleCreated as EventListener);
+    }
   }
 
   subscribe(listener: () => void) {
