@@ -205,20 +205,20 @@ export const ProductionScheduling: React.FC = () => {
     
     switch (activeTab) {
       case 'pending':
-        storeData = getPendingSchedules();
+        data = pendingSchedules;
         // 合并Store数据和流转数据
         return [...storeData, ...flowedSchedules.filter(fs => fs.status === 'pending')];
       case 'scheduled':
-        storeData = getInProductionSchedules().filter(s => s.status === 'scheduled');
+        data = inProductionSchedules;
         return [...storeData, ...flowedSchedules.filter(fs => fs.status === 'scheduled')];
       case 'in_production':
-        storeData = getInProductionSchedules().filter(s => s.status === 'in_production');
+        data = inProductionSchedules;
         return [...storeData, ...flowedSchedules.filter(fs => fs.status === 'in_production')];
       case 'completed':
-        storeData = getCompletedSchedules();
+        data = completedSchedules;
         return [...storeData, ...flowedSchedules.filter(fs => fs.status === 'completed')];
       default:
-        return [...storeData];
+        data = pendingSchedules;
     }
   };
 
