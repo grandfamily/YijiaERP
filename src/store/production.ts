@@ -363,35 +363,12 @@ class ProductionStore {
 
   // 🎯 新增：自动流转监听器 - 监听自己包装订单完成验收
   private initializeAutoFlowListeners() {
-    // 监听采购订单状态变化
-    procurementStore.subscribe(() => {
-      this.handleInHouseOrderCompletion();
-    });
+    // 移除自己包装相关的监听器
   }
 
   // 🎯 处理自己包装订单完成验收的自动流转
   private handleInHouseOrderCompletion() {
-    try {
-      // 获取所有已验收完成的自己包装订单
-      const completedInHouseOrders = procurementStore.getPurchaseRequests(
-        { type: ['in_house'], status: ['completed'] }
-      ).data;
-
-      completedInHouseOrders.forEach(order => {
-        // 检查是否已经创建了生产排单
-        const existingSchedules = this.productionSchedules.filter(
-          s => s.purchaseRequestId === order.id
-        );
-
-        if (existingSchedules.length === 0) {
-          // 自动创建生产排单
-          const newSchedules = this.createSchedulesFromInHouseProduction(order.id);
-          console.log(`🔄 自动流转：订单 ${order.requestNumber} 已完成验收，自动创建 ${newSchedules.length} 个SKU的生产排单`);
-        }
-      });
-    } catch (error) {
-      console.error('自动流转处理失败:', error);
-    }
+    // 移除自己包装相关的处理逻辑
   }
 
   // 获取生产统计数据

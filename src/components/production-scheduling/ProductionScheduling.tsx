@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Calendar, 
   Search, 
@@ -23,6 +23,7 @@ import {
   ZoomIn
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { useProduction } from '../../hooks/useProduction';
 import { StatusBadge } from '../ui/StatusBadge';
 
 // 模拟数据类型定义
@@ -140,68 +141,87 @@ const mockProductionSKUs: ProductionSKU[] = [
 const machineOptions = ['大机器', '小机器1', '小机器2', '绑卡机'];
 const operatorOptions = ['张三', '李四', '王五', '赵六', '孙七', '周八'];
 
-const getProductionSchedules = () => {
-  return [];
-};
-
 export const ProductionScheduling: React.FC = () => {
   const { user } = useAuth();
+  const { 
+    getProductionSchedules,
+    getPendingSchedules,
+    getInProductionSchedules,
+    getCompletedSchedules,
+    updateProductionSchedule,
+    bulkUpdateProductionStatus,
+    deleteProductionSchedule,
+    getProductionStats
+  } = useProduction();
+
   const [activeTab, setActiveTab] = useState<TabType>('pending');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedItems, setSelectedItems] = useState<string[]>([]);
-  const [productionSKUs, setProductionSKUs] = useState<ProductionSKU[]>(mockProductionSKUs);
-  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [selectedSchedules, setSelectedSchedules] = useState<string[]>([]);
+  const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [showBulkScheduleForm, setShowBulkScheduleForm] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<ProductionSchedule | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const [productionSchedules, setProductionSchedules] = useState<ProductionSchedule[]>([]);
+  const [flowedSchedules, setFlowedSchedules] = useState<ProductionSchedule[]>([]);
 
   // 🎯 监听从到货检验流转过来的生产排单
-  React.useEffect(() => {
-    const handleProductionScheduleCreated = (event: CustomEvent) => {
-      const { schedule, source } = event.detail;
+  useEffect(() => {
+    const handleAddProductionSchedule = (event: CustomEvent) => {
+      const newSchedule = event.detail;
+      console.log(`📋 生产排单：接收到流转记录 SKU ${newSchedule.sku.code}`);
       
-      if (source === 'arrival_inspection') {
-        console.log(`📋 生产排单：接收到从到货检验流转的排单记录 SKU ${schedule.sku.code}`);
+      setFlowedSchedules(prev => {
+        // 检查是否已存在相同记录
+        const exists = prev.some(s => 
+          s.purchaseRequestId === newSchedule.purchaseRequestId && 
+          s.skuId === newSchedule.skuId
+        );
         
-        setProductionSchedules(prev => {
-          // 检查是否已存在相同的记录
-          const exists = prev.some(s => 
-            s.purchaseRequestId === schedule.purchaseRequestId && 
-            s.skuId === schedule.skuId
-          );
-          
-          if (!exists) {
-            console.log(`✅ 生产排单：新增待排单记录 SKU ${schedule.sku.code}`);
-            return [...prev, schedule];
-          } else {
-            console.log(`⚠️ 生产排单：记录已存在，跳过添加 SKU ${schedule.sku.code}`);
-            return prev;
-          }
-        });
-      }
+        if (!exists) {
+          console.log(`✅ 生产排单：新增待排单记录 SKU ${newSchedule.sku.code}`);
+          return [...prev, newSchedule];
+        } else {
+          console.log(`⚠️ 生产排单：记录已存在，跳过添加 SKU ${newSchedule.sku.code}`);
+          return prev;
+        }
+      });
     };
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('productionScheduleCreated', handleProductionScheduleCreated as EventListener);
+      window.addEventListener('addProductionSchedule', handleAddProductionSchedule as EventListener);
       return () => {
-        window.removeEventListener('productionScheduleCreated', handleProductionScheduleCreated as EventListener);
+        window.removeEventListener('addProductionSchedule', handleAddProductionSchedule as EventListener);
       };
     }
   }, []);
 
-  // 合并Store数据和流转数据
-  const getAllSchedules = () => {
-    const storeSchedules = getProductionSchedules();
-    const allSchedules = [...storeSchedules, ...productionSchedules];
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [productionSKUs, setProductionSKUs] = useState<ProductionSKU[]>(mockProductionSKUs);
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [productionSchedules, setProductionSchedules] = useState<ProductionSchedule[]>([]);
+
+  // 获取当前标签页的数据
+  const getCurrentTabData = () => {
+    let storeData: ProductionSchedule[] = [];
     
-    // 去重：基于purchaseRequestId和skuId
-    const uniqueSchedules = allSchedules.filter((schedule, index, self) => 
-      index === self.findIndex(s => 
-        s.purchaseRequestId === schedule.purchaseRequestId && s.skuId === schedule.skuId
-      )
-    );
-    
-    return uniqueSchedules;
+    switch (activeTab) {
+      case 'pending':
+        storeData = getPendingSchedules();
+        // 合并Store数据和流转数据
+        return [...storeData, ...flowedSchedules.filter(fs => fs.status === 'pending')];
+      case 'scheduled':
+        storeData = getInProductionSchedules().filter(s => s.status === 'scheduled');
+        return [...storeData, ...flowedSchedules.filter(fs => fs.status === 'scheduled')];
+      case 'in_production':
+        storeData = getInProductionSchedules().filter(s => s.status === 'in_production');
+        return [...storeData, ...flowedSchedules.filter(fs => fs.status === 'in_production')];
+      case 'completed':
+        storeData = getCompletedSchedules();
+        return [...storeData, ...flowedSchedules.filter(fs => fs.status === 'completed')];
+      default:
+        return [...storeData];
+    }
   };
+
   const [batchConfig, setBatchConfig] = useState({
     scheduledDate: new Date().toISOString().split('T')[0],
     productionBinding: {
@@ -224,7 +244,7 @@ export const ProductionScheduling: React.FC = () => {
   // 根据标签页过滤数据
   const getFilteredData = () => {
     return productionSKUs.filter(item => {
-      const allSchedules = getAllSchedules();
+      const allSchedules = getCurrentTabData();
       
       const matchesTab = item.status === activeTab;
       const matchesSearch = !searchTerm || 
@@ -491,7 +511,7 @@ export const ProductionScheduling: React.FC = () => {
 
   // 获取统计数据
   const getTabStats = () => {
-    const allSchedules = getAllSchedules();
+    const allSchedules = getCurrentTabData();
     const pending = allSchedules.filter(s => s.status === 'pending').length;
     const scheduled = allSchedules.filter(s => s.status === 'scheduled').length;
     const inProduction = allSchedules.filter(s => s.status === 'in_production').length;
