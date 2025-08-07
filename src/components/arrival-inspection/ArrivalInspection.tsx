@@ -178,11 +178,11 @@ export const ArrivalInspection: React.FC = () => {
 
       // 🎯 验收通过后立即执行流转逻辑
       if (qualityResult === 'passed' && inspection) {
-        console.log(`🎯 开始执行流转逻辑: SKU ${inspection.sku.code}, 产品类型: ${inspection.productType}`);
+        console.log(`开始执行流转逻辑: SKU ${inspection.sku.code}, 产品类型: ${inspection.productType}`);
         
         if (inspection.productType === 'semi_finished') {
           // 半成品验收通过 → 生产排单
-          console.log(`🔄 半成品验收通过：SKU ${inspection.sku.code} 开始创建生产排单记录`);
+          console.log(`半成品验收通过：SKU ${inspection.sku.code} 开始创建生产排单记录`);
           
           // 创建生产排单记录
           const productionScheduleData = {
@@ -206,14 +206,14 @@ export const ArrivalInspection: React.FC = () => {
               detail: productionScheduleData
             });
             window.dispatchEvent(event);
-            console.log(`🔔 已发送生产排单创建事件: SKU ${inspection.sku.code}`);
+            console.log(`已发送生产排单创建事件: SKU ${inspection.sku.code}`);
           }
           
           alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到生产排单的待排单子栏目`);
           
         } else if (inspection.productType === 'finished') {
           // 成品验收通过 → 统计入库
-          console.log(`🔄 成品验收通过：SKU ${inspection.sku.code} 开始创建统计入库记录`);
+          console.log(`成品验收通过：SKU ${inspection.sku.code} 开始创建统计入库记录`);
           
           // 创建统计入库记录
           const qualityControlRecord = {
@@ -249,11 +249,36 @@ export const ArrivalInspection: React.FC = () => {
               detail: qualityControlRecord
             });
             window.dispatchEvent(event);
-            console.log(`🔔 已发送统计入库创建事件: SKU ${inspection.sku.code}`);
+            console.log(`已发送统计入库创建事件: SKU ${inspection.sku.code}`);
           }
           
           alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到统计入库的待验收子栏目`);
         }
+      } else if (qualityResult === 'failed' && inspection) {
+        // 验收不合格 → 流转到采购进度的不合格订单
+        console.log(`验收不合格：SKU ${inspection.sku.code} 开始流转到采购进度不合格订单`);
+        
+        // 通过事件通知采购进度模块
+        if (typeof window !== 'undefined') {
+          const event = new CustomEvent('addRejectedOrder', {
+            detail: {
+              purchaseRequestId: inspection.purchaseRequestId,
+              skuId: inspection.skuId,
+              sku: inspection.sku,
+              purchaseRequestNumber: inspection.purchaseRequestNumber,
+              rejectionReason: `${inspection.productType === 'semi_finished' ? '半成品' : '成品'}到货检验不合格`,
+              rejectionDate: new Date(),
+              rejectedBy: user?.name || '质检专员',
+              inspectionNotes: notes || '质量检验不合格',
+              productType: inspection.productType,
+              createdAt: new Date()
+            }
+          });
+          window.dispatchEvent(event);
+          console.log(`已发送不合格订单创建事件: SKU ${inspection.sku.code}`);
+        }
+        
+        alert(`验收不合格！SKU ${inspection.sku.code} 已流转到采购进度的不合格订单子栏目`);
       }
 
       // 清理临时数据

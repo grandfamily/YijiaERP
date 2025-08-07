@@ -44,7 +44,39 @@ export const ProcurementManagement: React.FC = () => {
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [stageCompletionStatus, setStageCompletionStatus] = useState<{[key: string]: {[key: string]: boolean}}>({});
+  const [rejectedOrders, setRejectedOrders] = useState<any[]>([]);
   
+  // 🎯 监听从到货检验流转过来的不合格订单
+  React.useEffect(() => {
+    const handleAddRejectedOrder = (event: CustomEvent) => {
+      const rejectedOrderData = event.detail;
+      console.log(`采购进度：接收到不合格订单 SKU ${rejectedOrderData.sku.code}`);
+      
+      setRejectedOrders(prev => {
+        // 检查是否已存在相同的记录
+        const exists = prev.some(item => 
+          item.purchaseRequestId === rejectedOrderData.purchaseRequestId && 
+          item.skuId === rejectedOrderData.skuId
+        );
+        
+        if (!exists) {
+          console.log(`新增不合格订单记录 SKU ${rejectedOrderData.sku.code}`);
+          return [...prev, rejectedOrderData];
+        } else {
+          console.log(`不合格订单记录已存在，跳过添加 SKU ${rejectedOrderData.sku.code}`);
+          return prev;
+        }
+      });
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('addRejectedOrder', handleAddRejectedOrder as EventListener);
+      return () => {
+        window.removeEventListener('addRejectedOrder', handleAddRejectedOrder as EventListener);
+      };
+    }
+  }, []);
+
   // 节点状态枚举
   type StageStatus = 'not_started' | 'in_progress' | 'completed' | 'no_deposit_required';
   
@@ -358,8 +390,12 @@ export const ProcurementManagement: React.FC = () => {
         break;
       case 'rejected':
         // 不合格订单：质检不合格的订单
-        filtered = allocatedRequests.filter(request => 
-          request.status === 'quality_check' // 这里可以根据实际业务逻辑调整
+        // 显示从到货检验流转过来的不合格订单
+        return rejectedOrders.filter(order =>
+          !searchTerm || 
+          order.purchaseRequestNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.sku.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.sku.name.toLowerCase().includes(searchTerm.toLowerCase())
         );
         break;
     }
@@ -410,7 +446,7 @@ export const ProcurementManagement: React.FC = () => {
     
     const rejected = allocatedRequests.filter(request => 
       request.status === 'quality_check'
-    ).length;
+    ).length + rejectedOrders.length;
 
     return {
       inProgress,
@@ -854,7 +890,103 @@ export const ProcurementManagement: React.FC = () => {
   );
 
   // 渲染已完成订单（厂家包装/自己包装）
-  const renderCompletedOrders = () => (
+  const renderCompletedOrders = () => {
+    if (activeTab === 'rejected') {
+      // 渲染不合格订单
+      return (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left py-3 px-3 font-medium text-gray-900">订单编号</th>
+                  <th className="text-center py-3 px-3 font-medium text-gray-900">图片</th>
+                  <th className="text-left py-3 px-3 font-medium text-gray-900">SKU</th>
+                  <th className="text-left py-3 px-3 font-medium text-gray-900">品名</th>
+                  <th className="text-left py-3 px-3 font-medium text-gray-900">产品类型</th>
+                  <th className="text-left py-3 px-3 font-medium text-gray-900">不合格原因</th>
+                  <th className="text-left py-3 px-3 font-medium text-gray-900">处理人员</th>
+                  <th className="text-center py-3 px-3 font-medium text-gray-900">处理时间</th>
+                  <th className="text-left py-3 px-3 font-medium text-gray-900">备注</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredData.map((order) => (
+                  <tr key={`${order.purchaseRequestId}-${order.skuId}`} className="hover:bg-gray-50">
+                    <td className="py-3 px-3">
+                      <div className="text-sm font-medium text-red-600">{order.purchaseRequestNumber}</div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(order.createdAt).toLocaleDateString('zh-CN')}
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      {order.sku.imageUrl ? (
+                        <div className="relative group inline-block">
+                          <img 
+                            src={order.sku.imageUrl} 
+                            alt={order.sku.name}
+                            className="w-10 h-10 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => handleImageClick(order.sku.imageUrl!)}
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
+                               onClick={() => handleImageClick(order.sku.imageUrl!)}>
+                            <ZoomIn className="h-3 w-3 text-white" />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 bg-gray-200 rounded border flex items-center justify-center">
+                          <Package className="h-5 w-5 text-gray-400" />
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="text-sm font-medium text-gray-900">{order.sku.code}</div>
+                      <div className="text-xs text-gray-500">{order.sku.category}</div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="text-sm text-gray-900">{order.sku.name}</div>
+                      <div className="text-xs text-gray-500">{order.sku.englishName}</div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <StatusBadge
+                        status={order.productType === 'semi_finished' ? '半成品' : '成品'}
+                        color={order.productType === 'semi_finished' ? 'yellow' : 'blue'}
+                        size="sm"
+                      />
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="text-sm text-red-600 font-medium">{order.rejectionReason}</div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="text-sm text-gray-900">{order.rejectedBy}</div>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <div className="text-sm text-gray-900">
+                        {new Date(order.rejectionDate).toLocaleDateString('zh-CN')}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(order.rejectionDate).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="text-sm text-gray-900 max-w-32 truncate" title={order.inspectionNotes}>
+                        {order.inspectionNotes || '-'}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+    
+    // 原有的已完成订单渲染逻辑
+    return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -961,7 +1093,8 @@ export const ProcurementManagement: React.FC = () => {
         </table>
       </div>
     </div>
-  );
+
+  };
 
   return (
     <>
