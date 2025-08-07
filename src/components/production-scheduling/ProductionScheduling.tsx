@@ -144,6 +144,16 @@ const operatorOptions = ['张三', '李四', '王五', '赵六', '孙七', '周�
 export const ProductionScheduling: React.FC = () => {
   const { user } = useAuth();
   const { 
+    pendingSchedules,
+    inProductionSchedules, 
+    completedSchedules,
+    getProductionSchedules, 
+    createProductionSchedule, 
+    updateProductionSchedule, 
+    bulkUpdateProductionStatus, 
+    deleteProductionSchedule, 
+    getAvailableMachines 
+  } = useProduction();
     getProductionSchedules,
     getPendingSchedules,
     getInProductionSchedules,
