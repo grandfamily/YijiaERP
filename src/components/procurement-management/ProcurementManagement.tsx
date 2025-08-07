@@ -987,112 +987,112 @@ export const ProcurementManagement: React.FC = () => {
     
     // 原有的已完成订单渲染逻辑
     return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left py-3 px-3 font-medium text-gray-900">订单编号</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900">图片</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900">SKU</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900">品名</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900">供应商</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900">采购数量</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900">到货数量</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900">纸卡类型</th>
-              <th className="text-left py-3 px-3 font-medium text-gray-900">付款方式</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900">总金额</th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900">定金金额</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {filteredData.map((request) => {
-              const allocation = getOrderAllocation(request.id);
-              
-              return request.items.map((item) => (
-                <tr key={`${request.id}-${item.id}`} className="hover:bg-gray-50">
-                  <td className="py-3 px-3">
-                    <div className="text-sm font-medium text-blue-600">{request.requestNumber}</div>
-                    <div className="text-xs text-gray-500">
-                      {new Date(request.createdAt).toLocaleDateString('zh-CN')}
-                    </div>
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    {item.sku.imageUrl ? (
-                      <div className="relative group inline-block">
-                        <img 
-                          src={item.sku.imageUrl} 
-                          alt={item.sku.name}
-                          className="w-10 h-10 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
-                          onClick={() => handleImageClick(item.sku.imageUrl!)}
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
-                             onClick={() => handleImageClick(item.sku.imageUrl!)}>
-                          <ZoomIn className="h-3 w-3 text-white" />
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left py-3 px-3 font-medium text-gray-900">订单编号</th>
+                <th className="text-center py-3 px-3 font-medium text-gray-900">图片</th>
+                <th className="text-left py-3 px-3 font-medium text-gray-900">SKU</th>
+                <th className="text-left py-3 px-3 font-medium text-gray-900">品名</th>
+                <th className="text-left py-3 px-3 font-medium text-gray-900">供应商</th>
+                <th className="text-center py-3 px-3 font-medium text-gray-900">采购数量</th>
+                <th className="text-center py-3 px-3 font-medium text-gray-900">到货数量</th>
+                <th className="text-left py-3 px-3 font-medium text-gray-900">纸卡类型</th>
+                <th className="text-left py-3 px-3 font-medium text-gray-900">付款方式</th>
+                <th className="text-center py-3 px-3 font-medium text-gray-900">总金额</th>
+                <th className="text-center py-3 px-3 font-medium text-gray-900">定金金额</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filteredData.map((request) => {
+                const allocation = getOrderAllocation(request.id);
+                
+                return request.items.map((item) => (
+                  <tr key={`${request.id}-${item.id}`} className="hover:bg-gray-50">
+                    <td className="py-3 px-3">
+                      <div className="text-sm font-medium text-blue-600">{request.requestNumber}</div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(request.createdAt).toLocaleDateString('zh-CN')}
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      {item.sku.imageUrl ? (
+                        <div className="relative group inline-block">
+                          <img 
+                            src={item.sku.imageUrl} 
+                            alt={item.sku.name}
+                            className="w-10 h-10 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => handleImageClick(item.sku.imageUrl!)}
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"
+                               onClick={() => handleImageClick(item.sku.imageUrl!)}>
+                            <ZoomIn className="h-3 w-3 text-white" />
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="w-10 h-10 bg-gray-200 rounded border flex items-center justify-center">
-                        <Package className="h-5 w-5 text-gray-400" />
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-3 px-3">
-                    <div className="text-sm font-medium text-gray-900">{item.sku.code}</div>
-                    <div className="text-xs text-gray-500">{item.sku.category}</div>
-                  </td>
-                  <td className="py-3 px-3">
-                    <div className="text-sm text-gray-900">{item.sku.name}</div>
-                    <div className="text-xs text-gray-500">{item.sku.englishName}</div>
-                  </td>
-                  <td className="py-3 px-3">
-                    <div className="text-sm text-gray-900">{item.supplier?.name || '-'}</div>
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    <span className="text-sm font-medium text-gray-900">
-                      {item.quantity.toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    <span className="text-sm font-medium text-blue-600">
-                      {item.quantity.toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3">
-                    <StatusBadge
-                      status={allocation?.cardType === 'finished' ? '纸卡成品' : 
-                               allocation?.cardType === 'design' ? '设计稿' : '不需要'}
-                      color="purple"
-                      size="sm"
-                    />
-                  </td>
-                  <td className="py-3 px-3">
-                    <span className="text-sm text-gray-900">
-                      {allocation?.paymentMethod === 'payment_on_delivery' ? '付款发货' : 
-                       allocation?.paymentMethod === 'cash_on_delivery' ? '货到付款' : 
-                       allocation?.paymentMethod === 'credit_terms' ? '账期' : '-'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    <span className="text-sm font-bold text-blue-600">
-                      ¥{request.totalAmount.toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    <span className="text-sm font-medium text-green-600">
-                      ¥{(allocation?.prepaymentAmount || 0).toLocaleString()}
-                    </span>
-                  </td>
-                </tr>
-              ));
-            })}
-          </tbody>
-        </table>
+                      ) : (
+                        <div className="w-10 h-10 bg-gray-200 rounded border flex items-center justify-center">
+                          <Package className="h-5 w-5 text-gray-400" />
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="text-sm font-medium text-gray-900">{item.sku.code}</div>
+                      <div className="text-xs text-gray-500">{item.sku.category}</div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="text-sm text-gray-900">{item.sku.name}</div>
+                      <div className="text-xs text-gray-500">{item.sku.englishName}</div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="text-sm text-gray-900">{item.supplier?.name || '-'}</div>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className="text-sm font-medium text-gray-900">
+                        {item.quantity.toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className="text-sm font-medium text-blue-600">
+                        {item.quantity.toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3">
+                      <StatusBadge
+                        status={allocation?.cardType === 'finished' ? '纸卡成品' : 
+                                 allocation?.cardType === 'design' ? '设计稿' : '不需要'}
+                        color="purple"
+                        size="sm"
+                      />
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className="text-sm text-gray-900">
+                        {allocation?.paymentMethod === 'payment_on_delivery' ? '付款发货' : 
+                         allocation?.paymentMethod === 'cash_on_delivery' ? '货到付款' : 
+                         allocation?.paymentMethod === 'credit_terms' ? '账期' : '-'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className="text-sm font-bold text-blue-600">
+                        ¥{request.totalAmount.toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className="text-sm font-medium text-green-600">
+                        ¥{(allocation?.prepaymentAmount || 0).toLocaleString()}
+                      </span>
+                    </td>
+                  </tr>
+                ));
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
     );
   };
 
