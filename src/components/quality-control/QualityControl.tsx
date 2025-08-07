@@ -11,6 +11,7 @@ import {
   Edit,
   Eye,
   ZoomIn,
+  RefreshCcw,
   X,
   Calculator
 } from 'lucide-react';
@@ -172,6 +173,34 @@ export const QualityControl: React.FC = () => {
     }
   }, []);
   
+  // 🎯 监听从生产排单流转过来的数据
+  React.useEffect(() => {
+    const handleAddQualityControlRecordFromProduction = (event: CustomEvent) => {
+      const newRecord = event.detail;
+      console.log(`📦 统计入库：接收到从生产排单流转的记录 SKU ${newRecord.sku.code}`);
+      
+      setQualityControlData(prev => {
+        const exists = prev.some(item => 
+          item.purchaseRequestNumber === newRecord.purchaseRequestNumber && 
+          item.skuId === newRecord.skuId
+        );
+        if (!exists) {
+          console.log(`✅ 统计入库：新增待验收记录 SKU ${newRecord.sku.code} (来自生产排单)`);
+          return [...prev, newRecord];
+        } else {
+          console.log(`⚠️ 统计入库：记录已存在，跳过添加 SKU ${newRecord.sku.code} (来自生产排单)`);
+          return prev;
+        }
+      });
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('addQualityControlRecord', handleAddQualityControlRecordFromProduction as EventListener);
+      return () => {
+        window.removeEventListener('addQualityControlRecord', handleAddQualityControlRecordFromProduction as EventListener);
+      };
+    }
+  }, []);
+
   // 🎯 监听统计入库验收完成，自动流转到发货出柜
   React.useEffect(() => {
     const handleQualityControlCompleted = () => {
