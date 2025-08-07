@@ -61,6 +61,18 @@ interface MachineOperatorGroup {
   operator: string;
 }
 
+interface ProductionSchedule {
+  id: string;
+  purchaseRequestId: string;
+  skuId: string;
+  sku: {
+    code: string;
+    name: string;
+    imageUrl?: string;
+  };
+  status: 'pending' | 'scheduled' | 'in_production' | 'completed';
+}
+
 type TabType = 'pending' | 'pre_scheduled' | 'in_production' | 'completed';
 
 // 模拟数据
@@ -127,6 +139,10 @@ const mockProductionSKUs: ProductionSKU[] = [
 
 const machineOptions = ['大机器', '小机器1', '小机器2', '绑卡机'];
 const operatorOptions = ['张三', '李四', '王五', '赵六', '孙七', '周八'];
+
+const getProductionSchedules = () => {
+  return [];
+};
 
 export const ProductionScheduling: React.FC = () => {
   const { user } = useAuth();
@@ -208,8 +224,8 @@ export const ProductionScheduling: React.FC = () => {
   // 根据标签页过滤数据
   const getFilteredData = () => {
     return productionSKUs.filter(item => {
-    const allSchedules = getAllSchedules();
-    
+      const allSchedules = getAllSchedules();
+      
       const matchesTab = item.status === activeTab;
       const matchesSearch = !searchTerm || 
         item.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -453,15 +469,14 @@ export const ProductionScheduling: React.FC = () => {
     const csvContent = '\uFEFF' + [
       // SKU信息部分
       skuHeaders.join(','),
-        return allSchedules.filter(s => s.status === 'pending');
+      ...skuData.map(row => skuHeaders.map(header => `"${row[header]}"`).join(',')),
       '', // 空行分隔
-        return allSchedules.filter(s => s.status === 'scheduled');
       // 批次生产配置部分
-        return allSchedules.filter(s => s.status === 'in_production');
+      configHeaders.join(','),
       ...configData.map(row => configHeaders.map(header => `"${row[header]}"`).join(','))
-        return allSchedules.filter(s => s.status === 'completed');
+    ].join('\n');
 
-        return allSchedules.filter(s => s.status === 'pending');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     const dateStr = batchConfig.scheduledDate ? new Date(batchConfig.scheduledDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
@@ -483,10 +498,10 @@ export const ProductionScheduling: React.FC = () => {
     const completed = allSchedules.filter(s => s.status === 'completed').length;
     
     const preScheduled = productionSKUs.filter(item => item.status === 'pre_scheduled').length;
-    const inProduction = productionSKUs.filter(item => item.status === 'in_production').length;
-    const completed = productionSKUs.filter(item => item.status === 'completed').length;
+    const inProductionSKUs = productionSKUs.filter(item => item.status === 'in_production').length;
+    const completedSKUs = productionSKUs.filter(item => item.status === 'completed').length;
     
-    return { pending, preScheduled, inProduction, completed };
+    return { pending, preScheduled, inProduction: inProductionSKUs, completed: completedSKUs };
   };
 
   const tabStats = getTabStats();
@@ -1288,10 +1303,10 @@ const ProductionConfigModal: React.FC<ProductionConfigModalProps> = ({ itemId, o
 
   const handleSave = () => {
     const config = {
-      pending,
-      scheduled,
-      inProduction,
-      completed
+      bindingGroups,
+      trayOperator,
+      blisterOperator,
+      packingOperator
     };
     onSave(config);
   };
