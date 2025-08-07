@@ -290,19 +290,10 @@ class ArrivalInspectionStore {
             arrivalDate: isArrived ? new Date() : undefined,
             updatedAt: new Date()
           };
+          updatedInspections.push(this.arrivalInspections[index]);
         }
-      }
-      )
-    }
-    )
-    // 监听采购订单变化，自动同步到货检验数据
-    try {
-      procurementStore.subscribe(() => {
-        this.syncFromProcurementProgress();
       });
-    } catch (error) {
-      console.error('初始化自动流转监听器失败:', error);
-    }
+    });
 
     if (updatedInspections.length > 0) {
       this.notify();
