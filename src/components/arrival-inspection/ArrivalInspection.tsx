@@ -176,13 +176,10 @@ export const ArrivalInspection: React.FC = () => {
         notes
       );
 
-      // 🎯 验收通过后立即执行流转逻辑
       if (qualityResult === 'passed' && inspection) {
-        console.log(`开始执行流转逻辑: SKU ${inspection.sku.code}, 产品类型: ${inspection.productType}`);
         
         if (inspection.productType === 'semi_finished') {
           // 半成品验收通过 → 生产排单
-          console.log(`半成品验收通过：SKU ${inspection.sku.code} 开始创建生产排单记录`);
           
           // 创建生产排单记录
           const productionScheduleData = {
@@ -206,14 +203,12 @@ export const ArrivalInspection: React.FC = () => {
               detail: productionScheduleData
             });
             window.dispatchEvent(event);
-            console.log(`已发送生产排单创建事件: SKU ${inspection.sku.code}`);
           }
           
-          alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到生产排单的待排单子栏目`);
+          alert('验收完成！SKU已自动流转到半成品已验收和生产排单的待排单');
           
         } else if (inspection.productType === 'finished') {
           // 成品验收通过 → 统计入库
-          console.log(`成品验收通过：SKU ${inspection.sku.code} 开始创建统计入库记录`);
           
           // 创建统计入库记录
           const qualityControlRecord = {
@@ -238,7 +233,7 @@ export const ArrivalInspection: React.FC = () => {
             boxVolume: null,
             totalVolume: null,
             totalWeight: null,
-            remarks: `从到货检验自动流转 - 验收人员: ${user?.name || '未知'}`,
+            remarks: '从到货检验自动流转',
             createdAt: new Date(),
             updatedAt: new Date()
           };
@@ -249,14 +244,12 @@ export const ArrivalInspection: React.FC = () => {
               detail: qualityControlRecord
             });
             window.dispatchEvent(event);
-            console.log(`已发送统计入库创建事件: SKU ${inspection.sku.code}`);
           }
           
-          alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到统计入库的待验收子栏目`);
+          alert('验收完成！SKU已自动流转到成品已验收和统计入库的待验收');
         }
       } else if (qualityResult === 'failed' && inspection) {
         // 验收不合格 → 流转到采购进度的不合格订单
-        console.log(`验收不合格：SKU ${inspection.sku.code} 开始流转到采购进度不合格订单`);
         
         // 通过事件通知采购进度模块
         if (typeof window !== 'undefined') {
@@ -266,7 +259,7 @@ export const ArrivalInspection: React.FC = () => {
               skuId: inspection.skuId,
               sku: inspection.sku,
               purchaseRequestNumber: inspection.purchaseRequestNumber,
-              rejectionReason: `${inspection.productType === 'semi_finished' ? '半成品' : '成品'}到货检验不合格`,
+              rejectionReason: inspection.productType === 'semi_finished' ? '半成品到货检验不合格' : '成品到货检验不合格',
               rejectionDate: new Date(),
               rejectedBy: user?.name || '质检专员',
               inspectionNotes: notes || '质量检验不合格',
@@ -275,10 +268,9 @@ export const ArrivalInspection: React.FC = () => {
             }
           });
           window.dispatchEvent(event);
-          console.log(`已发送不合格订单创建事件: SKU ${inspection.sku.code}`);
         }
         
-        alert(`验收不合格！SKU ${inspection.sku.code} 已流转到采购进度的不合格订单子栏目`);
+        alert('验收不合格！SKU已流转到采购进度的不合格订单');
       }
 
       // 清理临时数据
