@@ -464,7 +464,7 @@ export const ArrivalInspection: React.FC = () => {
                   <ArrowUpDown className="h-4 w-4" />
                 </button>
               </th>
-              <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">纸卡进度</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900 w-24 hidden">纸卡进度</th>
               <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">采购进度</th>
               <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">辅料进度</th>
               <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">采购数量</th>
@@ -562,7 +562,7 @@ export const ArrivalInspection: React.FC = () => {
                 </td>
                 
                 {/* 纸卡进度 */}
-                <td className="py-3 px-3">
+                <td className="py-3 px-3 hidden">
                   <div className="flex flex-col items-center space-y-1">
                     <span className="text-xs font-medium text-purple-600">{item.cardProgress}%</span>
                     <div className="w-16 bg-gray-200 rounded-full h-1.5">
@@ -695,7 +695,7 @@ export const ArrivalInspection: React.FC = () => {
                         [item.id]: e.target.value
                       }))}
                       placeholder="请填写验收备注..."
-                      className="w-32 h-16 text-xs border border-gray-300 rounded px-2 py-1 resize-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                      className="w-32 h-8 text-xs border border-gray-300 rounded px-2 py-1 resize-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                     />
                   ) : (
                     <div className="text-xs text-gray-500">-</div>
@@ -705,7 +705,7 @@ export const ArrivalInspection: React.FC = () => {
                 {/* 验收意见 */}
                 <td className="py-3 px-3 text-center">
                   {canEdit ? (
-                    <div className="flex flex-col space-y-1">
+                    <div className="flex flex-row space-x-2 justify-center">
                       <button
                         onClick={() => handleInspectionComplete(item.id, 'passed')}
                         className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium"
@@ -1158,8 +1158,8 @@ export const ArrivalInspection: React.FC = () => {
               </div>
 
               {/* 进度信息 */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center hidden">
                   <div className="text-sm font-medium text-gray-700 mb-2">纸卡进度</div>
                   <div className="text-lg font-bold text-purple-600 mb-1">{editingInspection.cardProgress}%</div>
                   <ProgressBar progress={editingInspection.cardProgress} color="purple" size="sm" />

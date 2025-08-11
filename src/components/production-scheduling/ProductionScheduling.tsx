@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import dayjs from 'dayjs';
-import { Search, Package, X } from 'lucide-react';
+import { Search, Package, X, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProduction } from '../../hooks/useProduction';
 import { useGlobalStore } from '../../store/globalStore';
@@ -30,6 +30,21 @@ export const ProductionScheduling: React.FC = () => {
     updateProductionSchedule,
   } = useProduction();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // 成功/错误弹窗状态管理
+  const [modal, setModal] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'error';
+    title: string;
+    message: string;
+    sku?: string;
+  }>({
+    isOpen: false,
+    type: 'success',
+    title: '',
+    message: '',
+    sku: ''
+  });
 
   // 生产环节状态管理
   const [productionStages, setProductionStages] = useState<Record<string, {
@@ -129,7 +144,12 @@ export const ProductionScheduling: React.FC = () => {
   // 完成生产环节
   const handleCompleteStage = (itemId: string, stage: 'bindCards' | 'midPackage' | 'blister' | 'outerBox') => {
     if (!isProductionStaff) {
-      alert('权限不足：只有生产人员可以完成生产环节');
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: '权限不足',
+        message: '只有生产人员可以完成生产环节'
+      });
       return;
     }
     
@@ -170,6 +190,7 @@ export const ProductionScheduling: React.FC = () => {
       // 更新生产排单状态为已完成
       updateProductionSchedule(itemId, { 
         status: 'completed',
+        completedDate: new Date(),
         updatedAt: new Date()
       });
 
@@ -217,23 +238,44 @@ export const ProductionScheduling: React.FC = () => {
         return newStages;
       });
 
-      alert(`🎉 生产完成！SKU ${item.sku?.code} 已自动流转到"已完成"列表和"入库登记"的"待入库"页面`);
+      setModal({
+        isOpen: true,
+        type: 'success',
+        title: '🎉 生产完成！',
+        message: '已自动流转到"已完成"列表和"入库登记"的"待入库"页面',
+        sku: item.sku?.code
+      });
     } catch (error) {
       console.error('自动完成生产失败:', error);
-      alert('生产完成流转失败，请重试');
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: '操作失败',
+        message: '生产完成流转失败，请重试'
+      });
     }
   };
 
   // 完成生产阶段 - 自动流转到入库登记
   const handleFinishStage = (id: string) => {
     if (!isProductionStaff) {
-      alert('权限不足：只有生产人员可以完成生产阶段');
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: '权限不足',
+        message: '只有生产人员可以完成生产阶段'
+      });
       return;
     }
     try {
       const item = completedSchedules.find((i: any) => i.id === id);
       if (!item) {
-        alert('未找到对应的生产排单数据');
+        setModal({
+          isOpen: true,
+          type: 'error',
+          title: '数据错误',
+          message: '未找到对应的生产排单数据'
+        });
         return;
       }
       
@@ -280,10 +322,21 @@ export const ProductionScheduling: React.FC = () => {
       console.log(`已创建入库登记记录: SKU ${item.sku?.code}, ID: ${inboundRecord.id}`);
       console.log(`注意：质检记录将在入库登记完成后自动创建`);
 
-      alert(`生产完成！SKU ${item.sku?.code} 已自动流转到入库登记的"待入库"列表`);
+      setModal({
+        isOpen: true,
+        type: 'success',
+        title: '生产完成！',
+        message: '已自动流转到入库登记的"待入库"列表',
+        sku: item.sku?.code
+      });
     } catch (error) {
       console.error('完成生产阶段失败:', error);
-      alert('操作失败，请重试');
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: '操作失败',
+        message: '操作失败，请重试'
+      });
     }
   };
 
@@ -381,7 +434,7 @@ export const ProductionScheduling: React.FC = () => {
           <th className={`text-left ${thClass}`}>生产数量</th>
           <th className={`text-left ${thClass}`}>材质</th>
           <th className={`text-left ${thClass}`}>包装方式</th>
-          <th className={`text-left ${thClass}`}>操作</th>
+          <th className={`text-left ${thClass}`}>状态</th>
         </tr>
       );
     }
@@ -414,7 +467,10 @@ export const ProductionScheduling: React.FC = () => {
           )}
           {activeTab === 'completed' && (
             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-              {(item as any).completedDate ? dayjs((item as any).completedDate).format('YYYY-MM-DD') : '-'}
+              {(item as any).completedDate 
+                ? dayjs((item as any).completedDate).format('YYYY-MM-DD') 
+                : (item.updatedAt ? dayjs(item.updatedAt).format('YYYY-MM-DD') : '-')
+              }
             </td>
           )}
           <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-medium">
@@ -580,13 +636,10 @@ export const ProductionScheduling: React.FC = () => {
                   退回
                 </button>
               )}
-              {activeTab === 'completed' && isProductionStaff && (
-                <button
-                  onClick={() => handleFinishStage(item.id)}
-                  className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
-                >
-                  完成
-                </button>
+              {activeTab === 'completed' && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  已完成
+                </span>
               )}
             </td>
           )}
@@ -888,6 +941,48 @@ export const ProductionScheduling: React.FC = () => {
               alt="商品图片"
               className="max-w-full max-h-96 object-contain"
             />
+          </div>
+        </div>
+      )}
+
+      {/* 成功/错误弹窗 */}
+      {modal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex-shrink-0">
+                {modal.type === 'success' ? (
+                  <CheckCircle className="h-8 w-8 text-green-500" />
+                ) : (
+                  <AlertTriangle className="h-8 w-8 text-red-500" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">{modal.title}</h3>
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-600">
+                {modal.sku && (
+                  <>
+                    SKU <span className="font-medium text-gray-900">{modal.sku}</span> 
+                  </>
+                )}
+                {modal.message}
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setModal({ isOpen: false, type: 'success', title: '', message: '', sku: '' })}
+                className={`px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors ${
+                  modal.type === 'success' 
+                    ? 'bg-blue-600 hover:bg-blue-700' 
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                确定
+              </button>
+            </div>
           </div>
         </div>
       )}

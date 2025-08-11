@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, X, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useGlobalStore } from '../../store/globalStore';
 
@@ -12,6 +12,21 @@ export const InboundRegister: React.FC = () => {
   const { user } = useAuth();
   const records = useGlobalStore((state) => state.inboundRegisters);
   const updateRecord = useGlobalStore((state) => state.updateInboundRegister);
+
+  // 成功/错误弹窗状态管理
+  const [modal, setModal] = React.useState<{
+    isOpen: boolean;
+    type: 'success' | 'error';
+    title: string;
+    message: string;
+    sku?: string;
+  }>({
+    isOpen: false,
+    type: 'success',
+    title: '',
+    message: '',
+    sku: ''
+  });
 
   const isWarehouseStaff = user?.role === 'warehouse_staff';
 
@@ -29,13 +44,23 @@ export const InboundRegister: React.FC = () => {
   // 保存
   const handleSave = (itemId: string) => {
     if (!isWarehouseStaff) {
-      alert('权限不足：只有仓管人员可以保存数据');
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: '权限不足',
+        message: '只有仓管人员可以保存数据'
+      });
       return;
     }
     try {
       const item = records.find((i: any) => i.id === itemId);
       if (!item) {
-        alert('未找到对应的SKU数据');
+        setModal({
+          isOpen: true,
+          type: 'error',
+          title: '数据错误',
+          message: '未找到对应的SKU数据'
+        });
         return;
       }
       const requiredFields = [
@@ -53,7 +78,12 @@ export const InboundRegister: React.FC = () => {
       });
       if (emptyFields.length > 0) {
         const fieldNames = emptyFields.map(f => f.name).join('、');
-        alert(`请填写完整信息：${fieldNames}`);
+        setModal({
+          isOpen: true,
+          type: 'error',
+          title: '信息不完整',
+          message: `请填写完整信息：${fieldNames}`
+        });
         return;
       }
       const packageCount = Number(item.packageCount) || 0;
@@ -64,7 +94,12 @@ export const InboundRegister: React.FC = () => {
       const boxHeight = Number(item.boxHeight) || 0;
       const unitWeight = Number(item.unitWeight) || 0;
       if (totalPieces <= 0 || piecesPerUnit <= 0 || boxLength <= 0 || boxWidth <= 0 || boxHeight <= 0 || unitWeight <= 0) {
-        alert('所有数值必须大于0');
+        setModal({
+          isOpen: true,
+          type: 'error',
+          title: '数据验证失败',
+          message: '所有数值必须大于0'
+        });
         return;
       }
       const totalQuantity = totalPieces * piecesPerUnit;
@@ -124,10 +159,21 @@ export const InboundRegister: React.FC = () => {
       useGlobalStore.getState().addQualityControlRecord(qualityControlRecord);
       console.log(`已创建发货出柜记录: SKU ${item.sku?.code}, ID: ${qualityControlRecord.id}`);
       
-      alert(`入库登记保存成功！SKU ${item.sku?.code} 已自动流转到发货出柜的"待发货"列表`);
+      setModal({
+        isOpen: true,
+        type: 'success',
+        title: '入库登记保存成功！',
+        message: '已自动流转到发货出柜的"待发货"列表',
+        sku: item.sku?.code
+      });
     } catch (error) {
       console.error('保存失败:', error);
-      alert('保存失败，请重试');
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: '保存失败',
+        message: '保存失败，请重试'
+      });
     }
   };
 
@@ -385,6 +431,48 @@ export const InboundRegister: React.FC = () => {
               alt="商品图片"
               className="max-w-full max-h-96 object-contain"
             />
+          </div>
+        </div>
+      )}
+
+      {/* 成功/错误弹窗 */}
+      {modal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex-shrink-0">
+                {modal.type === 'success' ? (
+                  <CheckCircle className="h-8 w-8 text-green-500" />
+                ) : (
+                  <AlertTriangle className="h-8 w-8 text-red-500" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">{modal.title}</h3>
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-600">
+                {modal.sku && (
+                  <>
+                    SKU <span className="font-medium text-gray-900">{modal.sku}</span> 
+                  </>
+                )}
+                {modal.message}
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setModal({ isOpen: false, type: 'success', title: '', message: '', sku: '' })}
+                className={`px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors ${
+                  modal.type === 'success' 
+                    ? 'bg-blue-600 hover:bg-blue-700' 
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                确定
+              </button>
+            </div>
           </div>
         </div>
       )}

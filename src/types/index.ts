@@ -153,6 +153,7 @@ export interface ProductionSchedule {
   completedQuantity?: number;
   startDate?: Date;
   endDate?: Date;
+  completedDate?: Date; // 新增：完成日期
   operator?: User;
   operatorId?: string;
   remarks?: string;
