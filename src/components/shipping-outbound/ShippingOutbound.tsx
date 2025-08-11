@@ -102,18 +102,31 @@ export const ShippingOutbound: React.FC = () => {
 
   // 导出发货批次详情
   const handleExportBatchDetails = (batch: Shipment) => {
-    const exportData = batch.items.map((item) => ({
-      '订单编号': item.item.id,
-      'SKU编码': item.item.sku.code,
+    const exportData = batch.items.map((item: any) => ({
+      '订单编号': item.item.purchaseRequestNumber || item.item.id,
+      'SKU': item.item.sku.code,
       '品名': item.item.sku.name,
-      '英文品名': item.item.sku.englishName || '',
-      '产品类别': item.item.sku.category || '',
       '识别码': item.item.sku.identificationCode,
+      '中包数': item.shippedPackageCount || item.item.packageCount || '-',
+      '发货件数': item.shippedTotalPieces || item.item.totalPieces || '-',
+      '单件数量': item.item.piecesPerUnit || '-',
       '发货总数量': item.shippedQuantity,
+      '外箱长(cm)': item.item.boxLength || '-',
+      '外箱宽(cm)': item.item.boxWidth || '-',
+      '外箱高(cm)': item.item.boxHeight || '-',
+      '外箱体积(m³)': (item.item.boxLength && item.item.boxWidth && item.item.boxHeight) 
+        ? ((item.item.boxLength * item.item.boxWidth * item.item.boxHeight) / 1000000).toFixed(6)
+        : (item.item.boxVolume ? item.item.boxVolume.toFixed(6) : '-'),
+      '发货总体积(m³)': item.shippedTotalVolume ? item.shippedTotalVolume.toFixed(3) : (item.item.totalVolume ? item.item.totalVolume.toFixed(3) : '-'),
+      '单件重量(kg)': item.item.unitWeight ? item.item.unitWeight.toFixed(2) : '-',
+      '发货总重量(kg)': item.shippedTotalWeight ? item.shippedTotalWeight.toFixed(2) : (item.item.totalWeight ? item.item.totalWeight.toFixed(2) : '-'),
     }));
 
-
-
+    // 计算批次汇总数据
+    const totalWeight = batch.items.reduce((sum: number, item: any) => 
+      sum + (item.shippedTotalWeight || item.item.totalWeight || 0), 0);
+    const totalVolume = batch.items.reduce((sum: number, item: any) => 
+      sum + (item.shippedTotalVolume || item.item.totalVolume || 0), 0);
 
     // 转换为CSV格式
     const headers = Object.keys(exportData[0] || {});
@@ -121,8 +134,8 @@ export const ShippingOutbound: React.FC = () => {
       '批次信息',
       `批次编号,${batch.containerNumber}`,
       `SKU数量,${batch.items.length}`,
-      `发货总重量(kg),0`,
-      `发货总体积(m³),0`,
+      `发货总重量(kg),${totalWeight.toFixed(2)}`,
+      `发货总体积(m³),${totalVolume.toFixed(3)}`,
       `发货时间,${batch.shippingDate.toLocaleDateString('zh-CN')} ${batch.shippingDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`,
       '',
       'SKU详情',
@@ -226,8 +239,25 @@ export const ShippingOutbound: React.FC = () => {
               totalPrice: undefined,
               remarks: item.remarks,
               status: 'shipped',
+              // 保存订单编号
+              purchaseRequestNumber: item.purchaseRequestNumber,
+              // 保存完整的包装信息
+              packageCount: item.packageCount,
+              totalPieces: item.totalPieces,
+              piecesPerUnit: item.piecesPerUnit,
+              boxLength: item.boxLength,
+              boxWidth: item.boxWidth,
+              boxHeight: item.boxHeight,
+              unitWeight: item.unitWeight,
+              totalVolume: item.totalVolume,
+              totalWeight: item.totalWeight,
             },
             shippedQuantity: item.shipmentTotalQuantity ?? 0,
+            // 保存发货相关的包装信息
+            shippedPackageCount: item.packageCount,
+            shippedTotalPieces: item.shipmentQuantity || item.totalPieces,
+            shippedTotalVolume: item.shipmentTotalVolume ?? item.totalVolume,
+            shippedTotalWeight: item.shipmentTotalWeight ?? item.totalWeight,
             status: 'shipped',
           })),
           destination: '',
@@ -376,24 +406,89 @@ export const ShippingOutbound: React.FC = () => {
                 <td className="py-3 px-3 text-sm font-medium text-gray-900">{item.sku.code}</td>
                 <td className="py-3 px-3 text-sm text-gray-900">{item.sku.name}</td>
                 <td className="py-3 px-3 text-sm text-gray-900">{item.sku.identificationCode}</td>
-                <td className="py-3 px-3 text-center text-sm text-gray-900">{item.packageCount}</td>
-                <td className="py-3 px-3 text-center text-sm text-gray-900">{item.totalPieces}</td>
-                <td className="py-3 px-3 text-center text-sm text-gray-900">{item.piecesPerUnit}</td>
-                <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">{item.totalQuantity}</td>
-                <td className="py-3 px-3 text-center text-sm text-gray-900">{item.boxLength}cm</td>
-                <td className="py-3 px-3 text-center text-sm text-gray-900">{item.boxWidth}cm</td>
-                <td className="py-3 px-3 text-center text-sm text-gray-900">{item.boxHeight}cm</td>
-                <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                  {formatNumber(item.boxVolume ?? 0, 6)}m³
-                </td>
-                <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                  {formatNumber(item.totalVolume ?? 0, 3)}m³
+                <td className="py-3 px-3 text-center text-sm text-gray-900">
+                  {item.packageCount > 0 ? item.packageCount : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要在入库登记页面填写">
+                      待填写
+                    </span>
+                  )}
                 </td>
                 <td className="py-3 px-3 text-center text-sm text-gray-900">
-                  {formatNumber(item.unitWeight ?? 0, 2)}kg
+                  {item.totalPieces > 0 ? item.totalPieces : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要在入库登记页面填写">
+                      待填写
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-center text-sm text-gray-900">
+                  {item.piecesPerUnit > 0 ? item.piecesPerUnit : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要在入库登记页面填写">
+                      待填写
+                    </span>
+                  )}
                 </td>
                 <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                  {formatNumber(item.totalWeight ?? 0, 2)}kg
+                  <a 
+                    href="#" 
+                    onClick={(e) => { e.preventDefault(); }}
+                    className={item.totalQuantity && item.totalQuantity > 0 ? "hover:text-blue-800" : "text-gray-400 cursor-not-allowed"}
+                    title={item.totalQuantity && item.totalQuantity > 0 ? "点击查看详情" : "需要先在入库登记页面填写包装信息"}
+                  >
+                    {item.totalQuantity && item.totalQuantity > 0 ? item.totalQuantity : (
+                      <span className="text-xs bg-yellow-50 px-2 py-1 rounded text-gray-400">
+                        待计算
+                      </span>
+                    )}
+                  </a>
+                </td>
+                <td className="py-3 px-3 text-center text-sm text-gray-900">
+                  {item.boxLength > 0 ? `${item.boxLength}cm` : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要在统计入库页面填写">
+                      待填写
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-center text-sm text-gray-900">
+                  {item.boxWidth > 0 ? `${item.boxWidth}cm` : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要在统计入库页面填写">
+                      待填写
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-center text-sm text-gray-900">
+                  {item.boxHeight > 0 ? `${item.boxHeight}cm` : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要在统计入库页面填写">
+                      待填写
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
+                  {(item.boxVolume ?? 0) > 0 ? `${formatNumber(item.boxVolume ?? 0, 6)}m³` : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要先填写包装信息">
+                      待计算
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
+                  {(item.totalVolume ?? 0) > 0 ? `${formatNumber(item.totalVolume ?? 0, 3)}m³` : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要先填写包装信息">
+                      待计算
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-center text-sm text-gray-900">
+                  {item.unitWeight > 0 ? `${formatNumber(item.unitWeight, 2)}kg` : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要在统计入库页面填写">
+                      待填写
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
+                  {(item.totalWeight ?? 0) > 0 ? `${formatNumber(item.totalWeight ?? 0, 2)}kg` : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要先填写包装信息">
+                      待计算
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -498,24 +593,68 @@ export const ShippingOutbound: React.FC = () => {
                     <span className="text-sm text-gray-900">{item.shipmentQuantity || item.totalPieces}</span>
                   )}
                 </td>
-                <td className="py-3 px-3 text-center text-sm text-gray-900">{item.piecesPerUnit}</td>
-                <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                  {item.shipmentTotalQuantity || item.totalQuantity}
-                </td>
-                <td className="py-3 px-3 text-center text-sm text-gray-900">{item.boxLength}cm</td>
-                <td className="py-3 px-3 text-center text-sm text-gray-900">{item.boxWidth}cm</td>
-                <td className="py-3 px-3 text-center text-sm text-gray-900">{item.boxHeight}cm</td>
-                <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                  {formatNumber(item.boxVolume ?? 0, 6)}m³
+                <td className="py-3 px-3 text-center text-sm text-gray-900">
+                  {item.piecesPerUnit > 0 ? item.piecesPerUnit : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要在统计入库页面填写">
+                      待填写
+                    </span>
+                  )}
                 </td>
                 <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                  {formatNumber((item.shipmentTotalVolume ?? item.totalVolume ?? 0), 3)}m³
+                  {(item.shipmentTotalQuantity || item.totalQuantity || 0) > 0 ? (item.shipmentTotalQuantity || item.totalQuantity) : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要先填写包装信息">
+                      待计算
+                    </span>
+                  )}
                 </td>
                 <td className="py-3 px-3 text-center text-sm text-gray-900">
-                  {formatNumber(item.unitWeight ?? 0, 2)}kg
+                  {item.boxLength > 0 ? `${item.boxLength}cm` : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要在统计入库页面填写">
+                      待填写
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-center text-sm text-gray-900">
+                  {item.boxWidth > 0 ? `${item.boxWidth}cm` : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要在统计入库页面填写">
+                      待填写
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-center text-sm text-gray-900">
+                  {item.boxHeight > 0 ? `${item.boxHeight}cm` : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要在统计入库页面填写">
+                      待填写
+                    </span>
+                  )}
                 </td>
                 <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                  {formatNumber((item.shipmentTotalWeight ?? item.totalWeight ?? 0), 2)}kg
+                  {(item.boxVolume ?? 0) > 0 ? `${formatNumber(item.boxVolume ?? 0, 6)}m³` : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要先填写包装信息">
+                      待计算
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
+                  {(item.shipmentTotalVolume ?? item.totalVolume ?? 0) > 0 ? `${formatNumber((item.shipmentTotalVolume ?? item.totalVolume ?? 0), 3)}m³` : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要先填写包装信息">
+                      待计算
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-center text-sm text-gray-900">
+                  {item.unitWeight > 0 ? `${formatNumber(item.unitWeight, 2)}kg` : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要在统计入库页面填写">
+                      待填写
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
+                  {(item.shipmentTotalWeight ?? item.totalWeight ?? 0) > 0 ? `${formatNumber((item.shipmentTotalWeight ?? item.totalWeight ?? 0), 2)}kg` : (
+                    <span className="text-gray-400 text-xs bg-yellow-50 px-2 py-1 rounded" title="需要先填写包装信息">
+                      待计算
+                    </span>
+                  )}
                 </td>
                 {isLogisticsStaff && (
                   <td className="py-3 px-3 text-center">
@@ -562,12 +701,14 @@ export const ShippingOutbound: React.FC = () => {
                 </td>
                 <td className="py-4 px-4 text-center">
                   <span className="text-sm font-medium text-blue-600">
-                    {formatNumber(batch.items.reduce((sum, i) => sum + (0 * (i.shippedQuantity ?? 0)), 0), 2)}kg
+                    {formatNumber(batch.items.reduce((sum: number, i: any) => 
+                      sum + (i.shippedTotalWeight || i.item.totalWeight || 0), 0), 2)}kg
                   </span>
                 </td>
                 <td className="py-4 px-4 text-center">
                   <span className="text-sm font-medium text-blue-600">
-                    {formatNumber(batch.items.reduce((sum, i) => sum + (0 * (i.shippedQuantity ?? 0)), 0), 3)}m³
+                    {formatNumber(batch.items.reduce((sum: number, i: any) => 
+                      sum + (i.shippedTotalVolume || i.item.totalVolume || 0), 0), 3)}m³
                   </span>
                 </td>
                 <td className="py-4 px-4">
@@ -618,23 +759,6 @@ export const ShippingOutbound: React.FC = () => {
             </div>
           </div>
         </div>
-
-        {/* 权限提示 */}
-        {!isLogisticsStaff && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-center space-x-2">
-              <ChevronRight className="h-5 w-5 text-yellow-600" />
-              <div>
-                <h3 className="text-sm font-medium text-yellow-800">权限提示</h3>
-                <p className="text-sm text-yellow-700 mt-1">
-                  您当前是{user?.role === 'department_manager' ? '部门主管' : 
-                           user?.role === 'general_manager' ? '总经理' : 
-                           user?.role === 'purchasing_officer' ? '采购专员' : '其他角色'}，只能查看发货数据。只有物流专员可以执行发货操作。
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Tab Navigation */}
         <div className="border-b border-gray-200">
@@ -824,11 +948,17 @@ export const ShippingOutbound: React.FC = () => {
                   </div>
                   <div>
                     <span className="text-gray-600">总重量:</span>
-                    <p className="font-medium">0kg</p>
+                    <p className="font-medium">
+                      {formatNumber(viewingBatch.items.reduce((sum: number, item: any) => 
+                        sum + (item.shippedTotalWeight || item.item.totalWeight || 0), 0), 2)}kg
+                    </p>
                   </div>
                   <div>
                     <span className="text-gray-600">总体积:</span>
-                    <p className="font-medium">0m³</p>
+                    <p className="font-medium">
+                      {formatNumber(viewingBatch.items.reduce((sum: number, item: any) => 
+                        sum + (item.shippedTotalVolume || item.item.totalVolume || 0), 0), 3)}m³
+                    </p>
                   </div>
                 </div>
               </div>
@@ -862,7 +992,7 @@ export const ShippingOutbound: React.FC = () => {
                       {viewingBatch.items.map((item: any) => (
                         <tr key={item.itemId} className="hover:bg-gray-50">
                           <td className="py-3 px-3 text-sm font-medium text-blue-600">
-                            {item.item.id}
+                            {item.item.purchaseRequestNumber || item.item.id}
                           </td>
                           <td className="py-3 px-3 text-center">
                             {item.item.sku.imageUrl ? (
@@ -883,19 +1013,42 @@ export const ShippingOutbound: React.FC = () => {
                           <td className="py-3 px-3 text-sm font-medium text-gray-900">{item.item.sku.code}</td>
                           <td className="py-3 px-3 text-sm text-gray-900">{item.item.sku.name}</td>
                           <td className="py-3 px-3 text-sm text-gray-900">{item.item.sku.identificationCode}</td>
-                          <td className="py-3 px-3 text-center text-sm text-gray-900">-</td>
-                          <td className="py-3 px-3 text-center text-sm text-gray-900">-</td>
-                          <td className="py-3 px-3 text-center text-sm text-gray-900">-</td>
+                          <td className="py-3 px-3 text-center text-sm text-gray-900">
+                            {item.shippedPackageCount || item.item.packageCount || '-'}
+                          </td>
+                          <td className="py-3 px-3 text-center text-sm text-gray-900">
+                            {item.shippedTotalPieces || item.item.totalPieces || '-'}
+                          </td>
+                          <td className="py-3 px-3 text-center text-sm text-gray-900">
+                            {item.item.piecesPerUnit || '-'}
+                          </td>
                           <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
                             {item.shippedQuantity}
                           </td>
-                          <td className="py-3 px-3 text-center text-sm text-gray-900">-</td>
-                          <td className="py-3 px-3 text-center text-sm text-gray-900">-</td>
-                          <td className="py-3 px-3 text-center text-sm text-gray-900">-</td>
-                          <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">-</td>
-                          <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">-</td>
-                          <td className="py-3 px-3 text-center text-sm text-gray-900">-</td>
-                          <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">-</td>
+                          <td className="py-3 px-3 text-center text-sm text-gray-900">
+                            {item.item.boxLength ? `${item.item.boxLength}cm` : '-'}
+                          </td>
+                          <td className="py-3 px-3 text-center text-sm text-gray-900">
+                            {item.item.boxWidth ? `${item.item.boxWidth}cm` : '-'}
+                          </td>
+                          <td className="py-3 px-3 text-center text-sm text-gray-900">
+                            {item.item.boxHeight ? `${item.item.boxHeight}cm` : '-'}
+                          </td>
+                          <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
+                            {item.item.boxLength && item.item.boxWidth && item.item.boxHeight 
+                              ? `${formatNumber((item.item.boxLength * item.item.boxWidth * item.item.boxHeight) / 1000000, 6)}m³`
+                              : (item.item.boxVolume ? `${formatNumber(item.item.boxVolume, 6)}m³` : '-')
+                            }
+                          </td>
+                          <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
+                            {item.shippedTotalVolume ? `${formatNumber(item.shippedTotalVolume, 3)}m³` : (item.item.totalVolume ? `${formatNumber(item.item.totalVolume, 3)}m³` : '-')}
+                          </td>
+                          <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
+                            {item.item.unitWeight ? `${formatNumber(item.item.unitWeight, 2)}kg` : '-'}
+                          </td>
+                          <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
+                            {item.shippedTotalWeight ? `${formatNumber(item.shippedTotalWeight, 2)}kg` : (item.item.totalWeight ? `${formatNumber(item.item.totalWeight, 2)}kg` : '-')}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

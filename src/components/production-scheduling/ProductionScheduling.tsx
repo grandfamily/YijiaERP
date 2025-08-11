@@ -207,39 +207,8 @@ export const ProductionScheduling: React.FC = () => {
       // 使用全局store添加入库登记记录
       useGlobalStore.getState().addInboundRegister(inboundRecord);
       
-      // 同时创建质检记录用于质量控制
-      const qualityControlRecord = {
-        id: `qc-production-auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        purchaseRequestNumber: item.purchaseRequestNumber || '',
-        skuId: item.skuId,
-        sku: item.sku,
-        expectedQuantity: item.plannedQuantity,
-        receivedQuantity: item.plannedQuantity,
-        inspectionStatus: 'pending' as const,
-        inspectionDate: null,
-        inspectorId: null,
-        inspector: null,
-        packageCount: 0,
-        totalPieces: 0,
-        piecesPerUnit: 0,
-        boxLength: 0,
-        boxWidth: 0,
-        boxHeight: 0,
-        unitWeight: 0,
-        totalQuantity: 0,
-        boxVolume: 0,
-        totalVolume: 0,
-        totalWeight: 0,
-        remarks: `来源：生产排单自动完成 - 生产人员: ${user?.name || '未知'}`,
-        status: 'pending_shipment' as const,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-
-      useGlobalStore.getState().addQualityControlRecord(qualityControlRecord);
-      
       console.log(`已创建入库登记记录: SKU ${item.sku?.code}, ID: ${inboundRecord.id}`);
-      console.log(`已创建质检记录: SKU ${item.sku?.code}, ID: ${qualityControlRecord.id}`);
+      console.log(`注意：质检记录将在入库登记完成后自动创建`);
 
       // 清理该项目的环节状态
       setProductionStages(prev => {
@@ -308,38 +277,8 @@ export const ProductionScheduling: React.FC = () => {
       // 使用全局store添加入库登记记录
       useGlobalStore.getState().addInboundRegister(inboundRecord);
       
-      // 同时创建质检记录用于质量控制
-      const qualityControlRecord = {
-        id: `qc-production-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        purchaseRequestNumber: item.purchaseRequestNumber || '',
-        skuId: item.skuId,
-        sku: item.sku,
-        expectedQuantity: item.plannedQuantity,
-        receivedQuantity: item.plannedQuantity,
-        inspectionStatus: 'pending' as const,
-        inspectionDate: null,
-        inspectorId: null,
-        inspector: null,
-        packageCount: 0,
-        totalPieces: 0,
-        piecesPerUnit: 0,
-        boxLength: 0,
-        boxWidth: 0,
-        boxHeight: 0,
-        unitWeight: 0,
-        totalQuantity: 0,
-        boxVolume: 0,
-        totalVolume: 0,
-        totalWeight: 0,
-        remarks: `来源：生产排单已完成 - 生产人员: ${user?.name || '未知'}`,
-        status: 'pending_shipment' as const,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-
-      useGlobalStore.getState().addQualityControlRecord(qualityControlRecord);
       console.log(`已创建入库登记记录: SKU ${item.sku?.code}, ID: ${inboundRecord.id}`);
-      console.log(`已创建质检记录: SKU ${item.sku?.code}, ID: ${qualityControlRecord.id}`);
+      console.log(`注意：质检记录将在入库登记完成后自动创建`);
 
       alert(`生产完成！SKU ${item.sku?.code} 已自动流转到入库登记的"待入库"列表`);
     } catch (error) {

@@ -58,10 +58,19 @@ export const useGlobalStore = create<GlobalStoreState>((set) => ({
   qualityControlRecords: [],
   setQualityControlRecords: (records) => set({ qualityControlRecords: records }),
   addQualityControlRecord: (record) => set(state => {
-    if (state.qualityControlRecords.some(r => r.purchaseRequestNumber === record.purchaseRequestNumber && r.skuId === record.skuId)) {
-      return {};
+    const existingIndex = state.qualityControlRecords.findIndex(r => 
+      r.purchaseRequestNumber === record.purchaseRequestNumber && r.skuId === record.skuId
+    );
+    
+    if (existingIndex >= 0) {
+      // 如果记录已存在，更新它
+      const updatedRecords = [...state.qualityControlRecords];
+      updatedRecords[existingIndex] = { ...updatedRecords[existingIndex], ...record, updatedAt: new Date() };
+      return { qualityControlRecords: updatedRecords };
+    } else {
+      // 如果记录不存在，添加新记录
+      return { qualityControlRecords: [...state.qualityControlRecords, record] };
     }
-    return { qualityControlRecords: [...state.qualityControlRecords, record] };
   }),
   updateQualityControlRecord: (id, updates) => set(state => ({
     qualityControlRecords: state.qualityControlRecords.map(r => r.id === id ? { ...r, ...updates, updatedAt: new Date() } : r)
