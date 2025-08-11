@@ -7,20 +7,17 @@ import {
   Package, 
   Search, 
   Eye, 
-  Edit, 
   CheckCircle,
   Clock,
   AlertTriangle,
   Save,
   X,
-  Filter,
-  Trash2,
-  Plus,
-  Minus
+  Trash2
 } from 'lucide-react';
 import { useProcurement } from '../../hooks/useProcurement';
 import { useAuth } from '../../hooks/useAuth';
-import { PurchaseRequest, OrderAllocation as OrderAllocationType, PaymentMethod, AllocationStatus } from '../../types';
+import { useGlobalStore } from '../../store/globalStore';
+import { PurchaseRequest, OrderAllocation as OrderAllocationType, PaymentMethod, AllocationStatus, PurchaseType } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
 
 type TabType = 'pending' | 'allocated';
@@ -327,18 +324,16 @@ export const OrderAllocation: React.FC = () => {
                             <div className="flex items-center justify-center space-x-2">
                               <button 
                                 onClick={() => setSelectedRequest(request)}
-                                className="p-1 text-gray-400 hover:text-blue-600 rounded"
-                                title="查看详情"
+                                className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded border border-blue-200 hover:border-blue-300 transition-colors"
                               >
-                                <Eye className="h-4 w-4" />
+                                查看详情
                               </button>
                               {canEditAllocation && (
                                 <button 
                                   onClick={() => setSelectedRequest(request)}
-                                  className="p-1 text-gray-400 hover:text-green-600 rounded"
-                                  title="分配订单"
+                                  className="px-3 py-1 text-sm text-green-600 hover:text-green-800 hover:bg-green-50 rounded border border-green-200 hover:border-green-300 transition-colors"
                                 >
-                                  <Edit className="h-4 w-4" />
+                                  分配订单
                                 </button>
                               )}
                             </div>
@@ -557,8 +552,10 @@ const OrderAllocationModal: React.FC<OrderAllocationModalProps> = ({
   onClose,
   onSuccess
 }) => {
-  const { createOrderAllocation, updatePurchaseRequest, createCardProgressForRequest, createAccessoryProgressForRequest, getSuppliers } = useProcurement();
+  const { createOrderAllocation, updatePurchaseRequest, createCardProgressForRequest, createAccessoryProgressForRequest, createArrivalInspectionForRequest, getSuppliers } = useProcurement();
   const { user } = useAuth();
+  const setArrivalInspections = useGlobalStore((state) => state.setArrivalInspections);
+  const arrivalInspections = useGlobalStore((state) => state.arrivalInspections);
   const [loading, setLoading] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   
@@ -740,6 +737,19 @@ const OrderAllocationModal: React.FC<OrderAllocationModalProps> = ({
         console.log(`📋 流转验证成功：订单已同步到纸卡进度和辅料进度两个系统`);
       } else {
         console.log(`ℹ️  厂家包装订单 ${request.requestNumber} 仅同步到纸卡进度系统`);
+      }
+      
+      // 🎯 新增：自动创建到货检验记录
+      const arrivalInspectionRecords = createArrivalInspectionForRequest(updatedRequest);
+      if (arrivalInspectionRecords.length > 0) {
+        // 添加到全局store
+        setArrivalInspections([...arrivalInspections, ...arrivalInspectionRecords]);
+        
+        if (updatedRequest.type === 'in_house') {
+          console.log(`✅ 自己包装订单 ${request.requestNumber} 已创建 ${arrivalInspectionRecords.length} 个半成品待验收记录`);
+        } else {
+          console.log(`✅ 厂家包装订单 ${request.requestNumber} 已创建 ${arrivalInspectionRecords.length} 个成品待验收记录`);
+        }
       }
       
       onSuccess();

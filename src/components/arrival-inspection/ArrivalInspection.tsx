@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Package, 
   Search, 
@@ -6,18 +6,14 @@ import {
   CheckCircle, 
   AlertTriangle,
   Camera,
-  Upload,
-  Save,
-  X,
   ZoomIn,
   ArrowUpDown,
   CheckSquare,
   Square,
-  Eye,
-  Edit,
-  Download
+  X
 } from 'lucide-react';
 import { useArrivalInspection } from '../../hooks/useArrivalInspection';
+import { useGlobalStore } from '../../store/globalStore';
 import { useAuth } from '../../hooks/useAuth';
 import { ArrivalInspection as ArrivalInspectionType, InspectionPhoto } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
@@ -30,7 +26,6 @@ export const ArrivalInspection: React.FC = () => {
   const {
     getArrivalInspectionsByType,
     updateArrivalStatus,
-    updateArrivalInspection,
     completeInspection,
     getInspectionStats
   } = useArrivalInspection();
@@ -44,10 +39,45 @@ export const ArrivalInspection: React.FC = () => {
   const [uploadedPhotos, setUploadedPhotos] = useState<{[key: string]: InspectionPhoto[]}>({});
   const [arrivalQuantities, setArrivalQuantities] = useState<{[key: string]: number}>({});
   const [inspectionNotes, setInspectionNotes] = useState<{[key: string]: string}>({});
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    message: string;
+    sku: string;
+  }>({
+    isOpen: false,
+    message: '',
+    sku: ''
+  });
 
   // 权限检查
   const isQCOfficer = user?.role === 'qc_officer';
   const canEdit = isQCOfficer;
+
+  // 🎯 监听采购进度页面的"到货通知"批量完成事件
+  useEffect(() => {
+    const handleArrivalNotificationBatchComplete = (event: CustomEvent) => {
+      const { requestIds, productType } = event.detail;
+      console.log(`🎯 到货检验页面收到事件: ${productType === 'semi_finished' ? '半成品' : '成品'}订单到货通知批量完成`, requestIds);
+      
+      // 调用hook中的方法来处理批量更新
+      try {
+        // 由于我们使用的是hook，这里应该通过store直接处理
+        import('../../store/arrivalInspection').then(({ arrivalInspectionStore }) => {
+          arrivalInspectionStore.handleArrivalNotificationBatchComplete(requestIds, productType);
+        });
+      } catch (error) {
+        console.error('处理到货通知批量完成事件失败:', error);
+      }
+    };
+
+    // 添加事件监听器
+    window.addEventListener('arrivalNotificationBatchComplete', handleArrivalNotificationBatchComplete as EventListener);
+
+    // 清理事件监听器
+    return () => {
+      window.removeEventListener('arrivalNotificationBatchComplete', handleArrivalNotificationBatchComplete as EventListener);
+    };
+  }, []);
 
   // 获取当前标签页的数据
   const getCurrentTabData = () => {
@@ -153,15 +183,24 @@ export const ArrivalInspection: React.FC = () => {
 
   // 处理验收完成
   const handleInspectionComplete = async (inspectionId: string, qualityResult: 'passed' | 'failed') => {
-    if (!canEdit || !user) return;
+    console.log('🎯 handleInspectionComplete 被调用，参数:', { inspectionId, qualityResult });
+    
+    if (!canEdit || !user) {
+      console.log('🎯 无法编辑或用户未登录，中止操作');
+      return;
+    }
     
     try {
       const photos = uploadedPhotos[inspectionId] || [];
       const inspection = filteredData.find(item => item.id === inspectionId);
+      console.log('🎯 找到的检验项:', inspection);
+      console.log('🎯 上传的照片数量:', photos.length);
+      
       const arrivalQuantity = arrivalQuantities[inspectionId] || inspection?.arrivalQuantity || inspection?.purchaseQuantity || 0;
       const notes = inspectionNotes[inspectionId] || '';
       
       if (photos.length === 0) {
+        console.log('🎯 没有上传照片，显示提示');
         alert('请先上传验收照片');
         return;
       }
@@ -172,8 +211,7 @@ export const ArrivalInspection: React.FC = () => {
         user.id,
         arrivalQuantity,
         photos,
-        qualityResult,
-        notes
+        qualityResult
       );
 
       // 🎯 验收通过后立即执行流转逻辑
@@ -184,6 +222,10 @@ export const ArrivalInspection: React.FC = () => {
           // 半成品验收通过 → 生产排单
           console.log(`半成品验收通过：SKU ${inspection.sku.code} 开始创建生产排单记录`);
           
+          // 从item中获取材料和包装方式信息
+          const material = inspection.item?.material || '';
+          const packagingMethod = inspection.item?.packagingMethod || '标准包装';
+          
           // 创建生产排单记录
           const productionScheduleData = {
             id: `ps-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -191,31 +233,66 @@ export const ArrivalInspection: React.FC = () => {
             sku: inspection.sku,
             purchaseRequestId: inspection.purchaseRequestId,
             purchaseRequestNumber: inspection.purchaseRequestNumber,
-            scheduledDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            scheduledDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 默认7天后
             plannedQuantity: arrivalQuantity,
-            packagingMethod: '标准包装',
-            machine: '包装机A',
-            status: 'pending',
+            material,
+            packagingMethod,
+            machine: '待分配',
+            status: 'pending' as const,
             createdAt: new Date(),
             updatedAt: new Date()
           };
           
-          // 通过事件通知生产排单模块
-          if (typeof window !== 'undefined') {
-            const event = new CustomEvent('addProductionSchedule', {
-              detail: productionScheduleData
-            });
-            window.dispatchEvent(event);
-            console.log(`已发送生产排单创建事件: SKU ${inspection.sku.code}`);
-          }
+          // 直接使用全局store添加生产排单记录
+          useGlobalStore.getState().addProductionSchedule(productionScheduleData);
+          console.log(`已创建生产排单记录: SKU ${inspection.sku.code}, ID: ${productionScheduleData.id}`);
           
-          alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到生产排单的待排单子栏目`);
+          setSuccessModal({
+            isOpen: true,
+            message: `已自动流转到生产排单的"待排单"列表`,
+            sku: inspection.sku.code
+          });
           
         } else if (inspection.productType === 'finished') {
-          // 成品验收通过 → 统计入库
-          console.log(`成品验收通过：SKU ${inspection.sku.code} 开始创建统计入库记录`);
+          // 成品验收通过 → 入库登记 和 统计入库
+          console.log(`成品验收通过：SKU ${inspection.sku.code} 开始创建入库登记记录和统计入库记录`);
           
-          // 创建统计入库记录
+          // 创建入库登记记录
+          const inboundRecord = {
+            id: `inbound-finished-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            purchaseRequestNumber: inspection.purchaseRequestNumber,
+            skuId: inspection.skuId,
+            sku: inspection.sku,
+            productName: inspection.sku?.name || '',
+            identifier: inspection.sku?.identificationCode || inspection.sku?.code || '',
+            image: inspection.sku?.imageUrl || '',
+            expectedQuantity: inspection.purchaseQuantity,
+            receivedQuantity: arrivalQuantity,
+            packageCount: 0,
+            totalPieces: 0,
+            piecesPerUnit: 0,
+            boxLength: 0,
+            boxWidth: 0,
+            boxHeight: 0,
+            unitWeight: 0,
+            totalQuantity: null,
+            boxVolume: null,
+            totalVolume: null,
+            totalWeight: null,
+            remarks: `来源：到货检验成品验收完成 - 验收人员: ${user?.name || '未知'}`,
+            status: 'pending' as const,
+            registerDate: null,
+            registerUserId: null,
+            registerUser: null,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+          
+          // 直接添加到全局store的入库登记
+          useGlobalStore.getState().addInboundRegister(inboundRecord);
+          console.log(`已创建入库登记记录: SKU ${inspection.sku.code}`);
+          
+          // 同时创建统计入库记录（兼容发货出柜等其他模块）
           const qualityControlRecord = {
             id: `qc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             purchaseRequestNumber: inspection.purchaseRequestNumber,
@@ -223,7 +300,7 @@ export const ArrivalInspection: React.FC = () => {
             sku: inspection.sku,
             expectedQuantity: inspection.purchaseQuantity,
             receivedQuantity: arrivalQuantity,
-            inspectionStatus: 'pending',
+            inspectionStatus: 'pending' as const,
             inspectionDate: null,
             inspectorId: null,
             inspector: null,
@@ -243,7 +320,7 @@ export const ArrivalInspection: React.FC = () => {
             updatedAt: new Date()
           };
 
-          // 通过事件通知统计入库模块
+          // 通过事件通知统计入库模块（保持向后兼容）
           if (typeof window !== 'undefined') {
             const event = new CustomEvent('addQualityControlRecord', {
               detail: qualityControlRecord
@@ -252,33 +329,55 @@ export const ArrivalInspection: React.FC = () => {
             console.log(`已发送统计入库创建事件: SKU ${inspection.sku.code}`);
           }
           
-          alert(`验收完成！SKU ${inspection.sku.code} 已自动流转到统计入库的待验收子栏目`);
+          setSuccessModal({
+            isOpen: true,
+            message: `已自动流转到入库登记的"待入库"列表`,
+            sku: inspection.sku.code
+          });
         }
       } else if (qualityResult === 'failed' && inspection) {
         // 验收不合格 → 流转到采购进度的不合格订单
         console.log(`验收不合格：SKU ${inspection.sku.code} 开始流转到采购进度不合格订单`);
         
-        // 通过事件通知采购进度模块
+        // 创建不合格订单数据
+        const rejectedOrderData = {
+          id: `rejected-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          purchaseRequestId: inspection.purchaseRequestId,
+          skuId: inspection.skuId,
+          sku: inspection.sku,
+          purchaseRequestNumber: inspection.purchaseRequestNumber,
+          rejectionReason: `${inspection.productType === 'semi_finished' ? '半成品' : '成品'}到货检验不合格`,
+          rejectionDate: new Date(),
+          rejectedBy: user?.name || '质检专员',
+          inspectionNotes: notes || '质量检验不合格',
+          productType: inspection.productType,
+          processStatus: 'pending' as const,
+          createdAt: new Date()
+        };
+        
+        console.log('🔥 准备保存不合格订单到全局存储:', rejectedOrderData);
+        
+        // 直接保存到全局存储
+        useGlobalStore.getState().addRejectedOrder(rejectedOrderData);
+        
+        // 同时发送事件（兼容性）
         if (typeof window !== 'undefined') {
+          console.log('🔥 准备发送addRejectedOrder事件');
           const event = new CustomEvent('addRejectedOrder', {
-            detail: {
-              purchaseRequestId: inspection.purchaseRequestId,
-              skuId: inspection.skuId,
-              sku: inspection.sku,
-              purchaseRequestNumber: inspection.purchaseRequestNumber,
-              rejectionReason: `${inspection.productType === 'semi_finished' ? '半成品' : '成品'}到货检验不合格`,
-              rejectionDate: new Date(),
-              rejectedBy: user?.name || '质检专员',
-              inspectionNotes: notes || '质量检验不合格',
-              productType: inspection.productType,
-              createdAt: new Date()
-            }
+            detail: rejectedOrderData
           });
+          
+          console.log('🔥 即将发送事件:', event);
           window.dispatchEvent(event);
+          console.log('🔥 事件已发送完成');
           console.log(`已发送不合格订单创建事件: SKU ${inspection.sku.code}`);
         }
         
-        alert(`验收不合格！SKU ${inspection.sku.code} 已流转到采购进度的不合格订单子栏目`);
+        setSuccessModal({
+          isOpen: true,
+          message: `已流转到采购进度的不合格订单子栏目`,
+          sku: inspection.sku.code
+        });
       }
 
       // 清理临时数据
@@ -371,6 +470,7 @@ export const ArrivalInspection: React.FC = () => {
               <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">采购数量</th>
               <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">到货数量</th>
               <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">验收照片</th>
+              <th className="text-center py-3 px-3 font-medium text-gray-900 w-32">验收备注</th>
               <th className="text-center py-3 px-3 font-medium text-gray-900 w-24">验收意见</th>
             </tr>
           </thead>
@@ -585,33 +685,39 @@ export const ArrivalInspection: React.FC = () => {
                   )}
                 </td>
                 
+                {/* 验收备注 */}
+                <td className="py-3 px-3 text-center">
+                  {canEdit ? (
+                    <textarea
+                      value={inspectionNotes[item.id] || ''}
+                      onChange={(e) => setInspectionNotes(prev => ({
+                        ...prev,
+                        [item.id]: e.target.value
+                      }))}
+                      placeholder="请填写验收备注..."
+                      className="w-32 h-16 text-xs border border-gray-300 rounded px-2 py-1 resize-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  ) : (
+                    <div className="text-xs text-gray-500">-</div>
+                  )}
+                </td>
+
                 {/* 验收意见 */}
                 <td className="py-3 px-3 text-center">
                   {canEdit ? (
                     <div className="flex flex-col space-y-1">
-                      <textarea
-                        value={inspectionNotes[item.id] || ''}
-                        onChange={(e) => setInspectionNotes(prev => ({
-                          ...prev,
-                          [item.id]: e.target.value
-                        }))}
-                        placeholder="验收备注..."
-                        className="w-32 h-16 text-xs border border-gray-300 rounded px-2 py-1 resize-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                      />
-                      <div className="flex space-x-1">
-                        <button
-                          onClick={() => handleInspectionComplete(item.id, 'passed')}
-                          className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                        >
-                          通过
-                        </button>
-                        <button
-                          onClick={() => handleInspectionComplete(item.id, 'failed')}
-                          className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                        >
-                          不合格
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handleInspectionComplete(item.id, 'passed')}
+                        className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium"
+                      >
+                        通过
+                      </button>
+                      <button
+                        onClick={() => handleInspectionComplete(item.id, 'failed')}
+                        className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium"
+                      >
+                        不合格
+                      </button>
                     </div>
                   ) : (
                     <div className="text-xs text-gray-500">待验收</div>
@@ -1108,6 +1214,35 @@ export const ArrivalInspection: React.FC = () => {
                   关闭
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 成功弹窗 */}
+      {successModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex-shrink-0">
+                <CheckCircle className="h-8 w-8 text-green-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">验收完成！</h3>
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-600">
+                SKU <span className="font-medium text-gray-900">{successModal.sku}</span> {successModal.message}
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setSuccessModal({ isOpen: false, message: '', sku: '' })}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                确定
+              </button>
             </div>
           </div>
         </div>

@@ -8,16 +8,6 @@ import {
   Truck,
   Users,
   FileText,
-  Plus,
-  Search,
-  Upload,
-  Download,
-  Edit,
-  Trash2,
-  Star,
-  MapPin,
-  Phone,
-  Mail,
   BarChart3
 } from 'lucide-react';
 import { useProcurement } from '../../hooks/useProcurement';
@@ -40,13 +30,15 @@ export const Dashboard: React.FC = () => {
   const canManageProducts = hasPermission('manage_products');
   const canViewSuppliers = hasPermission('view_suppliers') || hasPermission('manage_suppliers');
   const canViewReports = hasPermission('view_reports');
+  const canManageInventory = hasPermission('manage_inventory');
 
   const tabs = [
-    { id: 'overview', label: '概览', icon: <BarChart3 className="h-4 w-4" /> },
+    { id: 'overview', label: '工作台概览', icon: <BarChart3 className="h-4 w-4" /> },
     ...(canManageProducts ? [{ id: 'products', label: '产品列表', icon: <Package className="h-4 w-4" /> }] : []),
     ...(canViewSuppliers ? [{ id: 'suppliers', label: '供应商管理', icon: <Users className="h-4 w-4" /> }] : []),
-    ...(canManageProducts ? [{ id: 'inventory', label: '库存销量', icon: <Package className="h-4 w-4" /> }] : []),
-    ...(canViewReports ? [{ id: 'reports', label: '报表统计', icon: <TrendingUp className="h-4 w-4" /> }] : [])
+    ...(canManageInventory ? [{ id: 'inventory', label: '库存管理', icon: <Package className="h-4 w-4" /> }] : []),
+    { id: 'sku-finalization', label: 'SKU定稿', icon: <CheckCircle className="h-4 w-4" /> },
+    ...(canViewReports ? [{ id: 'reports', label: '数据报表', icon: <TrendingUp className="h-4 w-4" /> }] : [])
   ];
 
   const renderTabContent = () => {
@@ -57,6 +49,8 @@ export const Dashboard: React.FC = () => {
         return <Suppliers />;
       case 'inventory':
         return <Inventory />;
+      case 'sku-finalization':
+        return <SKUFinalizationManager />;
       case 'reports':
         return <Reports />;
       default:

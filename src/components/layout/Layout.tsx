@@ -5,18 +5,18 @@ import { Dashboard } from '../dashboard/Dashboard';
 import { PurchaseRequests } from '../purchase-requests/PurchaseRequests';
 import { Approvals } from '../approvals/Approvals';
 import { OrderAllocation } from '../order-allocation/OrderAllocation';
-import { ExternalPurchase } from '../external-purchase/ExternalPurchase';
 import { CardProgress } from '../card-progress/CardProgress';
 import { AccessoryProgress } from '../accessory-progress/AccessoryProgress';
-import { AccessoryStaffProgress } from '../accessory-progress/AccessoryStaffProgress';
 import { PurchaseProgress } from '../purchase-progress/PurchaseProgress';
-import { QualityControl } from '../quality-control/QualityControl';
-import { Shipping } from '../shipping/Shipping';
+import { InboundRegister } from '../inbound-register/InboundRegister';
+// import { Shipping } from '../shipping/Shipping'; // 未使用，移除警告
 import { Inventory } from '../inventory/Inventory';
 import { FinanceManagement } from '../finance/FinanceManagement';
 import { ProductionScheduling } from '../production-scheduling/ProductionScheduling';
 import { ShippingOutbound } from '../shipping-outbound/ShippingOutbound';
 import { ArrivalInspection } from '../arrival-inspection/ArrivalInspection';
+import { Settings } from '../settings/Settings';
+import { HelpGuide } from '../ui/HelpGuide';
 
 export const Layout: React.FC = () => {
   const [activeItem, setActiveItem] = useState('dashboard');
@@ -41,14 +41,16 @@ export const Layout: React.FC = () => {
         return <CardProgress />;
       case 'accessory-progress':
         return <AccessoryProgress />;
-      case 'quality-control':
-        return <QualityControl />;
+      case 'inbound-register':
+        return <InboundRegister />;
       case 'shipping':
         return <ShippingOutbound />;
       case 'inventory':
         return <Inventory />;
       case 'finance':
         return <FinanceManagement />;
+      case 'settings':
+        return <Settings />;
       default:
         return <Dashboard />;
     }
@@ -63,6 +65,7 @@ export const Layout: React.FC = () => {
           {renderContent()}
         </main>
       </div>
+      <HelpGuide onNavigate={setActiveItem} />
     </div>
   );
 };

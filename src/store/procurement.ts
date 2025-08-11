@@ -951,6 +951,53 @@ class ProcurementStore {
     return newProgressRecords;
   }
 
+  // 🎯 新增：为采购申请创建到货检验记录
+  createArrivalInspectionForRequest(request: PurchaseRequest): any[] {
+    // 获取订单分配信息以确定采购类型
+    const allocation = this.getOrderAllocationByRequestId(request.id);
+    const purchaseType = allocation?.type || 'external';
+    
+    const newInspectionRecords: any[] = [];
+
+    // 为每个SKU创建到货检验记录
+    request.items.forEach(item => {
+      // 根据采购类型确定产品类型
+      const productType = purchaseType === 'in_house' ? 'semi_finished' : 'finished';
+      
+      const newInspection = {
+        id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        purchaseRequestId: request.id,
+        skuId: item.skuId,
+        sku: item.sku,
+        purchaseRequestNumber: request.requestNumber,
+        purchaseQuantity: item.quantity,
+        arrivalQuantity: undefined,
+        isArrived: false,
+        arrivalDate: undefined,
+        inspectionStatus: 'pending' as const,
+        inspectionDate: undefined,
+        inspectorId: undefined,
+        inspector: undefined,
+        inspectionPhotos: [],
+        inspectionNotes: undefined,
+        qualityResult: undefined,
+        productType: productType as 'semi_finished' | 'finished',
+        procurementProgress: 0,
+        cardProgress: 0,
+        accessoryProgress: 0,
+        remarks: undefined,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        item: item
+      };
+
+      newInspectionRecords.push(newInspection);
+    });
+
+    // 这里我们返回记录，具体的添加到store的逻辑在调用方处理
+    return newInspectionRecords;
+  }
+
   // 🎯 新增：自动检查纸卡进度完成状态并联动采购进度
   checkAndUpdateCardProgressCompletion(): void {
     console.log('🔄 开始检查纸卡进度完成状态...');

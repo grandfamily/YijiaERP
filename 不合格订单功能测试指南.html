@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>不合格订单功能测试指南</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            background-color: #f8fafc;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .step {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #3b82f6;
+        }
+        .warning {
+            background: #fef2f2;
+            border-left-color: #ef4444;
+            color: #991b1b;
+        }
+        .success {
+            background: #f0fdf4;
+            border-left-color: #10b981;
+            color: #065f46;
+        }
+        .info {
+            background: #eff6ff;
+            border-left-color: #3b82f6;
+            color: #1e40af;
+        }
+        .code {
+            background: #f1f5f9;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            margin: 10px 0;
+            border: 1px solid #e2e8f0;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #3b82f6;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            margin: 10px 10px 10px 0;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #2563eb;
+        }
+        .btn-success {
+            background: #10b981;
+        }
+        .btn-success:hover {
+            background: #059669;
+        }
+        .feature-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .feature-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+        .status-fixed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .status-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎯 不合格订单功能测试指南</h1>
+        <p>系统性解决"采购进度"页面"不合格订单"标签页显示问题</p>
+        <div>
+            <a href="http://localhost:5174" class="btn btn-success" target="_blank">打开系统首页</a>
+            <a href="#test-steps" class="btn">查看测试步骤</a>
+        </div>
+    </div>
+
+    <div class="step warning">
+        <h2>⚠️ 当前已知问题</h2>
+        <p>根据您的反馈，"采购进度"页面"不合格订单"标签页仍然无法正确显示。我们已经创建了系统性的解决方案。</p>
+        <ul>
+            <li><strong>显示问题：</strong>标签页无法正确显示内容</li>
+            <li><strong>数据流断裂：</strong>从"到货检验"的不合格SKU无法流转</li>
+            <li><strong>通信失效：</strong>跨组件事件通信机制不稳定</li>
+        </ul>
+    </div>
+
+    <div class="step success" id="test-steps">
+        <h2>🔧 立即修复测试步骤</h2>
+        <p>请按以下步骤测试当前的修复状态：</p>
+        
+        <h3>1. 验证测试数据加载</h3>
+        <div class="code">
+            1. 打开浏览器开发者工具 (F12)
+            2. 访问: http://localhost:5174
+            3. 在控制台查看以下日志:
+               🎯 PurchaseProgress组件挂载，初始化不合格订单数据
+               🎯 已加载测试不合格订单数据，共 3 条记录
+        </div>
+
+        <h3>2. 导航到采购进度页面</h3>
+        <div class="code">
+            1. 点击左侧菜单"采购进度"
+            2. 页面应显示4个标签页：
+               - 进行中 (2)
+               - 厂家包装已完成 (0) 
+               - 自己包装已完成 (0)
+               - 不合格订单 (3) ← 重点检查这个
+        </div>
+
+        <h3>3. 测试不合格订单标签页</h3>
+        <div class="code">
+            1. 点击"不合格订单"标签页
+            2. 应该显示3条测试数据：
+               - 高端商务背包 (半成品不合格)
+               - 时尚运动水杯 (成品不合格) 
+               - 智能蓝牙耳机 (半成品不合格)
+            3. 每条记录应显示完整的处理界面
+        </div>
+    </div>
+
+    <div class="step info">
+        <h2>📋 预期显示内容</h2>
+        <p>如果修复成功，"不合格订单"标签页应该显示：</p>
+        
+        <div class="feature-list">
+            <div class="feature-card">
+                <h3>🏷️ 标签页统计</h3>
+                <p>标签页显示"不合格订单 (3)"，表示有3条不合格记录</p>
+            </div>
+            
+            <div class="feature-card">
+                <h3>📦 订单信息</h3>
+                <p>每条记录显示：采购单号、SKU信息、不合格原因、处理状态</p>
+            </div>
+            
+            <div class="feature-card">
+                <h3>🔄 处理选项</h3>
+                <p>提供"退货"和"换货"处理建议，以及处理意见输入</p>
+            </div>
+            
+            <div class="feature-card">
+                <h3>👥 人员信息</h3>
+                <p>显示验收人员、处理人员和相关时间</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="step info">
+        <h2>🛠️ 技术修复方案</h2>
+        <p>我们已经实施了以下修复措施：</p>
+        
+        <h3>立即修复 <span class="status-badge status-fixed">已完成</span></h3>
+        <ul>
+            <li>✅ 修正了RejectedOrder接口数据结构</li>
+            <li>✅ 添加了3条完整的测试数据</li>
+            <li>✅ 确保标签页统计正确计算</li>
+            <li>✅ 修复了条件渲染逻辑</li>
+        </ul>
+
+        <h3>长期优化 <span class="status-badge status-pending">计划中</span></h3>
+        <ul>
+            <li>🔄 重构状态管理架构 (React Context)</li>
+            <li>🔄 替换不稳定的CustomEvent通信</li>
+            <li>🔄 实现数据持久化存储</li>
+            <li>🔄 完善跨组件数据流</li>
+        </ul>
+    </div>
+
+    <div class="step warning">
+        <h2>🐛 如果仍然无法显示</h2>
+        <p>如果按照上述步骤测试后，标签页仍然无法正确显示，请检查：</p>
+        
+        <h3>常见问题排查</h3>
+        <div class="code">
+            1. 浏览器控制台是否有错误信息
+            2. 网络连接是否正常
+            3. 开发服务器是否在 http://localhost:5174 正常运行
+            4. 是否清除了浏览器缓存
+        </div>
+
+        <h3>收集调试信息</h3>
+        <div class="code">
+            在浏览器控制台执行以下代码:
+            console.log('当前URL:', window.location.href);
+            console.log('页面元素:', document.querySelector('[data-testid="failed-orders-tab"]'));
+        </div>
+    </div>
+
+    <div class="step success">
+        <h2>📝 需求文档</h2>
+        <p>我们已经创建了完整的需求文档来系统性解决这个问题：</p>
+        <p><strong>文档位置：</strong> <code>docs/不合格订单功能重构需求文档-V2.md</code></p>
+        
+        <p>该文档包含：</p>
+        <ul>
+            <li>详细的问题分析和根因调查</li>
+            <li>分阶段的技术解决方案</li>
+            <li>完整的验收标准和测试计划</li>
+            <li>风险评估和缓解措施</li>
+        </ul>
+    </div>
+
+    <div class="step info">
+        <h2>📞 反馈和支持</h2>
+        <p>请测试后反馈结果：</p>
+        <ul>
+            <li>✅ 如果显示正常，我们将继续优化长期方案</li>
+            <li>❌ 如果仍有问题，请提供具体的错误信息或截图</li>
+            <li>💡 如果有其他需求，请详细描述预期效果</li>
+        </ul>
+        
+        <p><strong>下一步：</strong>根据您的反馈，我们将立即进行针对性的修复。</p>
+    </div>
+
+    <script>
+        // 自动检测开发服务器状态
+        fetch('http://localhost:5174')
+            .then(response => {
+                if (response.ok) {
+                    document.querySelector('.btn-success').style.background = '#10b981';
+                    document.querySelector('.btn-success').innerHTML = '✅ 系统运行正常 - 立即测试';
+                }
+            })
+            .catch(error => {
+                document.querySelector('.btn-success').style.background = '#ef4444';
+                document.querySelector('.btn-success').innerHTML = '❌ 服务器未启动';
+            });
+    </script>
+</body>
+</html>

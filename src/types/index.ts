@@ -59,6 +59,37 @@ export type ItemStatus =
 
 export type PurchaseType = 'external' | 'in_house'; // 厂家包装 | 自己包装
 
+// 入库登记记录类型
+export interface InboundRegisterRecord {
+  id: string;
+  purchaseRequestNumber: string;
+  skuId: string;
+  sku: any;
+  productName: string;
+  identifier: string;
+  image?: string;
+  expectedQuantity: number;
+  receivedQuantity: number;
+  packageCount: number;
+  totalPieces: number;
+  piecesPerUnit: number;
+  boxLength: number;
+  boxWidth: number;
+  boxHeight: number;
+  unitWeight: number;
+  totalQuantity: number | null;
+  boxVolume: number | null;
+  totalVolume: number | null;
+  totalWeight: number | null;
+  remarks: string;
+  status: 'pending' | 'completed';
+  registerDate: Date | null;
+  registerUserId: string | null;
+  registerUser: any;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface PurchaseRequest {
   id: string;
   requestNumber: string;
@@ -71,6 +102,8 @@ export interface PurchaseRequest {
   // 通用字段
   material?: string;
   packagingMethod?: string;
+  // 订单分配后添加的字段
+  type?: PurchaseType; // 采购类型（订单分配时设置）
   // 审批后添加的字段
   deadline: Date;
   firstApproverId?: string;
@@ -113,6 +146,7 @@ export interface ProductionSchedule {
   purchaseRequestNumber?: string; // 新增：订单编号，用于追溯原始订单
   scheduledDate: Date;
   plannedQuantity: number;
+  material?: string; // 新增：材料
   packagingMethod: string;
   machine: string;
   status: ProductionStatus;
@@ -456,11 +490,13 @@ export interface ArrivalInspection {
   remarks?: string;
   createdAt: Date;
   updatedAt: Date;
+  item?: PurchaseRequestItem; // 新增：原始采购申请item，便于流转材料/包装方式
 }
 
 export type ArrivalInspectionStatus = 
   | 'pending'           // 待验收
-  | 'completed';        // 已验收
+  | 'completed'         // 已验收
+  | 'rejected';         // 验收不合格
 
 export interface InspectionPhoto {
   id: string;
@@ -468,4 +504,24 @@ export interface InspectionPhoto {
   preview: string;
   description?: string;
   uploadDate: Date;
+}
+
+// 不合格订单类型定义
+export interface RejectedOrder {
+  id: string;
+  purchaseRequestId: string;
+  skuId: string;
+  sku: SKU;
+  purchaseRequestNumber: string;
+  rejectionReason: string;          // 不合格原因
+  rejectionDate: Date;              // 不合格时间
+  rejectedBy: string;               // 验收人员
+  inspectionNotes?: string;         // 检验备注
+  productType: 'semi_finished' | 'finished'; // 产品类型
+  processSuggestion?: 'return' | 'exchange'; // 处理建议：退货|换货
+  processOpinion?: string;          // 处理意见
+  processStatus?: 'pending' | 'processing' | 'completed'; // 处理状态
+  processedBy?: string;             // 处理人员
+  processedDate?: Date;             // 处理时间
+  createdAt: Date;
 }

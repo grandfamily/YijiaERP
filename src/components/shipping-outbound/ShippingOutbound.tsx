@@ -1,169 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Truck, 
-  Package, 
-  CheckCircle, 
-  Clock, 
-  Search, 
-  Square, 
+
+import React, { useState } from 'react';
+import {
+  Truck,
+  Package,
+  CheckCircle,
+  Search,
+  Square,
   CheckSquare,
   ArrowRight,
-  ArrowLeft,
-  Eye,
   ZoomIn,
   X,
   Calculator,
   Send,
-  Undo,
-  Download
+  Download,
+  ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { StatusBadge } from '../ui/StatusBadge';
+// import { StatusBadge } from '../ui/StatusBadge';
 
-// 模拟从验货入库获取的已验收数据
-const mockCompletedQualityData = [
-  {
-    id: 'qc-001',
-    purchaseRequestNumber: 'PR-2024-001',
-    skuId: 'sku-001',
-    sku: {
-      id: 'sku-001',
-      code: 'ELE-001',
-      name: '电子产品A',
-      englishName: 'Electronic Product A',
-      category: '电子产品',
-      identificationCode: 'ID001',
-      imageUrl: 'https://images.pexels.com/photos/356056/pexels-photo-356056.jpeg'
-    },
-    packageCount: 5,
-    totalPieces: 10,
-    piecesPerUnit: 5,
-    boxLength: 30,
-    boxWidth: 20,
-    boxHeight: 15,
-    unitWeight: 0.5,
-    totalQuantity: 50,
-    boxVolume: 0.009,
-    totalVolume: 0.09,
-    totalWeight: 5.0,
-    inspectionDate: new Date('2024-01-26'),
-    status: 'pending_shipment' // pending_shipment, pre_shipment, shipped
-  },
-  {
-    id: 'qc-002',
-    purchaseRequestNumber: 'PR-2024-001',
-    skuId: 'sku-002',
-    sku: {
-      id: 'sku-002',
-      code: 'ELE-002',
-      name: '电子产品B',
-      englishName: 'Electronic Product B',
-      category: '电子产品',
-      identificationCode: 'ID002',
-      imageUrl: 'https://images.pexels.com/photos/163036/mario-luigi-yoschi-figures-163036.jpeg'
-    },
-    packageCount: 8,
-    totalPieces: 15,
-    piecesPerUnit: 4,
-    boxLength: 25,
-    boxWidth: 18,
-    boxHeight: 12,
-    unitWeight: 0.3,
-    totalQuantity: 60,
-    boxVolume: 0.0054,
-    totalVolume: 0.081,
-    totalWeight: 4.5,
-    inspectionDate: new Date('2024-01-26'),
-    status: 'pending_shipment'
-  },
-  {
-    id: 'qc-003',
-    purchaseRequestNumber: 'PR-2024-002',
-    skuId: 'sku-003',
-    sku: {
-      id: 'sku-003',
-      code: 'TOY-001',
-      name: '玩具B',
-      englishName: 'Toy B',
-      category: '玩具',
-      identificationCode: 'ID003',
-      imageUrl: 'https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg'
-    },
-    packageCount: 12,
-    totalPieces: 20,
-    piecesPerUnit: 8,
-    boxLength: 35,
-    boxWidth: 25,
-    boxHeight: 18,
-    unitWeight: 0.8,
-    totalQuantity: 160,
-    boxVolume: 0.01575,
-    totalVolume: 0.315,
-    totalWeight: 16.0,
-    inspectionDate: new Date('2024-01-25'),
-    status: 'pre_shipment',
-    shipmentQuantity: 15, // 发货件数
-    shipmentTotalQuantity: 120, // 发货总数量
-    shipmentTotalVolume: 0.23625, // 发货总体积
-    shipmentTotalWeight: 12.0 // 发货总重量
-  }
-];
 
-// 已发货批次数据
-const mockShippedBatches = [
-  {
-    id: 'batch-001',
-    batchNumber: 'SHIP-20240125-001',
-    skuCount: 2,
-    totalWeight: 8.5,
-    totalVolume: 0.125,
-    shipmentDate: new Date('2024-01-25'),
-    items: [
-      {
-        id: 'shipped-001',
-        purchaseRequestNumber: 'PR-2024-003',
-        sku: {
-          code: 'KIT-001',
-          name: '厨房用品A',
-          identificationCode: 'ID004',
-          imageUrl: 'https://images.pexels.com/photos/356056/pexels-photo-356056.jpeg'
-        },
-        packageCount: 6,
-        shipmentQuantity: 8,
-        piecesPerUnit: 3,
-        shipmentTotalQuantity: 24,
-        boxLength: 28,
-        boxWidth: 20,
-        boxHeight: 14,
-        boxVolume: 0.007840,
-        shipmentTotalVolume: 0.06272,
-        unitWeight: 0.4,
-        shipmentTotalWeight: 3.2
-      },
-      {
-        id: 'shipped-002',
-        purchaseRequestNumber: 'PR-2024-003',
-        sku: {
-          code: 'KIT-002',
-          name: '厨房用品B',
-          identificationCode: 'ID005',
-          imageUrl: 'https://images.pexels.com/photos/163036/mario-luigi-yoschi-figures-163036.jpeg'
-        },
-        packageCount: 10,
-        shipmentQuantity: 12,
-        piecesPerUnit: 5,
-        shipmentTotalQuantity: 60,
-        boxLength: 32,
-        boxWidth: 22,
-        boxHeight: 16,
-        boxVolume: 0.011264,
-        shipmentTotalVolume: 0.135168,
-        unitWeight: 0.6,
-        shipmentTotalWeight: 7.2
-      }
-    ]
-  }
-];
+import { useGlobalStore } from '../../store/globalStore';
+import type { QualityControlRecord } from '../../store/qualityControl';
+import type { Shipment } from '../../types';
 
 type TabType = 'pending' | 'pre_shipment' | 'shipped';
 
@@ -172,41 +30,14 @@ export const ShippingOutbound: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
-  const [shippingData, setShippingData] = useState(mockCompletedQualityData);
-  const [shippedBatches, setShippedBatches] = useState(mockShippedBatches);
+  const shippingData = useGlobalStore(s => s.qualityControlRecords) || [];
+  const setShippingData = useGlobalStore(s => s.setQualityControlRecords);
+  const shippedBatches = useGlobalStore(s => s.shipments) || [];
+  const setShippedBatches = useGlobalStore(s => s.setShipments);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [viewingBatch, setViewingBatch] = useState<any>(null);
 
-  // 🎯 监听从统计入库流转过来的数据
-  React.useEffect(() => {
-    const handleAddShippingRecord = (event: CustomEvent) => {
-      const newRecord = event.detail;
-      console.log(`🚚 发货出柜：接收到从统计入库流转的记录 SKU ${newRecord.sku.code}`);
-      
-      setShippingData(prev => {
-        // 检查是否已存在相同的记录
-        const exists = prev.some(item => 
-          item.purchaseRequestNumber === newRecord.purchaseRequestNumber && 
-          item.skuId === newRecord.skuId
-        );
-        
-        if (!exists) {
-          console.log(`✅ 发货出柜：新增待发货记录 SKU ${newRecord.sku.code}`);
-          return [...prev, newRecord];
-        } else {
-          console.log(`⚠️ 发货出柜：记录已存在，跳过添加 SKU ${newRecord.sku.code}`);
-          return prev;
-        }
-      });
-    };
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('addShippingRecord', handleAddShippingRecord as EventListener);
-      return () => {
-        window.removeEventListener('addShippingRecord', handleAddShippingRecord as EventListener);
-      };
-    }
-  }, []);
+  // 全局store唯一流转，已无window事件依赖
 
   // 权限检查：是否为物流专员
   const isLogisticsStaff = user?.role === 'logistics_staff';
@@ -253,17 +84,16 @@ export const ShippingOutbound: React.FC = () => {
 
   // 计算选中项目的统计数据
   const getSelectedStats = () => {
-    const selectedData = filteredData.filter(item => selectedItems.includes(item.id));
-    
+    const selectedData = filteredData.filter((item: QualityControlRecord) => selectedItems.includes(item.id));
     if (activeTab === 'pre_shipment') {
       // 预发货栏目：计算发货数据
-      const totalVolume = selectedData.reduce((sum, item) => sum + (item.shipmentTotalVolume || 0), 0);
-      const totalWeight = selectedData.reduce((sum, item) => sum + (item.shipmentTotalWeight || 0), 0);
+      const totalVolume = selectedData.reduce((sum: number, item: QualityControlRecord) => sum + (item.shipmentTotalVolume ?? 0), 0);
+      const totalWeight = selectedData.reduce((sum: number, item: QualityControlRecord) => sum + (item.shipmentTotalWeight ?? 0), 0);
       return { totalVolume, totalWeight };
     } else {
       // 待发货栏目：计算总数据
-      const totalVolume = selectedData.reduce((sum, item) => sum + item.totalVolume, 0);
-      const totalWeight = selectedData.reduce((sum, item) => sum + item.totalWeight, 0);
+      const totalVolume = selectedData.reduce((sum: number, item: QualityControlRecord) => sum + (item.totalVolume ?? 0), 0);
+      const totalWeight = selectedData.reduce((sum: number, item: QualityControlRecord) => sum + (item.totalWeight ?? 0), 0);
       return { totalVolume, totalWeight };
     }
   };
@@ -271,108 +101,78 @@ export const ShippingOutbound: React.FC = () => {
   const selectedStats = getSelectedStats();
 
   // 导出发货批次详情
-  const handleExportBatchDetails = (batch: any) => {
-    const exportData = batch.items.map((item: any) => ({
-      '订单编号': item.purchaseRequestNumber,
-      'SKU编码': item.sku.code,
-      '品名': item.sku.name,
-      '英文品名': item.sku.englishName || '',
-      '产品类别': item.sku.category || '',
-      '识别码': item.sku.identificationCode,
-      '中包数': item.packageCount,
-      '发货件数': item.shipmentQuantity,
-      '单件数量': item.piecesPerUnit,
-      '发货总数量': item.shipmentTotalQuantity,
-      '外箱长(cm)': item.boxLength,
-      '外箱宽(cm)': item.boxWidth,
-      '外箱高(cm)': item.boxHeight,
-      '外箱体积(m³)': formatNumber(item.boxVolume, 6),
-      '发货总体积(m³)': formatNumber(item.shipmentTotalVolume, 3),
-      '单件重量(kg)': formatNumber(item.unitWeight, 2),
-      '发货总重量(kg)': formatNumber(item.shipmentTotalWeight, 2)
+  const handleExportBatchDetails = (batch: Shipment) => {
+    const exportData = batch.items.map((item) => ({
+      '订单编号': item.item.id,
+      'SKU编码': item.item.sku.code,
+      '品名': item.item.sku.name,
+      '英文品名': item.item.sku.englishName || '',
+      '产品类别': item.item.sku.category || '',
+      '识别码': item.item.sku.identificationCode,
+      '发货总数量': item.shippedQuantity,
     }));
 
-    // 添加批次汇总信息
-    const summaryData = {
-      '批次编号': batch.batchNumber,
-      'SKU数量': batch.skuCount,
-      '发货总重量(kg)': formatNumber(batch.totalWeight, 2),
-      '发货总体积(m³)': formatNumber(batch.totalVolume, 3),
-      '发货时间': `${batch.shipmentDate.toLocaleDateString('zh-CN')} ${batch.shipmentDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
-    };
 
-    // 创建完整的导出数据
-    const fullExportData = [
-      // 批次信息标题行
-      { '订单编号': '=== 批次信息 ===' },
-      summaryData,
-      { '订单编号': '' }, // 空行分隔
-      // SKU详情标题行
-      { '订单编号': '=== SKU详情 ===' },
-      ...exportData
-    ];
+
 
     // 转换为CSV格式
     const headers = Object.keys(exportData[0] || {});
     const csvContent = [
-      // 批次信息部分
       '批次信息',
-      `批次编号,${batch.batchNumber}`,
-      `SKU数量,${batch.skuCount}`,
-      `发货总重量(kg),${formatNumber(batch.totalWeight, 2)}`,
-      `发货总体积(m³),${formatNumber(batch.totalVolume, 3)}`,
-      `发货时间,${batch.shipmentDate.toLocaleDateString('zh-CN')} ${batch.shipmentDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`,
-      '', // 空行
+      `批次编号,${batch.containerNumber}`,
+      `SKU数量,${batch.items.length}`,
+      `发货总重量(kg),0`,
+      `发货总体积(m³),0`,
+      `发货时间,${batch.shippingDate.toLocaleDateString('zh-CN')} ${batch.shippingDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`,
+      '',
       'SKU详情',
       headers.join(','),
-      ...exportData.map(row => headers.map(header => `"${row[header as keyof typeof row]}"`).join(','))
+      ...exportData.map(row => headers.map(header => `"${(row[header as keyof typeof row] ?? '').toString()}"`).join(','))
     ].join('\n');
 
     // 下载文件
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `发货批次详情_${batch.batchNumber}_${new Date().toISOString().split('T')[0]}.csv`;
+  link.download = `发货批次详情_${batch.containerNumber}_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.csv`;
     link.click();
   };
   // 处理预发货
   const handlePreShipment = () => {
     if (selectedItems.length === 0) return;
     
-    setShippingData(prevData => 
-      prevData.map(item => 
-        selectedItems.includes(item.id)
-          ? { 
-              ...item, 
-              status: 'pre_shipment',
-              shipmentQuantity: item.totalPieces, // 默认发货件数等于总件数
-              shipmentTotalQuantity: item.totalQuantity,
-              shipmentTotalVolume: item.totalVolume,
-              shipmentTotalWeight: item.totalWeight
-            }
-          : item
-      )
-    );
+  const updatedData = shippingData.map(item =>
+    selectedItems.includes(item.id)
+      ? ({
+          ...item,
+          status: 'pre_shipment' as const,
+          shipmentQuantity: item.totalPieces,
+          shipmentTotalQuantity: item.totalQuantity,
+          shipmentTotalVolume: item.totalVolume ?? 0,
+          shipmentTotalWeight: item.totalWeight ?? 0
+        } as QualityControlRecord)
+      : item
+  );
+  setShippingData(updatedData);
     
     setSelectedItems([]);
   };
 
   // 处理退回待发货
   const handleReturnToPending = (itemId: string) => {
-    setShippingData(prevData => 
-      prevData.map(item => 
-        item.id === itemId
-          ? { 
-              ...item, 
-              status: 'pending_shipment',
-              shipmentQuantity: undefined,
-              shipmentTotalQuantity: undefined,
-              shipmentTotalVolume: undefined,
-              shipmentTotalWeight: undefined
-            }
-          : item
-      )
-    );
+  const updatedData = shippingData.map(item =>
+    item.id === itemId
+      ? ({
+          ...item,
+          status: 'pending_shipment' as const,
+          shipmentQuantity: undefined,
+          shipmentTotalQuantity: undefined,
+          shipmentTotalVolume: undefined,
+          shipmentTotalWeight: undefined
+        } as QualityControlRecord)
+      : item
+  );
+  setShippingData(updatedData);
   };
 
   // 处理发货件数修改
@@ -384,24 +184,23 @@ export const ShippingOutbound: React.FC = () => {
     // 确保发货件数不超过总件数，且不小于1
     const validShipmentQuantity = Math.max(1, Math.min(shipmentQuantity, currentItem.totalPieces));
     
-    setShippingData(prevData => 
-      prevData.map(item => {
-        if (item.id === itemId) {
-          const shipmentTotalQuantity = validShipmentQuantity * item.piecesPerUnit;
-          const shipmentTotalVolume = validShipmentQuantity * item.boxVolume;
-          const shipmentTotalWeight = validShipmentQuantity * item.unitWeight;
-          
-          return {
-            ...item,
-            shipmentQuantity: validShipmentQuantity,
-            shipmentTotalQuantity,
-            shipmentTotalVolume,
-            shipmentTotalWeight
-          };
-        }
-        return item;
-      })
-    );
+  setShippingData(
+    shippingData.map(item => {
+      if (item.id === itemId) {
+        const shipmentTotalQuantity = validShipmentQuantity * item.piecesPerUnit;
+        const shipmentTotalVolume = validShipmentQuantity * (item.boxVolume ?? 0);
+        const shipmentTotalWeight = validShipmentQuantity * item.unitWeight;
+        return {
+          ...item,
+          shipmentQuantity: validShipmentQuantity,
+          shipmentTotalQuantity,
+          shipmentTotalVolume,
+          shipmentTotalWeight
+        } as QualityControlRecord;
+      }
+      return item;
+    })
+  );
   };
 
   // 处理确认发货
@@ -409,76 +208,74 @@ export const ShippingOutbound: React.FC = () => {
     if (selectedItems.length === 0) return;
     
     const selectedData = filteredData.filter(item => selectedItems.includes(item.id));
-    const batchNumber = `SHIP-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(shippedBatches.length + 1).padStart(3, '0')}`;
-    
-    // 创建新的发货批次
-    const newBatch = {
-      id: `batch-${Date.now()}`,
-      batchNumber,
-      skuCount: selectedData.length,
-      totalWeight: selectedData.reduce((sum, item) => sum + (item.shipmentTotalWeight || 0), 0),
-      totalVolume: selectedData.reduce((sum, item) => sum + (item.shipmentTotalVolume || 0), 0),
-      shipmentDate: new Date(),
-      items: selectedData.map(item => ({
-        id: item.id,
-        purchaseRequestNumber: item.purchaseRequestNumber,
-        sku: item.sku,
-        packageCount: item.packageCount,
-        shipmentQuantity: item.shipmentQuantity || item.totalPieces,
-        piecesPerUnit: item.piecesPerUnit,
-        shipmentTotalQuantity: item.shipmentTotalQuantity || item.totalQuantity,
-        boxLength: item.boxLength,
-        boxWidth: item.boxWidth,
-        boxHeight: item.boxHeight,
-        boxVolume: item.boxVolume,
-        shipmentTotalVolume: item.shipmentTotalVolume || item.totalVolume,
-        unitWeight: item.unitWeight,
-        shipmentTotalWeight: item.shipmentTotalWeight || item.totalWeight
-      }))
-    };
-    
-    setShippedBatches(prev => [...prev, newBatch]);
+        const batchNumber = `SHIP-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(shippedBatches.length + 1).padStart(3, '0')}`;
+        
+        // 创建新的发货批次（Shipment类型）
+        const newBatch: Shipment = {
+          id: `batch-${Date.now()}`,
+          containerNumber: batchNumber,
+          purchaseRequestIds: selectedData.map(item => item.purchaseRequestNumber),
+          items: selectedData.map(item => ({
+            itemId: item.id,
+            item: {
+              id: item.id,
+              skuId: item.skuId,
+              sku: item.sku,
+              quantity: item.totalQuantity ?? 0,
+              unitPrice: undefined,
+              totalPrice: undefined,
+              remarks: item.remarks,
+              status: 'shipped',
+            },
+            shippedQuantity: item.shipmentTotalQuantity ?? 0,
+            status: 'shipped',
+          })),
+          destination: '',
+          shippingDate: new Date(),
+          estimatedArrival: undefined,
+          actualArrival: undefined,
+          status: 'shipped',
+          logisticsStaffId: user?.id || '',
+          logisticsStaff: user!,
+          remarks: '',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } satisfies Partial<Shipment>;
+        const updatedBatches = [...shippedBatches, newBatch];
+        setShippedBatches(updatedBatches);
     
     // 处理部分发货的情况
-    setShippingData(prevData => {
-      const newData = [...prevData];
-      
-      selectedData.forEach(item => {
-        const shipmentQuantity = item.shipmentQuantity || item.totalPieces;
-        
-        if (shipmentQuantity < item.totalPieces) {
-          // 部分发货：创建剩余数量的新记录
-          const remainingQuantity = item.totalPieces - shipmentQuantity;
-          const remainingTotalQuantity = remainingQuantity * item.piecesPerUnit;
-          const remainingTotalVolume = remainingQuantity * item.boxVolume;
-          const remainingTotalWeight = remainingQuantity * item.unitWeight;
-          
-          const remainingItem = {
-            ...item,
-            id: `${item.id}-remaining-${Date.now()}`,
-            totalPieces: remainingQuantity,
-            totalQuantity: remainingTotalQuantity,
-            totalVolume: remainingTotalVolume,
-            totalWeight: remainingTotalWeight,
-            status: 'pending_shipment',
-            shipmentQuantity: undefined,
-            shipmentTotalQuantity: undefined,
-            shipmentTotalVolume: undefined,
-            shipmentTotalWeight: undefined
-          };
-          
-          newData.push(remainingItem);
-        }
-        
-        // 移除原记录
-        const index = newData.findIndex(d => d.id === item.id);
-        if (index !== -1) {
-          newData.splice(index, 1);
-        }
-      });
-      
-      return newData;
+    const newData = [...shippingData];
+    selectedData.forEach(item => {
+      const shipmentQuantity = item.shipmentQuantity || item.totalPieces;
+      if (shipmentQuantity < item.totalPieces) {
+        // 部分发货：创建剩余数量的新记录
+        const remainingQuantity = item.totalPieces - shipmentQuantity;
+        const remainingTotalQuantity = remainingQuantity * item.piecesPerUnit;
+        const remainingTotalVolume = remainingQuantity * (item.boxVolume ?? 0);
+        const remainingTotalWeight = remainingQuantity * item.unitWeight;
+        const remainingItem: Partial<QualityControlRecord> = {
+          ...item,
+          id: `${item.id}-remaining-${Date.now()}`,
+          totalPieces: remainingQuantity,
+          totalQuantity: remainingTotalQuantity,
+          totalVolume: remainingTotalVolume,
+          totalWeight: remainingTotalWeight,
+          status: 'pending_shipment' as const,
+          shipmentQuantity: undefined,
+          shipmentTotalQuantity: undefined,
+          shipmentTotalVolume: undefined,
+          shipmentTotalWeight: undefined
+        };
+        newData.push(remainingItem as QualityControlRecord);
+      }
+      // 移除原记录
+      const index = newData.findIndex(d => d.id === item.id);
+      if (index !== -1) {
+        newData.splice(index, 1);
+      }
     });
+    setShippingData(newData);
     
     setSelectedItems([]);
   };
@@ -587,16 +384,16 @@ export const ShippingOutbound: React.FC = () => {
                 <td className="py-3 px-3 text-center text-sm text-gray-900">{item.boxWidth}cm</td>
                 <td className="py-3 px-3 text-center text-sm text-gray-900">{item.boxHeight}cm</td>
                 <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                  {formatNumber(item.boxVolume, 6)}m³
+                  {formatNumber(item.boxVolume ?? 0, 6)}m³
                 </td>
                 <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                  {formatNumber(item.totalVolume, 3)}m³
+                  {formatNumber(item.totalVolume ?? 0, 3)}m³
                 </td>
                 <td className="py-3 px-3 text-center text-sm text-gray-900">
-                  {formatNumber(item.unitWeight, 2)}kg
+                  {formatNumber(item.unitWeight ?? 0, 2)}kg
                 </td>
                 <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                  {formatNumber(item.totalWeight, 2)}kg
+                  {formatNumber(item.totalWeight ?? 0, 2)}kg
                 </td>
               </tr>
             ))}
@@ -709,16 +506,16 @@ export const ShippingOutbound: React.FC = () => {
                 <td className="py-3 px-3 text-center text-sm text-gray-900">{item.boxWidth}cm</td>
                 <td className="py-3 px-3 text-center text-sm text-gray-900">{item.boxHeight}cm</td>
                 <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                  {formatNumber(item.boxVolume, 6)}m³
+                  {formatNumber(item.boxVolume ?? 0, 6)}m³
                 </td>
                 <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                  {formatNumber(item.shipmentTotalVolume || item.totalVolume, 3)}m³
+                  {formatNumber((item.shipmentTotalVolume ?? item.totalVolume ?? 0), 3)}m³
                 </td>
                 <td className="py-3 px-3 text-center text-sm text-gray-900">
-                  {formatNumber(item.unitWeight, 2)}kg
+                  {formatNumber(item.unitWeight ?? 0, 2)}kg
                 </td>
                 <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                  {formatNumber(item.shipmentTotalWeight || item.totalWeight, 2)}kg
+                  {formatNumber((item.shipmentTotalWeight ?? item.totalWeight ?? 0), 2)}kg
                 </td>
                 {isLogisticsStaff && (
                   <td className="py-3 px-3 text-center">
@@ -758,24 +555,24 @@ export const ShippingOutbound: React.FC = () => {
             {shippedBatches.map((batch) => (
               <tr key={batch.id} className="hover:bg-gray-50">
                 <td className="py-4 px-4">
-                  <div className="font-medium text-blue-600">{batch.batchNumber}</div>
+                  <div className="font-medium text-blue-600">{batch.containerNumber}</div>
                 </td>
                 <td className="py-4 px-4 text-center">
-                  <span className="text-sm font-medium text-gray-900">{batch.skuCount}</span>
+                  <span className="text-sm font-medium text-gray-900">{batch.items.length}</span>
                 </td>
                 <td className="py-4 px-4 text-center">
                   <span className="text-sm font-medium text-blue-600">
-                    {formatNumber(batch.totalWeight, 2)}kg
+                    {formatNumber(batch.items.reduce((sum, i) => sum + (0 * (i.shippedQuantity ?? 0)), 0), 2)}kg
                   </span>
                 </td>
                 <td className="py-4 px-4 text-center">
                   <span className="text-sm font-medium text-blue-600">
-                    {formatNumber(batch.totalVolume, 3)}m³
+                    {formatNumber(batch.items.reduce((sum, i) => sum + (0 * (i.shippedQuantity ?? 0)), 0), 3)}m³
                   </span>
                 </td>
                 <td className="py-4 px-4">
                   <span className="text-sm text-gray-900">
-                    {batch.shipmentDate.toLocaleDateString('zh-CN')} {batch.shipmentDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                    {batch.shippingDate.toLocaleDateString('zh-CN')} {batch.shippingDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </td>
                 <td className="py-4 px-4 text-center">
@@ -826,7 +623,7 @@ export const ShippingOutbound: React.FC = () => {
         {!isLogisticsStaff && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <div className="flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-yellow-600" />
+              <ChevronRight className="h-5 w-5 text-yellow-600" />
               <div>
                 <h3 className="text-sm font-medium text-yellow-800">权限提示</h3>
                 <p className="text-sm text-yellow-700 mt-1">
@@ -850,7 +647,7 @@ export const ShippingOutbound: React.FC = () => {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <Clock className="h-5 w-5" />
+              <ChevronRight className="h-5 w-5" />
               <span>待发货</span>
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                 activeTab === 'pending' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
@@ -908,7 +705,7 @@ export const ShippingOutbound: React.FC = () => {
                       <span className="text-sm text-gray-600">
                         {activeTab === 'pre_shipment' ? '发货总体积' : '总体积'}: 
                         <span className="font-medium text-green-600 ml-1">
-                          {formatNumber(selectedStats.totalVolume, 3)}m³
+                          {formatNumber(selectedStats.totalVolume ?? 0, 3)}m³
                         </span>
                       </span>
                     </div>
@@ -917,7 +714,7 @@ export const ShippingOutbound: React.FC = () => {
                       <span className="text-sm text-gray-600">
                         {activeTab === 'pre_shipment' ? '发货总重量' : '总重量'}: 
                         <span className="font-medium text-purple-600 ml-1">
-                          {formatNumber(selectedStats.totalWeight, 2)}kg
+                          {formatNumber(selectedStats.totalWeight ?? 0, 2)}kg
                         </span>
                       </span>
                     </div>
@@ -1002,7 +799,7 @@ export const ShippingOutbound: React.FC = () => {
           <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold text-gray-900">
-                发货批次详情 - {viewingBatch.batchNumber}
+                发货批次详情 - {viewingBatch.containerNumber}
               </h2>
               <button
                 onClick={() => setViewingBatch(null)}
@@ -1019,19 +816,19 @@ export const ShippingOutbound: React.FC = () => {
                 <div className="grid grid-cols-4 gap-4 text-sm">
                   <div>
                     <span className="text-gray-600">批次编号:</span>
-                    <p className="font-medium">{viewingBatch.batchNumber}</p>
+                    <p className="font-medium">{viewingBatch.containerNumber}</p>
                   </div>
                   <div>
                     <span className="text-gray-600">SKU数量:</span>
-                    <p className="font-medium">{viewingBatch.skuCount}</p>
+                    <p className="font-medium">{viewingBatch.items.length}</p>
                   </div>
                   <div>
                     <span className="text-gray-600">总重量:</span>
-                    <p className="font-medium">{formatNumber(viewingBatch.totalWeight, 2)}kg</p>
+                    <p className="font-medium">0kg</p>
                   </div>
                   <div>
                     <span className="text-gray-600">总体积:</span>
-                    <p className="font-medium">{formatNumber(viewingBatch.totalVolume, 3)}m³</p>
+                    <p className="font-medium">0m³</p>
                   </div>
                 </div>
               </div>
@@ -1063,15 +860,15 @@ export const ShippingOutbound: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {viewingBatch.items.map((item: any) => (
-                        <tr key={item.id} className="hover:bg-gray-50">
+                        <tr key={item.itemId} className="hover:bg-gray-50">
                           <td className="py-3 px-3 text-sm font-medium text-blue-600">
-                            {item.purchaseRequestNumber}
+                            {item.item.id}
                           </td>
                           <td className="py-3 px-3 text-center">
-                            {item.sku.imageUrl ? (
+                            {item.item.sku.imageUrl ? (
                               <img 
-                                src={item.sku.imageUrl} 
-                                alt={item.sku.name}
+                                src={item.item.sku.imageUrl} 
+                                alt={item.item.sku.name}
                                 className="w-10 h-10 object-cover rounded border"
                                 onError={(e) => {
                                   e.currentTarget.style.display = 'none';
@@ -1083,30 +880,22 @@ export const ShippingOutbound: React.FC = () => {
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-3 text-sm font-medium text-gray-900">{item.sku.code}</td>
-                          <td className="py-3 px-3 text-sm text-gray-900">{item.sku.name}</td>
-                          <td className="py-3 px-3 text-sm text-gray-900">{item.sku.identificationCode}</td>
-                          <td className="py-3 px-3 text-center text-sm text-gray-900">{item.packageCount}</td>
-                          <td className="py-3 px-3 text-center text-sm text-gray-900">{item.shipmentQuantity}</td>
-                          <td className="py-3 px-3 text-center text-sm text-gray-900">{item.piecesPerUnit}</td>
+                          <td className="py-3 px-3 text-sm font-medium text-gray-900">{item.item.sku.code}</td>
+                          <td className="py-3 px-3 text-sm text-gray-900">{item.item.sku.name}</td>
+                          <td className="py-3 px-3 text-sm text-gray-900">{item.item.sku.identificationCode}</td>
+                          <td className="py-3 px-3 text-center text-sm text-gray-900">-</td>
+                          <td className="py-3 px-3 text-center text-sm text-gray-900">-</td>
+                          <td className="py-3 px-3 text-center text-sm text-gray-900">-</td>
                           <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                            {item.shipmentTotalQuantity}
+                            {item.shippedQuantity}
                           </td>
-                          <td className="py-3 px-3 text-center text-sm text-gray-900">{item.boxLength}cm</td>
-                          <td className="py-3 px-3 text-center text-sm text-gray-900">{item.boxWidth}cm</td>
-                          <td className="py-3 px-3 text-center text-sm text-gray-900">{item.boxHeight}cm</td>
-                          <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                            {formatNumber(item.boxVolume, 6)}m³
-                          </td>
-                          <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                            {formatNumber(item.shipmentTotalVolume, 3)}m³
-                          </td>
-                          <td className="py-3 px-3 text-center text-sm text-gray-900">
-                            {formatNumber(item.unitWeight, 2)}kg
-                          </td>
-                          <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">
-                            {formatNumber(item.shipmentTotalWeight, 2)}kg
-                          </td>
+                          <td className="py-3 px-3 text-center text-sm text-gray-900">-</td>
+                          <td className="py-3 px-3 text-center text-sm text-gray-900">-</td>
+                          <td className="py-3 px-3 text-center text-sm text-gray-900">-</td>
+                          <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">-</td>
+                          <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">-</td>
+                          <td className="py-3 px-3 text-center text-sm text-gray-900">-</td>
+                          <td className="py-3 px-3 text-center text-sm font-medium text-blue-600">-</td>
                         </tr>
                       ))}
                     </tbody>

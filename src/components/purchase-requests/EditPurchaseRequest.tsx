@@ -300,16 +300,26 @@ export const EditPurchaseRequest: React.FC<EditPurchaseRequestProps> = ({
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div className="bg-white rounded-lg max-w-7xl w-full max-h-[95vh] overflow-y-auto">
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900">
-              编辑采购申请 - {request.requestNumber}
-            </h2>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X className="h-5 w-5" />
-            </button>
+          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-gray-900">
+                编辑采购申请 - {request.requestNumber}
+              </h2>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {/* 合并信息行 */}
+            <div className="flex flex-wrap items-center justify-between mt-4 mb-2 px-2">
+              <div className="flex items-center space-x-8">
+                <span className="text-sm text-gray-700">申请人：{request.requester?.name || '-'}</span>
+                <span className="text-sm text-gray-700">提交时间：{request.createdAt ? (typeof request.createdAt === 'string' ? request.createdAt : new Date(request.createdAt).toLocaleDateString()) : '-'}</span>
+                <span className="text-sm text-gray-700 font-bold">申请总金额：<span className="text-blue-600 text-lg font-bold">¥{getTotalAmount().toFixed(2)}</span></span>
+              </div>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -376,8 +386,8 @@ export const EditPurchaseRequest: React.FC<EditPurchaseRequestProps> = ({
                             <div>识别码</div>
                             <div>材料</div>
                             <div>包装方式</div>
-                            <div className="text-center">单价(元)</div>
-                            <div>数量</div>
+                            <div className="text-center">预估单价(元)</div>
+                            <div>拟采数量</div>
                             <div className="text-center">总价(元)</div>
                           </div>
                           
@@ -506,17 +516,7 @@ export const EditPurchaseRequest: React.FC<EditPurchaseRequestProps> = ({
             </div>
 
             {/* Total Amount Summary */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-lg font-medium text-gray-900">申请总金额:</span>
-                <span className="text-2xl font-bold text-blue-600">
-                  ¥{getTotalAmount().toFixed(2)}
-                </span>
-              </div>
-              <p className="text-sm text-gray-600 mt-1">
-                包含 {items.length} 个SKU项目
-              </p>
-            </div>
+            {/* 申请总金额已合并至顶部信息行，此处移除 */}
 
             {/* Remarks */}
             <div>

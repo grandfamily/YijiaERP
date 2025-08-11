@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Plus, Trash2, ZoomIn, Search, ChevronDown } from 'lucide-react';
 import { useProcurement } from '../../hooks/useProcurement';
 import { useAuth } from '../../hooks/useAuth';
-import { PurchaseType, PurchaseRequestItem, SKU } from '../../types';
+import { PurchaseType, PurchaseRequestItem, SKU, OrderStatus, ApprovalStatus } from '../../types';
 
 interface CreatePurchaseRequestProps {
   onClose: () => void;
@@ -197,11 +197,12 @@ export const CreatePurchaseRequest: React.FC<CreatePurchaseRequestProps> = ({ on
     remarks: ''
   });
 
-  const [items, setItems] = useState<Omit<PurchaseRequestItem, 'id' | 'status' | 'sku' | 'supplier' | 'unitPrice' | 'totalPrice' | 'supplierId' | 'deadline' | 'paymentTerms'>[]>([
+  const [items, setItems] = useState<Omit<PurchaseRequestItem, 'id' | 'status' | 'sku' | 'supplier' | 'supplierId' | 'deadline' | 'paymentTerms'>[]>([
     {
       skuId: '',
-      quantity: 1,
-      unitPrice: 0,
+  quantity: 1,
+  unitPrice: 0,
+      totalPrice: 0,
       remarks: '',
       material: '',
       packagingMethod: ''
@@ -227,8 +228,8 @@ export const CreatePurchaseRequest: React.FC<CreatePurchaseRequestProps> = ({ on
   const addItem = () => {
     setItems([...items, { 
       skuId: '',
-      quantity: 1,
-      unitPrice: 0,
+  quantity: 1,
+  unitPrice: 0,
       remarks: '',
       material: '',
       packagingMethod: ''
@@ -244,9 +245,9 @@ export const CreatePurchaseRequest: React.FC<CreatePurchaseRequestProps> = ({ on
   // Calculate total amount for all items
   const getTotalAmount = () => {
     return items.reduce((sum, item) => {
-      const unitPrice = item.unitPrice || 0;
-      const quantity = item.quantity || 0;
-      return sum + (unitPrice * quantity);
+  const unitPrice = item.unitPrice || 0;
+  const quantity = item.quantity || 0;
+  return sum + (unitPrice * quantity);
     }, 0);
   };
 
@@ -292,8 +293,8 @@ export const CreatePurchaseRequest: React.FC<CreatePurchaseRequestProps> = ({ on
         requester: user,
         items: requestItems,
         totalAmount: getTotalAmount(),
-        status: 'submitted',
-        approvalStatus: 'pending',
+  status: 'submitted' as OrderStatus,
+  approvalStatus: 'pending' as ApprovalStatus,
         remarks: formData.remarks,
         deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 保留内部使用，不显示
       };
@@ -388,8 +389,8 @@ export const CreatePurchaseRequest: React.FC<CreatePurchaseRequestProps> = ({ on
                             <div>识别码</div>
                             <div>材料</div>
                             <div>包装方式</div>
-                            <div className="text-center">单价(元)</div>
-                            <div>数量</div>
+                            <div className="text-center">预估单价(元)</div>
+                            <div>拟采数量</div>
                             <div className="text-center">总价(元)</div>
                           </div>
                           
@@ -475,8 +476,10 @@ export const CreatePurchaseRequest: React.FC<CreatePurchaseRequestProps> = ({ on
                                 type="number"
                                 min="0"
                                 step="0.01"
-                                value={item.unitPrice || ''}
-                                onChange={(e) => handleItemChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                value={item.unitPrice === 0 ? '' : item.unitPrice}
+                                onChange={e => {
+                                  handleItemChange(index, 'unitPrice', e.target.value ? parseFloat(e.target.value) : 0);
+                                }}
                                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center"
                                 placeholder="0.00"
                               />
@@ -485,10 +488,13 @@ export const CreatePurchaseRequest: React.FC<CreatePurchaseRequestProps> = ({ on
                             {/* Quantity */}
                             <div>
                               <input
-                                type="number"
-                                min="1"
-                                value={item.quantity}
-                                onChange={(e) => handleItemChange(index, 'quantity', parseInt(e.target.value))}
+                                type="text"
+                                inputMode="numeric"
+                                value={item.quantity === 0 ? '' : (item.quantity !== undefined ? item.quantity.toString() : '')}
+                                onChange={(e) => {
+                                  let val = e.target.value.replace(/[^\d]/g, '');
+                                  handleItemChange(index, 'quantity', val ? parseInt(val) : 1);
+                                }}
                                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent text-center"
                                 required
                               />

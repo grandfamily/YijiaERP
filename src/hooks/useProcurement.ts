@@ -75,6 +75,10 @@ export const useProcurement = () => {
     // 自动创建辅料进度
     createAccessoryProgressForRequest: (request: PurchaseRequest) => 
       procurementStore.createAccessoryProgressForRequest(request),
+
+    // 自动创建到货检验记录
+    createArrivalInspectionForRequest: (request: PurchaseRequest) => 
+      procurementStore.createArrivalInspectionForRequest(request),
     // SKU Finalizations
     getSKUFinalizations: () => procurementStore.getSKUFinalizations(),
     getSKUFinalizationBySKU: (skuId: string) => procurementStore.getSKUFinalizationBySKU(skuId),
@@ -102,7 +106,7 @@ export const useProcurement = () => {
       procurementStore.updateSupplier(id, updates),
 
     // Dashboard
-    getDashboardStats: () => procurementStore.getDashboardStats(),
+    getDashboardStats: (): DashboardStats => procurementStore.getDashboardStats(),
 
     // Quality Checks
     getQualityChecks: () => procurementStore.getQualityChecks(),
@@ -118,10 +122,9 @@ export const useProcurement = () => {
     getCardProgressBySKU: (skuId: string) => procurementStore.getCardProgressBySKU(skuId),
     createCardProgress: (progress: Omit<CardProgress, 'id' | 'createdAt' | 'updatedAt'>) => 
       procurementStore.createCardProgress(progress),
-    updateCardProgress: (id: string, updates: any) => procurementStore.updateCardProgress(id, updates),
+    updateCardProgress: (id: string, updates: Partial<CardProgress>) => procurementStore.updateCardProgress(id, updates),
     updateCardProgressStage: (progressId: string, stageId: string, updates: Partial<CardProgressStage>) => 
       procurementStore.updateCardProgressStage(progressId, stageId, updates),
-    updateCardProgress: (id: string, updates: Partial<CardProgress>) => procurementStore.updateCardProgress(id, updates),
 
     getAccessoryProgress: () => procurementStore.getAccessoryProgress(),
    getAccessoryProgressByRequestId: (requestId: string) => procurementStore.getAccessoryProgressByRequestId(requestId),

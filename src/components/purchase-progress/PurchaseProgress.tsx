@@ -1,35 +1,25 @@
 import React, { useState } from 'react';
 import { 
   FileText, 
-  Calendar, 
-  DollarSign, 
-  User, 
   Package, 
   Search, 
-  Eye, 
-  Edit, 
   CheckCircle,
   Clock,
   AlertTriangle,
-  Save,
   X,
-  Filter,
   Square,
   CheckSquare,
   Download,
-  Send,
-  Phone,
-  Mail,
   Bell,
   ZoomIn,
-  Zap,
   Truck,
   Factory,
   XCircle
 } from 'lucide-react';
 import { useProcurement } from '../../hooks/useProcurement';
 import { useAuth } from '../../hooks/useAuth';
-import { PurchaseRequest, OrderAllocation, ProcurementProgress, PaymentMethod, ProcurementProgressStage } from '../../types';
+import { useGlobalStore } from '../../store/globalStore';
+import { PurchaseRequest, OrderAllocation, ProcurementProgress, PaymentMethod, ProcurementProgressStage, RejectedOrder } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
 import { ProgressBar } from '../ui/ProgressBar';
 
@@ -101,6 +91,50 @@ export const PurchaseProgress: React.FC = () => {
 
   // 获取所有采购进度
   const procurementProgressData = getProcurementProgress();
+
+  // 🎯 从全局存储获取不合格订单
+  const rejectedOrders = useGlobalStore(state => state.rejectedOrders);
+  console.log('🎯 从全局存储获取的不合格订单数量:', rejectedOrders.length, '详情:', rejectedOrders);
+
+  // 🎯 监听到货检验页面发送的不合格订单事件（保留向后兼容性）
+  React.useEffect(() => {
+    console.log('🎯 采购进度页面已挂载，开始监听不合格订单事件');
+    
+    const handleAddRejectedOrder = (event: CustomEvent) => {
+      console.log('🎯 采购进度页面收到不合格订单事件:', event.detail);
+      const rejectedOrderData = event.detail;
+      
+      // 创建RejectedOrder对象并直接保存到全局存储
+      const newRejectedOrder: RejectedOrder = {
+        id: `rejected-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        purchaseRequestId: rejectedOrderData.purchaseRequestId,
+        skuId: rejectedOrderData.skuId,
+        sku: rejectedOrderData.sku,
+        purchaseRequestNumber: rejectedOrderData.purchaseRequestNumber,
+        rejectionReason: rejectedOrderData.rejectionReason,
+        rejectionDate: new Date(rejectedOrderData.rejectionDate),
+        rejectedBy: rejectedOrderData.rejectedBy,
+        inspectionNotes: rejectedOrderData.inspectionNotes,
+        productType: rejectedOrderData.productType,
+        processStatus: 'pending',
+        createdAt: new Date(rejectedOrderData.createdAt)
+      };
+      
+      // 保存到全局存储
+      useGlobalStore.getState().addRejectedOrder(newRejectedOrder);
+      console.log('🎯 已保存不合格订单到全局存储:', newRejectedOrder);
+    };
+
+    // 添加事件监听器
+    window.addEventListener('addRejectedOrder', handleAddRejectedOrder as EventListener);
+    console.log('🎯 事件监听器已添加');
+
+    // 清理事件监听器
+    return () => {
+      window.removeEventListener('addRejectedOrder', handleAddRejectedOrder as EventListener);
+      console.log('🎯 事件监听器已清理');
+    };
+  }, []);
 
   // 为没有采购进度的订单创建进度记录
   React.useEffect(() => {
@@ -335,50 +369,59 @@ export const PurchaseProgress: React.FC = () => {
 
   // 根据标签页过滤订单
   const getTabFilteredRequests = () => {
-    // 获取所有进度记录
-    const allProgress = procurementProgressData;
-    
-    let filtered: ProcurementProgress[] = [];
+    let requests: any[] = [];
     
     switch (activeTab) {
       case 'in_progress':
-        filtered = allProgress.filter(progress => !isSKUCompleted(progress));
+        // 获取所有进度记录
+        const allProgress = procurementProgressData;
+        const filtered = allProgress.filter(progress => !isSKUCompleted(progress));
+        const requestIds = filtered.map(p => p.purchaseRequestId);
+        requests = allocatedRequests.filter(request => requestIds.includes(request.id));
         break;
       case 'external_completed':
-        filtered = allProgress.filter(progress => 
+        const externalProgress = procurementProgressData.filter(progress => 
           isSKUCompleted(progress) && isExternalPackaging(progress.purchaseRequestId)
         );
+        const externalRequestIds = externalProgress.map(p => p.purchaseRequestId);
+        requests = allocatedRequests.filter(request => externalRequestIds.includes(request.id));
         break;
       case 'internal_completed':
-        filtered = allProgress.filter(progress => 
+        const internalProgress = procurementProgressData.filter(progress => 
           isSKUCompleted(progress) && isInternalPackaging(progress.purchaseRequestId)
         );
+        const internalRequestIds = internalProgress.map(p => p.purchaseRequestId);
+        requests = allocatedRequests.filter(request => internalRequestIds.includes(request.id));
         break;
       case 'failed_orders':
-        filtered = allProgress.filter(progress => 
-          isFailedOrder(progress.purchaseRequestId)
-        );
+        // 直接使用rejectedOrders状态
+        requests = rejectedOrders;
         break;
       default:
-        filtered = allProgress;
+        const defaultProgress = procurementProgressData;
+        const defaultRequestIds = defaultProgress.map(p => p.purchaseRequestId);
+        requests = allocatedRequests.filter(request => defaultRequestIds.includes(request.id));
     }
 
-    // 转换为请求列表并应用搜索
-    const requestIds = filtered.map(p => p.purchaseRequestId);
-    const requests = allocatedRequests.filter(request => {
-      const matchesTab = requestIds.includes(request.id);
-      const matchesSearch = !searchTerm || 
-        request.requestNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        request.items.some(item => 
-          item.sku.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.sku.name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+    // 应用搜索过滤
+    const searchFiltered = requests.filter(request => {
+      if (!searchTerm) return true;
       
-      return matchesTab && matchesSearch;
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        request.requestNumber?.toLowerCase().includes(searchLower) ||
+        request.orderNumber?.toLowerCase().includes(searchLower) ||
+        request.items?.some((item: any) => 
+          item.sku?.code?.toLowerCase().includes(searchLower) ||
+          item.sku?.name?.toLowerCase().includes(searchLower)
+        ) ||
+        request.supplierName?.toLowerCase().includes(searchLower) ||
+        (request as any).rejectedReason?.toLowerCase().includes(searchLower)
+      );
     });
 
     // 应用筛选条件
-    return applyFilters(requests);
+    return applyFilters(searchFiltered);
   };
 
   const filteredRequests = getTabFilteredRequests();
@@ -883,9 +926,8 @@ export const PurchaseProgress: React.FC = () => {
     const internalCompleted = allProgress.filter(progress => 
       isSKUCompleted(progress) && isInternalPackaging(progress.purchaseRequestId)
     ).length;
-    const failedOrders = allProgress.filter(progress => 
-      isFailedOrder(progress.purchaseRequestId)
-    ).length;
+    // 🎯 使用不合格订单数组的长度
+    const failedOrders = rejectedOrders.length;
     
     return { inProgress, externalCompleted, internalCompleted, failedOrders };
   };
@@ -918,6 +960,83 @@ export const PurchaseProgress: React.FC = () => {
       default:
         return renderInProgressTab();
     }
+  };
+
+  // 渲染不合格订单标签页
+  const renderFailedOrdersTab = () => {
+    console.log('🎯 渲染不合格订单标签页，当前订单数量:', rejectedOrders.length);
+    console.log('🎯 不合格订单详情:', rejectedOrders);
+    
+    return (
+      <div className="space-y-6">
+        {rejectedOrders.length === 0 ? (
+          <div className="text-center py-12">
+            <XCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600">没有验收不通过的订单</p>
+            <p className="text-sm text-gray-500 mt-2">
+              当前不合格订单数量: {rejectedOrders.length}
+            </p>
+          </div>
+        ) : (
+          rejectedOrders.map((order) => (
+            <div key={order.id} className="bg-white rounded-lg shadow-sm border-2 border-gray-200 p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">{order.purchaseRequestNumber}</h3>
+                  <p className="text-sm text-gray-600 mt-1">SKU: {order.sku.code}</p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    验收不通过
+                  </span>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                <div>
+                  <span className="text-sm text-gray-500">产品名称</span>
+                  <p className="font-medium">{order.sku.name}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-500">不合格原因</span>
+                  <p className="font-medium">{order.rejectionReason}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-500">拒收时间</span>
+                  <p className="font-medium">{order.rejectionDate ? new Date(order.rejectionDate).toLocaleDateString() : '未知'}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-500">处理状态</span>
+                  <p className="font-medium">
+                    {order.processStatus === 'pending' ? '待处理' :
+                     order.processStatus === 'processing' ? '处理中' :
+                     order.processStatus === 'completed' ? '已完成' : '未知'}
+                  </p>
+                </div>
+              </div>
+              
+              {order.inspectionNotes && (
+                <div className="mt-4 p-3 bg-red-50 rounded-lg">
+                  <span className="text-sm text-gray-500">检验备注</span>
+                  <p className="text-sm text-gray-700 mt-1">{order.inspectionNotes}</p>
+                </div>
+              )}
+              
+              <div className="mt-4 flex items-center space-x-4">
+                <button className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                  <FileText className="h-4 w-4" />
+                  <span>查看详情</span>
+                </button>
+                <button className="flex items-center space-x-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                  <CheckCircle className="h-4 w-4" />
+                  <span>处理完成</span>
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    );
   };
 
   // 渲染厂家包装已完成标签页（SKU维度）
@@ -1454,7 +1573,7 @@ export const PurchaseProgress: React.FC = () => {
                       <span className="font-medium">供应商:</span> {allocation?.supplierName || '未指定'}
                     </div>
                     <div className="text-sm text-gray-600">
-                      <span className="font-medium">总金额:</span> ¥{request.totalAmount.toLocaleString()}
+                      <span className="font-medium">总金额:</span> ¥{(request.totalAmount || 0).toLocaleString()}
                     </div>
                   </div>
                 </div>
@@ -1494,7 +1613,7 @@ export const PurchaseProgress: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {request.items.map((item) => {
+                        {(request.items || []).map((item) => {
                           const cardProgress = cardProgressData.find(cp => 
                             cp.purchaseRequestId === request.id && cp.skuId === item.skuId
                           );

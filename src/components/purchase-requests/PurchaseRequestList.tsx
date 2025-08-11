@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, Edit, Trash2, Calendar, User, Package, DollarSign, CheckSquare, Square, Send, AlertTriangle, CheckCircle, ZoomIn, X, Triangle as ExclamationTriangle } from 'lucide-react';
+import { Eye, User, Package, CheckSquare, Square, AlertTriangle, CheckCircle, ZoomIn, X, Triangle as ExclamationTriangle } from 'lucide-react';
 import { useProcurement } from '../../hooks/useProcurement';
 import { useAuth } from '../../hooks/useAuth';
 import { PurchaseRequest } from '../../types';
@@ -22,12 +22,13 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [editingRequest, setEditingRequest] = useState<PurchaseRequest | null>(null);
   const [viewingRequest, setViewingRequest] = useState<PurchaseRequest | null>(null);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{show: boolean, requestId: string, requestNumber: string} | null>(null);
   const pageSize = 15;
 
   // 获取草稿和被驳回的申请
-  const { data: allRequests, total: totalRequests } = getPurchaseRequests(
+  const { data: allRequests } = getPurchaseRequests(
     { status: ['draft', 'rejected', 'submitted', 'first_approved', 'approved', 'in_production', 'quality_check', 'ready_to_ship', 'shipped', 'completed'] },
     { field: 'createdAt', direction: 'desc' }
   );
@@ -125,6 +126,16 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
     }
   };
 
+  const handleSelectItem = (itemId: string) => {
+    setSelectedItems(prev => {
+      if (prev.includes(itemId)) {
+        return prev.filter(id => id !== itemId);
+      } else {
+        return [...prev, itemId];
+      }
+    });
+  };
+
   const getStatusColor = (status: string) => {
     const colors = {
       draft: 'gray',
@@ -155,10 +166,6 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
       completed: '已完成'
     };
     return statusMap[status as keyof typeof statusMap] || status;
-  };
-
-  const getTypeText = (type: string) => {
-    return type === 'external' ? '厂家包装' : '自己包装';
   };
 
   const getApprovalStatusText = (request: PurchaseRequest) => {
@@ -382,7 +389,7 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                       <div className="absolute left-0 top-full mt-2 w-96 bg-white border border-gray-200 rounded-lg shadow-lg p-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                         <div className="text-sm font-medium text-gray-900 mb-3">SKU详情列表</div>
                         <div className="space-y-2 max-h-96 overflow-y-auto">
-                          {request.items.map((item, index) => (
+                          {request.items.map((item) => (
                             <div key={item.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded border">
                               {item.sku.imageUrl ? (
                                 <img 
@@ -660,20 +667,36 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
       {/* View Purchase Request Modal */}
       {viewingRequest && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">
-                采购申请详情 - {viewingRequest.requestNumber}
-              </h2>
-              <button
-                onClick={() => setViewingRequest(null)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <Eye className="h-5 w-5" />
-              </button>
+          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  工单详情 - {viewingRequest.requestNumber}
+                </h2>
+                <button
+                  onClick={() => setViewingRequest(null)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <Eye className="h-5 w-5" />
+                </button>
+              </div>
+              {/* 合并信息行（移除采购类型） */}
+              <div className="flex flex-wrap items-center justify-between mt-4 mb-2 px-2">
+                <div className="flex items-center space-x-8">
+                  <span className="text-sm text-gray-700">申请人：{viewingRequest.requester?.name || '-'}</span>
+                  <span className="text-sm text-gray-700">提交时间：{viewingRequest.createdAt ? (typeof viewingRequest.createdAt === 'string' ? viewingRequest.createdAt : new Date(viewingRequest.createdAt).toLocaleDateString()) : '-'}</span>
+                  <span className="text-sm text-gray-700 font-bold">申请总金额：<span className="text-blue-600 text-lg font-bold">¥{(viewingRequest.totalAmount || 0).toLocaleString()}</span></span>
+                </div>
+                <div>
+                  <StatusBadge
+                    status={getApprovalStatusText(viewingRequest)}
+                    color={getApprovalStatusColor(viewingRequest)}
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-8 space-y-8 text-base">
               {/* Status Alert for Rejected Requests */}
               {viewingRequest.status === 'rejected' && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -696,27 +719,6 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                 </div>
               )}
 
-              {/* Basic Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">申请人</h3>
-                  <p className="text-gray-900">{viewingRequest.requester.name}</p>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">采购类型</h3>
-                  <p className="text-gray-900">
-                    {viewingRequest.type === 'external' ? '外部采购' : '工厂自产'}
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">当前状态</h3>
-                  <StatusBadge
-                    status={getApprovalStatusText(viewingRequest)}
-                    color={getApprovalStatusColor(viewingRequest)}
-                  />
-                </div>
-              </div>
-
               {/* Items */}
               <div>
                 <h3 className="text-lg font-medium text-gray-900 mb-4">采购项目</h3>
@@ -724,6 +726,7 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                   <table className="w-full border border-gray-200 rounded-lg text-sm">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900">选择</th>
                         <th className="text-center py-3 px-3 font-medium text-gray-900">图片</th>
                         <th className="text-left py-3 px-3 font-medium text-gray-900">SKU编码</th>
                         <th className="text-left py-3 px-3 font-medium text-gray-900">产品名称</th>
@@ -732,25 +735,39 @@ export const PurchaseRequestList: React.FC<PurchaseRequestListProps> = ({
                         <th className="text-left py-3 px-3 font-medium text-gray-900">识别码</th>
                         <th className="text-left py-3 px-3 font-medium text-gray-900">材料</th>
                         <th className="text-left py-3 px-3 font-medium text-gray-900">包装方式</th>
-                        <th className="text-center py-3 px-3 font-medium text-gray-900">单价(元)</th>
-                        <th className="text-center py-3 px-3 font-medium text-gray-900">数量</th>
-                        <th className="text-center py-3 px-3 font-medium text-gray-900">总价(元)</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900">预估单价</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900">拟采数量</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900">小计</th>
+                        <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">销量查询</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {viewingRequest.items.map((item) => (
                         <tr key={item.id} className="hover:bg-gray-50">
-                          {/* SKU图片 */}
+                          {/* 选择 */}
+                          <td className="py-3 px-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedItems.includes(item.id)}
+                              onChange={() => handleSelectItem(item.id)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                          </td>
+                          
+                          {/* 图片 */}
                           <td className="py-3 px-3 text-center">
                             {item.sku.imageUrl ? (
-                              <div className="relative group">
-                                <img 
-                                  src={item.sku.imageUrl} 
+                              <div className="relative group w-12 h-12 mx-auto">
+                                <img
+                                  src={item.sku.imageUrl}
                                   alt={item.sku.name}
-                                  className="w-12 h-12 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
-                                  onClick={() => handleImageClick(item.sku.imageUrl!)}
+                                  className="w-12 h-12 object-cover rounded border cursor-pointer"
                                   onError={(e) => {
                                     e.currentTarget.style.display = 'none';
+                                    const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+                                    if (nextElement) {
+                                      nextElement.style.display = 'flex';
+                                    }
                                   }}
                                 />
                                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 rounded cursor-pointer"

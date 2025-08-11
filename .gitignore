@@ -7,9 +7,22 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+/.pnp
+.pnp.js
+
+# Production builds
 dist
 dist-ssr
+/build
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 *.local
 
 # Editor directories and files
@@ -22,4 +35,41 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.env
+
+# OS generated files
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Coverage directory
+coverage/
+*.lcov
+.nyc_output
+
+# ESLint cache
+.eslintcache
+
+# Temporary and backup files
+tmp/
+temp/
+*.backup
+*.backup.*
+*.bak
+
+# Test files (exclude from repository)
+test-*.html
+*-test.html
+*test*.html
+system-status.html
+preview-*.html
+
+# Documentation drafts (exclude from repository)
+*-summary.md
+*-analysis.md
+simple-solution.md
+solution-summary.md
+rejected-orders-implementation-summary.md
+typescript-errors-analysis.md
