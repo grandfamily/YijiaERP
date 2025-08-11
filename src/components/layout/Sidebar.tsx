@@ -129,7 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => 
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
             <Package className="h-5 w-5 text-white" />
           </div>
-          <span className="text-xl font-bold">一家百货</span>
+          <span className="text-lg font-bold">一家百货</span>
         </div>
         
         <nav className="space-y-2">

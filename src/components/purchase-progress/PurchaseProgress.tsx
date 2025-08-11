@@ -22,7 +22,6 @@ import { useGlobalStore } from '../../store/globalStore';
 import { arrivalInspectionStore } from '../../store/arrivalInspection';
 import { PurchaseRequest, OrderAllocation, ProcurementProgress, PaymentMethod, ProcurementProgressStage, RejectedOrder } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
-import { ProgressBar } from '../ui/ProgressBar';
 
 type TabType = 'in_progress' | 'external_completed' | 'internal_completed' | 'failed_orders';
 
@@ -103,6 +102,49 @@ export const PurchaseProgress: React.FC = () => {
   // 🎯 监听到货检验页面发送的不合格订单事件（保留向后兼容性）
   React.useEffect(() => {
     console.log('🎯 采购进度页面已挂载，开始监听不合格订单事件');
+    
+    // 🎯 初始化测试数据，模拟已完成的阶段状态
+    const testRequestId = 'CF-20250001';
+    const testRequestId2 = 'WJ-20250001';
+    
+    if (allocatedRequests.some(req => req.requestNumber === testRequestId)) {
+      const testRequestData = allocatedRequests.find(req => req.requestNumber === testRequestId);
+      if (testRequestData) {
+        setStageCompletionStatus(prev => ({
+          ...prev,
+          [testRequestData.id]: {
+            '定金支付': true,
+            '安排生产': true,
+            '纸卡提供': true,
+            '包装生产': true,
+            '尾款支付': true,
+            '安排发货': true,
+            '到货通知': true, // 已完成，这样验收确认应该变成进行中
+            // '验收确认': false  // 应该显示为进行中状态
+          }
+        }));
+      }
+    }
+    
+    // 为WJ-20250001设置不同的状态，验收确认应该是未开始
+    if (allocatedRequests.some(req => req.requestNumber === testRequestId2)) {
+      const testRequestData2 = allocatedRequests.find(req => req.requestNumber === testRequestId2);
+      if (testRequestData2) {
+        setStageCompletionStatus(prev => ({
+          ...prev,
+          [testRequestData2.id]: {
+            '定金支付': true,
+            '安排生产': true,
+            '纸卡提供': true,
+            '包装生产': true,
+            '尾款支付': true,
+            '安排发货': true,
+            // '到货通知': false, // 未完成，这样验收确认应该是未开始
+            // '验收确认': false  // 应该显示为未开始状态
+          }
+        }));
+      }
+    }
     
     const handleAddRejectedOrder = (event: CustomEvent) => {
       console.log('🎯 采购进度页面收到不合格订单事件:', event.detail);
@@ -321,19 +363,7 @@ export const PurchaseProgress: React.FC = () => {
       return isFinalPaid ? 'completed' : 'not_started';
     }
     
-    if (stageName === '验收确认') {
-      // 检查验收是否完成
-      const allocation = getOrderAllocation(requestId);
-      if (allocation?.type === 'external') {
-        // 厂家包装：检查验货入库状态
-        // 这里需要与验货入库模块联动
-        return 'not_started';
-      } else {
-        // 自己包装：检查自己包装验收状态
-        // 这里需要与自己包装模块联动
-        return 'not_started';
-      }
-    }
+    // 移除重复的验收确认处理逻辑，因为上面已经处理过了
     
     // 检查前置节点状态决定当前节点状态
     const currentIndex = STAGE_ORDER.indexOf(stageName);
@@ -347,6 +377,16 @@ export const PurchaseProgress: React.FC = () => {
     const previousStatus = getStageStatus(requestId, previousStage);
     
     if (previousStatus === 'completed' || previousStatus === 'no_deposit_required') {
+      // 特殊处理：到货通知节点
+      if (stageName === '到货通知') {
+        // 检查是否已完成到货通知
+        if (stageCompletionStatus[requestId]?.['到货通知']) {
+          return 'completed';
+        }
+        // 如果前置阶段都完成，且未被标记为完成，则显示为进行中
+        return 'in_progress';
+      }
+      
       // 特殊处理：验收确认需要等待到货通知完成
       if (stageName === '验收确认') {
         const goodsReceiptStatus = stageCompletionStatus[requestId]?.['到货通知'];
@@ -1582,22 +1622,60 @@ export const PurchaseProgress: React.FC = () => {
                 { 
                   id: '1', 
                   name: shouldShowDepositPayment(request.id) ? '定金支付' : '无需定金', 
-                  status: shouldShowDepositPayment(request.id) ? 'in_progress' : 'completed', 
+                  status: shouldShowDepositPayment(request.id) ? getStageStatus(request.id, '定金支付') : 'completed', 
                   order: 1,
-                  completedDate: shouldShowDepositPayment(request.id) ? undefined : new Date(),
+                  completedDate: shouldShowDepositPayment(request.id) ? (getStageStatus(request.id, '定金支付') === 'completed' ? new Date('2025/8/12') : undefined) : new Date('2025/8/12'),
                   remarks: shouldShowDepositPayment(request.id) ? undefined : '账期付款或无需定金，自动跳过'
                 },
                 { 
                   id: '2', 
                   name: '安排生产', 
-                  status: shouldShowDepositPayment(request.id) ? 'not_started' : 'in_progress', 
-                  order: 2 
+                  status: getStageStatus(request.id, '安排生产'), 
+                  order: 2,
+                  completedDate: getStageStatus(request.id, '安排生产') === 'completed' ? new Date('2025/8/12') : undefined
                 },
-                { id: '3', name: '纸卡提供', status: isCardProgressCompleted(request.id) ? 'completed' : 'not_started', order: 3 },
-                { id: '4', name: '包装生产', status: 'not_started', order: 4 },
-                { id: '5', name: '尾款支付', status: 'not_started', order: 5 },
-                { id: '6', name: '安排发货', status: 'not_started', order: 6 },
-                { id: '7', name: '到货通知', status: 'not_started', order: 7 }
+                { 
+                  id: '3', 
+                  name: '纸卡提供', 
+                  status: getStageStatus(request.id, '纸卡提供'), 
+                  order: 3,
+                  completedDate: getStageStatus(request.id, '纸卡提供') === 'completed' ? new Date('2025/8/12') : undefined
+                },
+                { 
+                  id: '4', 
+                  name: '包装生产', 
+                  status: getStageStatus(request.id, '包装生产'), 
+                  order: 4,
+                  completedDate: getStageStatus(request.id, '包装生产') === 'completed' ? new Date('2025/8/12') : undefined
+                },
+                { 
+                  id: '5', 
+                  name: '尾款支付', 
+                  status: getStageStatus(request.id, '尾款支付'), 
+                  order: 5,
+                  completedDate: getStageStatus(request.id, '尾款支付') === 'completed' ? new Date('2025/8/12') : undefined
+                },
+                { 
+                  id: '6', 
+                  name: '安排发货', 
+                  status: getStageStatus(request.id, '安排发货'), 
+                  order: 6,
+                  completedDate: getStageStatus(request.id, '安排发货') === 'completed' ? new Date('2025/8/12') : undefined
+                },
+                { 
+                  id: '7', 
+                  name: '到货通知', 
+                  status: getStageStatus(request.id, '到货通知'), 
+                  order: 7,
+                  completedDate: getStageStatus(request.id, '到货通知') === 'completed' ? new Date('2025/8/12') : undefined
+                },
+                { 
+                  id: '8', 
+                  name: '验收确认', 
+                  status: getStageStatus(request.id, '验收确认'), 
+                  order: 8,
+                  completedDate: getStageStatus(request.id, '验收确认') === 'completed' ? new Date('2025/8/12') : undefined
+                }
               ],
               currentStage: shouldShowDepositPayment(request.id) ? 0 : 1, // 如果跳过定金，当前阶段为安排生产
               overallProgress: 0
@@ -1646,17 +1724,95 @@ export const PurchaseProgress: React.FC = () => {
                       color={isProcurementCompleted(request.id) ? 'green' : 'yellow'}
                     />
                   </div>
+                  
+                  {/* 右侧：交货日期和进度条 */}
                   <div className="flex items-center space-x-4">
-                    {/* 纸卡类型、付款方式、定金金额字段 */}
-                    <div className="flex items-center space-x-6 text-sm">
-                      <div>
-                        <span className="text-gray-600">纸卡类型:</span>
-                        <span className="ml-2 font-medium text-gray-900">
-                          {allocation?.cardType === 'finished' ? '纸卡成品' :
-                           allocation?.cardType === 'design' ? '设计稿' :
-                           allocation?.cardType === 'none' ? '不需要' : '-'}
-                        </span>
+                    {allocation?.deliveryDate && (
+                      <div className="flex items-center space-x-6 bg-gray-50 px-4 py-2 rounded-lg border">
+                        {/* 左侧：交货日期和百分比 */}
+                        <div className="flex items-center space-x-3">
+                          <span className="text-base font-medium text-gray-700 whitespace-nowrap">交货日期:</span>
+                          <span className="text-base font-semibold text-gray-900">
+                            {new Date(allocation.deliveryDate).toLocaleDateString('zh-CN')}
+                          </span>
+                          <span className="text-base font-bold text-blue-600 px-2 py-1 bg-blue-100 rounded">
+                            {(() => {
+                              const deliveryDate = new Date(allocation.deliveryDate);
+                              const today = new Date();
+                              const startDate = new Date(allocation.allocatedAt || request?.createdAt || today);
+                              const totalDays = Math.max(1, Math.ceil((deliveryDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+                              const passedDays = Math.max(0, Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+                              const deliveryProgress = Math.min(100, Math.max(0, (passedDays / totalDays) * 100));
+                              return `${Math.round(deliveryProgress)}%`;
+                            })()}
+                          </span>
+                        </div>
+                        
+                        {/* 右侧：交货进度条和剩余天数 */}
+                        <div className="flex items-center space-x-3">
+                          <span className="text-sm font-medium text-gray-600 whitespace-nowrap">交货进度:</span>
+                          <div className="w-28 bg-gray-300 rounded-full h-2 shadow-inner">
+                            {(() => {
+                              const deliveryDate = new Date(allocation.deliveryDate);
+                              const today = new Date();
+                              const startDate = new Date(allocation.allocatedAt || request?.createdAt || today);
+                              const totalDays = Math.max(1, Math.ceil((deliveryDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+                              const passedDays = Math.max(0, Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+                              const deliveryProgress = Math.min(100, Math.max(0, (passedDays / totalDays) * 100));
+                              
+                              return (
+                                <div 
+                                  className={`h-2 rounded-full transition-all duration-500 shadow-sm ${
+                                    deliveryProgress >= 100 ? 'bg-green-500' : 
+                                    deliveryProgress >= 80 ? 'bg-yellow-500' : 'bg-blue-500'
+                                  }`}
+                                  style={{ width: `${deliveryProgress}%` }}
+                                />
+                              );
+                            })()}
+                          </div>
+                          <span className={`text-sm font-medium whitespace-nowrap px-2 py-1 rounded ${
+                            (() => {
+                              const deliveryDate = new Date(allocation.deliveryDate);
+                              const today = new Date();
+                              const startDate = new Date(allocation.allocatedAt || request?.createdAt || today);
+                              const totalDays = Math.max(1, Math.ceil((deliveryDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+                              const passedDays = Math.max(0, Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+                              const remainingDays = totalDays - passedDays;
+                              
+                              if (remainingDays > 7) {
+                                return 'text-green-700 bg-green-100'; // 充足时间：绿色
+                              } else if (remainingDays > 0) {
+                                return 'text-yellow-700 bg-yellow-100'; // 临近期限：黄色
+                              } else {
+                                return 'text-red-700 bg-red-100'; // 已超期：红色
+                              }
+                            })()
+                          }`}>
+                            {(() => {
+                              const deliveryDate = new Date(allocation.deliveryDate);
+                              const today = new Date();
+                              const startDate = new Date(allocation.allocatedAt || request?.createdAt || today);
+                              const totalDays = Math.max(1, Math.ceil((deliveryDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+                              const passedDays = Math.max(0, Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+                              const remainingDays = totalDays - passedDays;
+                              
+                              if (remainingDays > 0) {
+                                return `剩余${remainingDays}天`;
+                              } else if (remainingDays === 0) {
+                                return '今日到期';
+                              } else {
+                                return `超期${Math.abs(remainingDays)}天`;
+                              }
+                            })()}
+                          </span>
+                        </div>
                       </div>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-8">
+                    {/* 红框区域：付款方式、定金金额、总金额 */}
+                    <div className="flex items-center space-x-10 text-sm">
                       <div>
                         <span className="text-gray-600">付款方式:</span>
                         <span className="ml-2 font-medium text-gray-900">
@@ -1675,39 +1831,25 @@ export const PurchaseProgress: React.FC = () => {
                           </span>
                         </div>
                       )}
-                    </div>
-                    
-                    {/* 右侧：金额和操作按钮 */}
-                    <div className="flex items-center space-x-4">
-                      {/* 定金金额字段 - 仅当定金金额大于0时显示 */}
-                      {allocation?.prepaymentAmount && allocation.prepaymentAmount > 0 && (
+
+                      {/* 定金金额字段 - 账期付款时不显示，其他付款方式始终显示 */}
+                      {allocation?.paymentMethod !== 'credit_terms' && (
                         <div>
                           <span className="text-gray-600">定金金额:</span>
-                          <span className="ml-2 font-medium text-blue-600">
-                            ¥{allocation.prepaymentAmount.toLocaleString()}
+                          <span className={`ml-2 font-medium ${(allocation?.prepaymentAmount || 0) > 0 ? 'text-blue-600' : 'text-gray-900'}`}>
+                            ¥{(allocation?.prepaymentAmount || 0).toLocaleString()}
                           </span>
                         </div>
                       )}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium">供应商:</span> {allocation?.supplierName || '未指定'}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium">总金额:</span> ¥{(request.totalAmount || 0).toLocaleString()}
-                    </div>
-                  </div>
-                </div>
 
-                {/* Overall Progress Bar */}
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">采购进度</span>
-                    <span className="text-sm text-gray-600">{progressPercentage}%</span>
+                      <div>
+                        <span className="text-gray-600">总金额:</span>
+                        <span className="ml-2 font-medium text-gray-900">
+                          ¥{(request.totalAmount || 0).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <ProgressBar 
-                    progress={progressPercentage}
-                    color={progressPercentage === 100 ? 'green' : 'blue'}
-                  />
                 </div>
 
                 {/* SKU Table - Single Row per SKU */}
@@ -1729,7 +1871,7 @@ export const PurchaseProgress: React.FC = () => {
                           <th className="text-center py-3 px-4 font-medium text-gray-900">尾款支付</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">安排发货</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">到货通知</th>
-                          <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">验收确认</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900 min-w-fit whitespace-nowrap">验收确认</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -2017,7 +2159,7 @@ export const PurchaseProgress: React.FC = () => {
                 {/* 催付时间显示 - 参照纸卡催要样式，显示在订单右下角 */}
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <div className="flex items-center justify-between">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm flex-1">
+                    <div className="grid grid-cols-1 md:grid-cols-6 gap-4 text-sm flex-1">
                       <div>
                         <span className="text-gray-600">申请人:</span>
                         <span className="ml-2 font-medium text-gray-900">{request?.requester.name}</span>
@@ -2028,9 +2170,19 @@ export const PurchaseProgress: React.FC = () => {
                           {request?.createdAt ? new Date(request.createdAt).toLocaleDateString('zh-CN') : '-'}
                         </span>
                       </div>
-                      <div className="text-sm text-gray-600">
-                        <span className="font-medium">交货日期:</span> 
-                        {allocation?.deliveryDate ? new Date(allocation.deliveryDate).toLocaleDateString('zh-CN') : '-'}
+                      <div>
+                        <span className="text-gray-600">纸卡类型:</span>
+                        <span className="ml-2 font-medium text-gray-900">
+                          {allocation?.cardType === 'finished' ? '纸卡成品' :
+                           allocation?.cardType === 'design' ? '设计稿' :
+                           allocation?.cardType === 'none' ? '不需要' : '-'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">供应商:</span>
+                        <span className="ml-2 font-medium text-gray-900">
+                          {request?.items?.[0]?.supplier?.name || '未指定'}
+                        </span>
                       </div>
                       {(() => {
                         const cardReminderTime = getCardDeliveryReminderTime(request.id);
