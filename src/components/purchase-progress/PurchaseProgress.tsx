@@ -119,8 +119,8 @@ export const PurchaseProgress: React.FC = () => {
             '包装生产': true,
             '尾款支付': true,
             '安排发货': true,
-            '到货通知': true, // 已完成，这样验收确认应该变成进行中
-            // '验收确认': false  // 应该显示为进行中状态
+            // '到货通知': false, // 设为未完成，这样验收确认应该保持未开始
+            // '验收确认': false  // 应该显示为未开始状态
           }
         }));
       }
@@ -200,7 +200,16 @@ export const PurchaseProgress: React.FC = () => {
       console.log(`🎯 收到验收确认状态更新事件：订单 ${purchaseRequestId}, SKU ${skuId}, 状态 ${status}`);
       
       try {
-        // 更新采购进度的验收确认状态为已完成
+        // 更新本地状态 - 验收确认完成
+        setStageCompletionStatus(prev => ({
+          ...prev,
+          [purchaseRequestId]: {
+            ...prev[purchaseRequestId],
+            '验收确认': true
+          }
+        }));
+        
+        // 同时更新采购进度数据
         updateProcurementProgressStage(purchaseRequestId, '验收确认', {
           status: 'completed',
           completedDate: new Date(),
@@ -769,8 +778,9 @@ export const PurchaseProgress: React.FC = () => {
       
       // 🎯 新增：到货通知完成后，自动将验收确认设为进行中
       if (stageName === '到货通知') {
-        // 自动设置验收确认为进行中状态
+        // 自动设置验收确认为进行中状态 - 通过更新本地状态触发重新渲染
         setTimeout(() => {
+          // 不需要额外设置验收确认状态，getStageStatus函数会自动处理
           setNotificationMessage('到货通知完成！验收确认节点已自动进入"进行中"状态');
           setTimeout(() => setNotificationMessage(null), 3000);
         }, 500);
@@ -2065,12 +2075,8 @@ export const PurchaseProgress: React.FC = () => {
 
                               return (
                                 <td key={stage.id} className="py-3 px-4 text-center">
-                                  {isCompleted ? (
-                                    <span className="px-3 py-1.5 text-xs bg-green-100 text-green-800 rounded-full border border-green-200 font-medium">
-                                      已完成
-                                    </span>
-                                  ) : stage.name === '验收确认' ? (
-                                    // 验收确认节点显示实际状态
+                                  {stage.name === '验收确认' ? (
+                                    // 验收确认节点始终显示动态状态
                                     (() => {
                                       const acceptanceStatus = getStageStatus(request.id, '验收确认');
                                       let statusText = '未开始';
@@ -2083,6 +2089,7 @@ export const PurchaseProgress: React.FC = () => {
                                         statusText = '进行中';
                                         statusColorClass = 'bg-blue-100 text-blue-800';
                                       } else {
+                                        // 默认未开始状态
                                         statusText = '未开始';
                                         statusColorClass = 'bg-gray-100 text-gray-500';
                                       }
@@ -2093,6 +2100,10 @@ export const PurchaseProgress: React.FC = () => {
                                         </span>
                                       );
                                     })()
+                                  ) : isCompleted ? (
+                                    <span className="px-3 py-1.5 text-xs bg-green-100 text-green-800 rounded-full border border-green-200 font-medium">
+                                      已完成
+                                    </span>
                                   ) : showButton ? (
                                     <>
                                       {/* 催付类按钮 */}
@@ -2133,12 +2144,6 @@ export const PurchaseProgress: React.FC = () => {
                                         >
                                           批量完成
                                         </button>
-                                      )}
-                                      {/* 验收确认节点系统联动提示 */}
-                                      {stage.name === '验收确认' && (
-                                        <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded-full border border-gray-200 font-medium">
-                                          系统联动
-                                        </span>
                                       )}
                                     </>
                                   ) : (
