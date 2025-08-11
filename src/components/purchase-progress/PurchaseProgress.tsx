@@ -19,6 +19,7 @@ import {
 import { useProcurement } from '../../hooks/useProcurement';
 import { useAuth } from '../../hooks/useAuth';
 import { useGlobalStore } from '../../store/globalStore';
+import { arrivalInspectionStore } from '../../store/arrivalInspection';
 import { PurchaseRequest, OrderAllocation, ProcurementProgress, PaymentMethod, ProcurementProgressStage, RejectedOrder } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
 import { ProgressBar } from '../ui/ProgressBar';
@@ -33,14 +34,14 @@ type FinalPaymentFilter = 'all' | 'no_final' | 'final_paid' | 'final_unpaid';
 // 流程节点配置
 const STAGE_ORDER = [
   '定金支付', '安排生产', '纸卡提供', '包装生产', 
-  '尾款支付', '安排发货', '收货确认', '验收确认'
+  '尾款支付', '安排发货', '到货通知', '验收确认'
 ];
 
 // 系统联动节点（不可手动操作）
 const SYSTEM_LINKED_STAGES = ['定金支付', '纸卡提供', '尾款支付', '验收确认'];
 
 // 采购专员可操作节点
-const MANUAL_STAGES = ['安排生产', '包装生产', '安排发货', '收货确认'];
+const MANUAL_STAGES = ['安排生产', '包装生产', '安排发货', '到货通知'];
 
 export const PurchaseProgress: React.FC = () => {
   const { 
@@ -76,6 +77,9 @@ export const PurchaseProgress: React.FC = () => {
 
   // SKU级别完成状态管理
   const [completedSKUs, setCompletedSKUs] = useState<Set<string>>(new Set());
+
+  // 节点完成状态管理
+  const [stageCompletionStatus, setStageCompletionStatus] = useState<{[key: string]: {[key: string]: boolean}}>({});
 
   // 获取已分配的订单
   const { data: allocatedRequests } = getPurchaseRequests(
@@ -146,9 +150,72 @@ export const PurchaseProgress: React.FC = () => {
     });
   }, [allocatedRequests, procurementProgressData]);
 
+  // 🎯 监听到货检验验收通过后的验收确认状态更新
+  React.useEffect(() => {
+    const handleAcceptanceStatusUpdate = (event: CustomEvent) => {
+      const { purchaseRequestId, skuId, productType, status } = event.detail;
+      
+      console.log(`🎯 收到验收确认状态更新事件：订单 ${purchaseRequestId}, SKU ${skuId}, 状态 ${status}`);
+      
+      try {
+        // 更新采购进度的验收确认状态为已完成
+        updateProcurementProgressStage(purchaseRequestId, '验收确认', {
+          status: 'completed',
+          completedDate: new Date(),
+          completedBy: user?.id || ''
+        });
+        
+        // 根据产品类型触发SKU流转到对应的已完成页面
+        if (productType === 'semi_finished') {
+          console.log(`✅ 半成品验收通过：SKU ${skuId} 将流转到"自己包装已完成"页面`);
+        } else if (productType === 'finished') {
+          console.log(`✅ 成品验收通过：SKU ${skuId} 将流转到"厂家包装已完成"页面`);
+        }
+        
+        // 显示成功提示
+        setNotificationMessage(`验收确认自动完成！SKU已流转到${productType === 'semi_finished' ? '自己包装已完成' : '厂家包装已完成'}页面`);
+        setTimeout(() => setNotificationMessage(null), 3000);
+        
+      } catch (error) {
+        console.error('处理验收确认状态更新失败:', error);
+      }
+    };
+
+    // 添加事件监听器
+    window.addEventListener('update-acceptance-status', handleAcceptanceStatusUpdate as EventListener);
+    
+    // 清理函数
+    return () => {
+      window.removeEventListener('update-acceptance-status', handleAcceptanceStatusUpdate as EventListener);
+    };
+  }, [user?.id, updateProcurementProgressStage]);
+
+  // 类型定义
+  type StageStatus = 'not_started' | 'in_progress' | 'completed' | 'no_deposit_required';
+
   // 获取订单分配信息
   const getOrderAllocation = (requestId: string): OrderAllocation | undefined => {
     return orderAllocations.find(a => a.purchaseRequestId === requestId);
+  };
+
+  // 检查是否需要定金
+  const needsDeposit = (requestId: string): boolean => {
+    const allocation = getOrderAllocation(requestId);
+    if (!allocation) return false;
+    
+    // 账期付款或定金金额为0时不需要定金
+    return allocation.paymentMethod !== 'credit_terms' && (allocation.prepaymentAmount || 0) > 0;
+  };
+
+  // 检查付款是否已确认
+  const isPaymentConfirmed = (requestId: string, type: 'deposit' | 'final'): boolean => {
+    // 这里需要与财务模块联动，检查付款确认状态
+    return false;
+  };
+
+  // 获取纸卡进度
+  const getCardProgressByRequestId = (requestId: string) => {
+    return cardProgressData.filter(cp => cp.purchaseRequestId === requestId);
   };
 
   // 检查SKU是否已完成所有流程
@@ -184,19 +251,19 @@ export const PurchaseProgress: React.FC = () => {
     return allocatedRequests.find(r => r.id === requestId);
   };
 
-  // 采购专员收货确认权限检查函数
+  // 采购专员到货通知权限检查函数
   const canCompleteReceiving = (stage: ProcurementProgressStage): boolean => {
-    // 只有采购专员可以完成"收货确认"节点
+    // 只有采购专员可以完成"到货通知"节点
     return user?.role === 'purchasing_officer' && 
-           stage.name === '收货确认' && 
+           stage.name === '到货通知' && 
            hasPermission('complete_receiving_confirmation');
   };
 
   // 权限检查函数 - 其他节点权限（保持原有逻辑）
   const canCompleteOtherStages = (stage: ProcurementProgressStage): boolean => {
-    // 非收货确认节点的权限逻辑
-    if (stage.name === '收货确认') {
-      return false; // 收货确认只能由采购专员操作
+    // 非到货通知节点的权限逻辑
+    if (stage.name === '到货通知') {
+      return false; // 到货通知只能由采购专员操作
     }
     
     // 其他节点的权限逻辑（根据实际需求调整）
@@ -224,8 +291,8 @@ export const PurchaseProgress: React.FC = () => {
         return 'completed';
       }
       
-      // 检查前置节点"收货确认"是否完成
-      const goodsReceiptCompleted = stageCompletionStatus[requestId]?.['收货确认'];
+      // 检查前置节点"到货通知"是否完成
+      const goodsReceiptCompleted = stageCompletionStatus[requestId]?.['到货通知'];
       if (goodsReceiptCompleted) {
         return 'in_progress';
       }
@@ -280,9 +347,9 @@ export const PurchaseProgress: React.FC = () => {
     const previousStatus = getStageStatus(requestId, previousStage);
     
     if (previousStatus === 'completed' || previousStatus === 'no_deposit_required') {
-      // 特殊处理：验收确认需要等待收货确认完成
+      // 特殊处理：验收确认需要等待到货通知完成
       if (stageName === '验收确认') {
-        const goodsReceiptStatus = stageCompletionStatus[requestId]?.['收货确认'];
+        const goodsReceiptStatus = stageCompletionStatus[requestId]?.['到货通知'];
         return goodsReceiptStatus ? 'in_progress' : 'not_started';
       }
       return 'in_progress';
@@ -333,6 +400,22 @@ export const PurchaseProgress: React.FC = () => {
     }
 
     return 'final_unpaid';
+  };
+
+  // 获取采购进度信息
+  const getProcurementProgressByRequest = (requestId: string) => {
+    return procurementProgressData.find(p => p.purchaseRequestId === requestId);
+  };
+
+  // 检查是否可以操作节点
+  const canOperateStage = (requestId: string, stageName: string): boolean => {
+    const stageStatus = getStageStatus(requestId, stageName);
+    return stageStatus === 'in_progress';
+  };
+
+  // 检查是否可以批量操作
+  const canBatchOperate = (stageName: string): boolean => {
+    return selectedOrders.every(requestId => canOperateStage(requestId, stageName));
   };
 
   // 应用筛选条件
@@ -474,10 +557,10 @@ export const PurchaseProgress: React.FC = () => {
       setCompletedSKUs(prev => new Set([...prev, skuKey]));
       
       // 显示成功提示
-      setNotificationMessage('SKU收货确认已完成，已移至已完成栏目');
+      setNotificationMessage('SKU到货通知已完成，已移至已完成栏目');
       setTimeout(() => setNotificationMessage(null), 3000);
       
-      console.log(`✅ SKU完成：订单 ${requestId} 的 SKU ${itemId} 已完成收货确认`);
+      console.log(`✅ SKU完成：订单 ${requestId} 的 SKU ${itemId} 已完成到货通知`);
     } catch (error) {
       console.error('SKU完成操作失败:', error);
       setNotificationMessage('操作失败，请重试');
@@ -514,8 +597,8 @@ export const PurchaseProgress: React.FC = () => {
       return false;
     }
     
-    // 检查收货确认节点是否为进行中
-    const receiptStage = progress.stages.find((stage: any) => stage.name === '收货确认');
+    // 检查到货通知节点是否为进行中
+    const receiptStage = progress.stages.find((stage: any) => stage.name === '到货通知');
     
     // 首先检查progress和stages是否存在
     if (!progress || !progress.stages) {
@@ -539,12 +622,12 @@ export const PurchaseProgress: React.FC = () => {
         setCompletedSKUs(prev => new Set([...prev, skuKey]));
         
         // 更新采购进度状态
-        await updateProcurementProgressStage(requestId, '收货确认', {
+        await updateProcurementProgressStage(requestId, '到货通知', {
           status: 'completed',
           completedDate: new Date()
         });
         
-        alert('收货确认完成！SKU已移至已完成栏目。');
+        alert('到货通知完成！SKU已移至已完成栏目。');
       } else {
         // 到货数量 < 采购数量，弹出确认对话框
         const shouldContinue = window.confirm(
@@ -559,7 +642,7 @@ export const PurchaseProgress: React.FC = () => {
           // 选择不继续：按实际数量完成
           const skuKey = `${requestId}-${itemId}`;
           setCompletedSKUs(prev => new Set([...prev, skuKey]));
-          alert(`收货确认完成！按实际到货数量(${arrivalQty})完成。`);
+          alert(`到货通知完成！按实际到货数量(${arrivalQty})完成。`);
         }
       }
     } catch (error) {
@@ -644,11 +727,11 @@ export const PurchaseProgress: React.FC = () => {
         }
       }));
       
-      // 🎯 新增：收货确认完成后，自动将验收确认设为进行中
-      if (stageName === '收货确认') {
+      // 🎯 新增：到货通知完成后，自动将验收确认设为进行中
+      if (stageName === '到货通知') {
         // 自动设置验收确认为进行中状态
         setTimeout(() => {
-          setNotificationMessage('收货确认完成！验收确认节点已自动进入"进行中"状态');
+          setNotificationMessage('到货通知完成！验收确认节点已自动进入"进行中"状态');
           setTimeout(() => setNotificationMessage(null), 3000);
         }, 500);
       }
@@ -671,9 +754,9 @@ export const PurchaseProgress: React.FC = () => {
   // 处理阶段完成
   const handleCompleteStage = async (requestId: string, stageName: string) => {
     try {
-      // 收货确认节点的特殊权限检查
-      if (stageName === '收货确认' && user?.role !== 'purchasing_officer') {
-        alert('权限不足：只有采购专员可以完成收货确认操作');
+      // 到货通知节点的特殊权限检查
+      if (stageName === '到货通知' && user?.role !== 'purchasing_officer') {
+        alert('权限不足：只有采购专员可以完成到货通知操作');
         return;
       }
       
@@ -698,14 +781,14 @@ export const PurchaseProgress: React.FC = () => {
       const stage = progress.stages.find(s => s.name === stageName);
       if (!stage) return;
       
-      // 检查收货确认权限
-      if (stageName === '收货确认' && !canCompleteReceiving(stage)) {
-        alert('权限不足：只有采购专员可以完成收货确认操作');
+      // 检查到货通知权限
+      if (stageName === '到货通知' && !canCompleteReceiving(stage)) {
+        alert('权限不足：只有采购专员可以完成到货通知操作');
         return;
       }
       
       // 检查其他节点权限
-      if (stageName !== '收货确认' && !canCompleteOtherStages(stage)) {
+      if (stageName !== '到货通知' && !canCompleteOtherStages(stage)) {
         alert('权限不足：您没有权限完成此操作');
         return;
       }
@@ -762,12 +845,49 @@ export const PurchaseProgress: React.FC = () => {
       });
       setStageCompletionStatus(newStageStatus);
 
-      // 🎯 新增：收货确认批量完成后的自动流转逻辑
-      if (stageName === '收货确认') {
-        // 批量设置验收确认为进行中状态
+      // 🎯 新增：到货通知批量完成后的自动流转逻辑
+      if (stageName === '到货通知') {
+        // 1. 批量设置验收确认为进行中状态（已有逻辑保持不变）
+        
+        // 2. 🎯 新增：联动到货检验的"是否有货"状态
+        try {
+          // 按包装类型分组处理
+          const externalRequests: string[] = [];
+          const internalRequests: string[] = [];
+          
+          selectedOrders.forEach(requestId => {
+            const allocation = getOrderAllocation(requestId);
+            if (allocation?.type === 'external') {
+              externalRequests.push(requestId);
+            } else {
+              internalRequests.push(requestId);
+            }
+          });
+          
+          // 批量更新厂家包装订单的到货状态
+          if (externalRequests.length > 0) {
+            arrivalInspectionStore.handleArrivalNotificationBatchComplete(
+              externalRequests, 
+              'finished'
+            );
+          }
+          
+          // 批量更新自己包装订单的到货状态  
+          if (internalRequests.length > 0) {
+            arrivalInspectionStore.handleArrivalNotificationBatchComplete(
+              internalRequests, 
+              'semi_finished'
+            );
+          }
+          
+          console.log(`✅ 到货通知批量完成：已联动到货检验，厂家包装${externalRequests.length}个，自己包装${internalRequests.length}个`);
+        } catch (error) {
+          console.error('联动到货检验失败:', error);
+        }
+        
         setTimeout(() => {
           const completedCount = selectedOrders.length;
-          setNotificationMessage(`收货确认批量完成成功！已有 ${completedCount} 个订单的验收确认节点进入"进行中"状态`);
+          setNotificationMessage(`到货通知批量完成成功！已有 ${completedCount} 个订单的验收确认节点进入"进行中"状态，到货检验状态已同步更新`);
           setTimeout(() => setNotificationMessage(null), 3000);
         }, 500);
       }
@@ -947,20 +1067,20 @@ export const PurchaseProgress: React.FC = () => {
   };
 
   // 渲染标签页内容
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'in_progress':
-        return renderInProgressTab();
-      case 'external_completed':
-        return renderExternalCompletedTab();
-      case 'in_house_completed':
-        return renderCompletedTab('in_house');
-      case 'failed_orders':
-        return renderFailedOrdersTab();
-      default:
-        return renderInProgressTab();
-    }
-  };
+  // const renderTabContent = () => {
+  //   switch (activeTab) {
+  //     case 'in_progress':
+  //       return renderInProgressTab();
+  //     case 'external_completed':
+  //       return renderExternalCompletedTab();
+  //     case 'in_house_completed':
+  //       return renderCompletedTab('in_house');
+  //     case 'failed_orders':
+  //       return renderFailedOrdersTab();
+  //     default:
+  //       return renderInProgressTab();
+  //   }
+  // };
 
   // 渲染不合格订单标签页
   const renderFailedOrdersTab = () => {
@@ -1477,7 +1597,7 @@ export const PurchaseProgress: React.FC = () => {
                 { id: '4', name: '包装生产', status: 'not_started', order: 4 },
                 { id: '5', name: '尾款支付', status: 'not_started', order: 5 },
                 { id: '6', name: '安排发货', status: 'not_started', order: 6 },
-                { id: '7', name: '收货确认', status: 'not_started', order: 7 }
+                { id: '7', name: '到货通知', status: 'not_started', order: 7 }
               ],
               currentStage: shouldShowDepositPayment(request.id) ? 0 : 1, // 如果跳过定金，当前阶段为安排生产
               overallProgress: 0
@@ -1608,7 +1728,7 @@ export const PurchaseProgress: React.FC = () => {
                           <th className="text-center py-3 px-4 font-medium text-gray-900">包装生产</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">尾款支付</th>
                           <th className="text-center py-3 px-4 font-medium text-gray-900">安排发货</th>
-                          <th className="text-center py-3 px-4 font-medium text-gray-900">收货确认</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">到货通知</th>
                           <th className="text-center py-3 px-3 font-medium text-gray-900 w-20">验收确认</th>
                         </tr>
                       </thead>
@@ -1712,8 +1832,8 @@ export const PurchaseProgress: React.FC = () => {
                                         </div>
                                       )}
                                       
-                                      {/* SKU级别完成按钮 - 仅在收货确认节点且状态为进行中时显示 */}
-                                      {stage.name === '收货确认' && 
+                                      {/* SKU级别完成按钮 - 仅在到货通知节点且状态为进行中时显示 */}
+                                      {stage.name === '到货通知' && 
                                        effectiveStageStatus === 'in_progress' && 
                                        !skuCompleted &&
                                        activeTab === 'in_progress' && (
@@ -1767,10 +1887,10 @@ export const PurchaseProgress: React.FC = () => {
                               const isCompleted = stage.status === 'completed' || stage.status === 'skipped';
                               const showButton = isOperatable && !isCompleted;
 
-                              // 收货确认节点的权限控制
+                              // 到货通知节点的权限控制
                               const renderStageButton = (stage: any, progress: any) => {
-                                if (stage.name === '收货确认') {
-                                  // 只有采购专员可以看到和操作收货确认按钮
+                                if (stage.name === '到货通知') {
+                                  // 只有采购专员可以看到和操作到货通知按钮
                                   if (!canCompleteReceiving(stage)) {
                                     return null; // 其他角色不显示按钮
                                   }
@@ -1779,7 +1899,7 @@ export const PurchaseProgress: React.FC = () => {
                                     <button
                                       onClick={() => handleCompleteStage(progress.id, stage.name)}
                                       className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                                      title="采购专员专属：完成收货确认"
+                                      title="采购专员专属：完成到货通知"
                                     >
                                       完成
                                     </button>
@@ -1807,6 +1927,30 @@ export const PurchaseProgress: React.FC = () => {
                                     <span className="px-3 py-1.5 text-xs bg-green-100 text-green-800 rounded-full border border-green-200 font-medium">
                                       已完成
                                     </span>
+                                  ) : stage.name === '验收确认' ? (
+                                    // 验收确认节点显示实际状态
+                                    (() => {
+                                      const acceptanceStatus = getStageStatus(request.id, '验收确认');
+                                      let statusText = '未开始';
+                                      let statusColorClass = 'bg-gray-100 text-gray-500';
+                                      
+                                      if (acceptanceStatus === 'completed') {
+                                        statusText = '已完成';
+                                        statusColorClass = 'bg-green-100 text-green-800';
+                                      } else if (acceptanceStatus === 'in_progress') {
+                                        statusText = '进行中';
+                                        statusColorClass = 'bg-blue-100 text-blue-800';
+                                      } else {
+                                        statusText = '未开始';
+                                        statusColorClass = 'bg-gray-100 text-gray-500';
+                                      }
+                                      
+                                      return (
+                                        <span className={`px-3 py-1.5 text-xs rounded-full border font-medium ${statusColorClass}`}>
+                                          {statusText}
+                                        </span>
+                                      );
+                                    })()
                                   ) : showButton ? (
                                     <>
                                       {/* 催付类按钮 */}
@@ -1840,13 +1984,19 @@ export const PurchaseProgress: React.FC = () => {
                                         </button>
                                       )}
                                       {/* 批量完成按钮 */}
-                                      {!['定金支付', '纸卡提供', '尾款支付'].includes(stage.name) && (
+                                      {!['定金支付', '纸卡提供', '尾款支付', '验收确认'].includes(stage.name) && (
                                         <button
                                           onClick={() => handleCompleteStage(request.id, stage.name)}
                                           className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                                         >
                                           批量完成
                                         </button>
+                                      )}
+                                      {/* 验收确认节点系统联动提示 */}
+                                      {stage.name === '验收确认' && (
+                                        <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded-full border border-gray-200 font-medium">
+                                          系统联动
+                                        </span>
                                       )}
                                     </>
                                   ) : (
@@ -1857,24 +2007,6 @@ export const PurchaseProgress: React.FC = () => {
                                 </td>
                               );
                             })}
-                          
-                          {/* 验收确认批量操作按钮 */}
-                          <td className="py-3 px-3 text-center">
-                            <span className="px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded-full border border-gray-200 font-medium">
-                              系统联动
-                            </span>
-                          </td>
-                          
-                          {/* 验收确认节点 - 单独处理确保显示 */}
-                          <td className="py-3 px-3 text-center">
-                            <div className="flex flex-col items-center space-y-2">
-                              <StatusBadge
-                                status="未开始"
-                                color="gray"
-                                size="sm"
-                              />
-                            </div>
-                          </td>
                           </tr>
                         )}
                       </tbody>

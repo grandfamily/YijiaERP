@@ -123,9 +123,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onItemClick }) => 
   const accessibleItems = sidebarItems;
 
   return (
-    <div className="w-64 bg-gray-900 text-white h-full">
-      <div className="p-6">
-        <div className="flex items-center space-x-2 mb-8">
+    <div className="w-52 bg-gray-900 text-white h-full">
+      <div className="p-5">
+        <div className="flex items-center space-x-2 mb-6">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
             <Package className="h-5 w-5 text-white" />
           </div>

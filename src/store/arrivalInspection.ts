@@ -356,6 +356,9 @@ class ArrivalInspectionStore {
   // 🎯 处理验收通过后的自动流转
   private handleInspectionPassedFlow(inspection: ArrivalInspection) {
     try {
+      // 🎯 新增：验收通过后，自动更新采购进度的验收确认状态为"已完成"
+      this.updateProcurementProgressAcceptanceStatus(inspection);
+      
       if (inspection.productType === 'semi_finished') {
         // 半成品验收通过 → 自动同步至生产排单的待排单
         console.log(`🔄 自动流转：半成品SKU ${inspection.sku.code} 验收通过，开始同步至生产排单`);
@@ -467,6 +470,33 @@ class ArrivalInspectionStore {
     } catch (error) {
       console.error('获取生产排单Store失败:', error);
       return null;
+    }
+  }
+
+  // 🎯 更新采购进度的验收确认状态
+  private updateProcurementProgressAcceptanceStatus(inspection: ArrivalInspection) {
+    try {
+      console.log(`🎯 开始更新采购进度验收确认状态：订单 ${inspection.purchaseRequestNumber}, SKU ${inspection.sku.code}`);
+      
+      // 通过全局事件总线通知采购进度模块更新验收确认状态
+      // 使用自定义事件机制避免循环依赖
+      const event = new CustomEvent('update-acceptance-status', {
+        detail: {
+          purchaseRequestId: inspection.purchaseRequestId,
+          skuId: inspection.skuId,
+          productType: inspection.productType,
+          status: 'completed'
+        }
+      });
+      
+      // 发送事件
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(event);
+        console.log(`✅ 已发送验收确认状态更新事件：订单 ${inspection.purchaseRequestNumber}`);
+      }
+      
+    } catch (error) {
+      console.error('更新采购进度验收确认状态失败:', error);
     }
   }
 }
