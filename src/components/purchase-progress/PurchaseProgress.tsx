@@ -211,24 +211,37 @@ export const PurchaseProgress: React.FC = () => {
     const handleAcceptanceStatusUpdate = (event: CustomEvent) => {
       const { purchaseRequestId, skuId, productType, status } = event.detail;
       
-      console.log(`🎯 收到验收确认状态更新事件：订单 ${purchaseRequestId}, SKU ${skuId}, 状态 ${status}`);
+      console.log(`🎯 收到验收确认状态更新事件：订单 ${purchaseRequestId}, SKU ${skuId}, 状态 ${status}, 产品类型 ${productType}`);
+      console.log(`🎯 当前进度数据数量:`, procurementProgressData.length);
       
       try {
         // 更新本地状态 - 验收确认完成
-        setStageCompletionStatus(prev => ({
-          ...prev,
-          [purchaseRequestId]: {
-            ...prev[purchaseRequestId],
-            '验收确认': true
-          }
-        }));
-        
-        // 同时更新采购进度数据
-        updateProcurementProgressStage(purchaseRequestId, '验收确认', {
-          status: 'completed',
-          completedDate: new Date(),
-          completedBy: user?.id || ''
+        setStageCompletionStatus(prev => {
+          const newStatus = {
+            ...prev,
+            [purchaseRequestId]: {
+              ...prev[purchaseRequestId],
+              '验收确认': true
+            }
+          };
+          console.log(`🎯 更新后的本地状态:`, newStatus[purchaseRequestId] || {});
+          return newStatus;
         });
+        
+        // 同时更新采购进度数据 - 找到对应的进度记录ID
+        const progressRecord = procurementProgressData.find(p => p.purchaseRequestId === purchaseRequestId);
+        if (progressRecord) {
+          console.log(`🎯 找到进度记录:`, progressRecord.id);
+          updateProcurementProgressStage(progressRecord.id, '验收确认', {
+            status: 'completed',
+            completedDate: new Date(),
+            completedBy: user?.id || ''
+          });
+          console.log(`✅ 已更新进度记录 ${progressRecord.id} 的验收确认状态为已完成`);
+        } else {
+          console.warn(`⚠️ 未找到订单 ${purchaseRequestId} 的进度记录，只更新本地状态`);
+          console.log(`🎯 可用的进度记录:`, procurementProgressData.map(p => ({id: p.id, requestId: p.purchaseRequestId})));
+        }
         
         // 根据产品类型触发SKU流转到对应的已完成页面
         if (productType === 'semi_finished') {
@@ -253,7 +266,7 @@ export const PurchaseProgress: React.FC = () => {
     return () => {
       window.removeEventListener('update-acceptance-status', handleAcceptanceStatusUpdate as EventListener);
     };
-  }, [user?.id, updateProcurementProgressStage]);
+  }, [user?.id, updateProcurementProgressStage, procurementProgressData]);
 
   // 类型定义
   type StageStatus = 'not_started' | 'in_progress' | 'completed' | 'no_deposit_required';
@@ -1415,60 +1428,6 @@ export const PurchaseProgress: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">采购进度</h1>
           <p className="text-gray-600">管理采购订单的执行进度和状态</p>
-          {/* 🎯 测试区域 */}
-          <div className="mt-2">
-            <button
-              onClick={() => {
-                const testOrderId = 'CF-20250001';
-                const testRequest = allocatedRequests.find(req => req.requestNumber === testOrderId);
-                if (testRequest) {
-                  console.log('🎯 测试：模拟完成订单', testOrderId, '的到货通知');
-                  setStageCompletionStatus(prev => ({
-                    ...prev,
-                    [testRequest.id]: {
-                      ...prev[testRequest.id],
-                      '定金支付': true,
-                      '安排生产': true,
-                      '纸卡提供': true,
-                      '包装生产': true,
-                      '尾款支付': true,
-                      '安排发货': true,
-                      '到货通知': true  // 🎯 关键：设置到货通知为已完成
-                    }
-                  }));
-                }
-              }}
-              className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 mr-2"
-            >
-              🧪 测试到货通知完成
-            </button>
-            <button
-              onClick={() => {
-                const testOrderId = 'CF-20250001';
-                const testRequest = allocatedRequests.find(req => req.requestNumber === testOrderId);
-                if (testRequest) {
-                  console.log('🎯 测试：模拟完成订单', testOrderId, '的验收确认');
-                  setStageCompletionStatus(prev => ({
-                    ...prev,
-                    [testRequest.id]: {
-                      ...prev[testRequest.id],
-                      '定金支付': true,
-                      '安排生产': true,
-                      '纸卡提供': true,
-                      '包装生产': true,
-                      '尾款支付': true,
-                      '安排发货': true,
-                      '到货通知': true,
-                      '验收确认': true  // 🎯 关键：设置验收确认为已完成
-                    }
-                  }));
-                }
-              }}
-              className="px-3 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600"
-            >
-              🧪 测试验收确认完成
-            </button>
-          </div>
         </div>
         <div className="flex items-center space-x-4">
           {selectedOrders.length > 0 && (
