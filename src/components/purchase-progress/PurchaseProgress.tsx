@@ -99,6 +99,20 @@ export const PurchaseProgress: React.FC = () => {
   const rejectedOrders = useGlobalStore(state => state.rejectedOrders);
   console.log('🎯 从全局存储获取的不合格订单数量:', rejectedOrders.length, '详情:', rejectedOrders);
 
+  // 🎯 更新到货检验状态的函数
+  const updateArrivalInspectionStatus = (requestId: string, hasArrived: boolean) => {
+    // 向到货检验模块发送状态更新事件
+    const event = new CustomEvent('updateArrivalStatus', {
+      detail: {
+        orderId: requestId,
+        hasArrived: hasArrived,
+        timestamp: Date.now()
+      }
+    });
+    window.dispatchEvent(event);
+    console.log('🎯 发送到货状态更新事件:', { requestId, hasArrived });
+  };
+
   // 🎯 监听到货检验页面发送的不合格订单事件（保留向后兼容性）
   React.useEffect(() => {
     console.log('🎯 采购进度页面已挂载，开始监听不合格订单事件');
@@ -269,9 +283,15 @@ export const PurchaseProgress: React.FC = () => {
     return cardProgressData.filter(cp => cp.purchaseRequestId === requestId);
   };
 
-  // 检查SKU是否已完成所有流程
+  // 检查SKU是否已完成所有流程 - 🎯 修改为检查所有八个节点
   const isSKUCompleted = (progress: ProcurementProgress): boolean => {
-    return progress.stages.every(stage => stage.status === 'completed' || stage.status === 'skipped');
+    // 检查所有八个流程节点是否都已完成
+    const allStagesCompleted = STAGE_ORDER.every(stageName => {
+      const stageStatus = getStageStatus(progress.purchaseRequestId, stageName);
+      return stageStatus === 'completed' || stageStatus === 'no_deposit_required';
+    });
+    
+    return allStagesCompleted;
   };
 
   // 检查订单是否为厂家包装
@@ -335,19 +355,24 @@ export const PurchaseProgress: React.FC = () => {
       return isDepositPaid ? 'completed' : 'in_progress';
     }
     
-    // 🎯 新增：验收确认节点特殊处理
+    // 🎯 验收确认节点特殊处理
     if (stageName === '验收确认') {
       // 检查本地完成状态
       if (stageCompletionStatus[requestId]?.[stageName]) {
         return 'completed';
       }
       
-      // 检查前置节点"到货通知"是否完成
-      const goodsReceiptCompleted = stageCompletionStatus[requestId]?.['到货通知'];
-      if (goodsReceiptCompleted) {
+      // 按照标准逻辑：检查前一个节点"到货通知"是否完成
+      const previousStage = '到货通知';
+      const previousStatus = stageCompletionStatus[requestId]?.[previousStage];
+      
+      if (previousStatus) {
+        // 🎯 当到货通知完成时，更新到货检验状态并设置验收确认为进行中
+        updateArrivalInspectionStatus(requestId, true);
         return 'in_progress';
       }
       
+      // 初始状态：未开始
       return 'not_started';
     }
     
@@ -372,8 +397,6 @@ export const PurchaseProgress: React.FC = () => {
       return isFinalPaid ? 'completed' : 'not_started';
     }
     
-    // 移除重复的验收确认处理逻辑，因为上面已经处理过了
-    
     // 检查前置节点状态决定当前节点状态
     const currentIndex = STAGE_ORDER.indexOf(stageName);
     if (currentIndex === 0) {
@@ -396,11 +419,6 @@ export const PurchaseProgress: React.FC = () => {
         return 'in_progress';
       }
       
-      // 特殊处理：验收确认需要等待到货通知完成
-      if (stageName === '验收确认') {
-        const goodsReceiptStatus = stageCompletionStatus[requestId]?.['到货通知'];
-        return goodsReceiptStatus ? 'in_progress' : 'not_started';
-      }
       return 'in_progress';
     }
     
@@ -740,9 +758,11 @@ export const PurchaseProgress: React.FC = () => {
       'not_started': '未开始',
       'in_progress': '进行中',
       'completed': '已完成',
-      'skipped': '已跳过'
+      'skipped': '已跳过',
+      'no_deposit_required': '无需支付'
     };
-    return statusMap[status as keyof typeof statusMap] || status;
+    
+    return statusMap[status as keyof typeof statusMap] || status || '未开始';
   };
 
   // 处理图片点击放大
@@ -1395,6 +1415,60 @@ export const PurchaseProgress: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">采购进度</h1>
           <p className="text-gray-600">管理采购订单的执行进度和状态</p>
+          {/* 🎯 测试区域 */}
+          <div className="mt-2">
+            <button
+              onClick={() => {
+                const testOrderId = 'CF-20250001';
+                const testRequest = allocatedRequests.find(req => req.requestNumber === testOrderId);
+                if (testRequest) {
+                  console.log('🎯 测试：模拟完成订单', testOrderId, '的到货通知');
+                  setStageCompletionStatus(prev => ({
+                    ...prev,
+                    [testRequest.id]: {
+                      ...prev[testRequest.id],
+                      '定金支付': true,
+                      '安排生产': true,
+                      '纸卡提供': true,
+                      '包装生产': true,
+                      '尾款支付': true,
+                      '安排发货': true,
+                      '到货通知': true  // 🎯 关键：设置到货通知为已完成
+                    }
+                  }));
+                }
+              }}
+              className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 mr-2"
+            >
+              🧪 测试到货通知完成
+            </button>
+            <button
+              onClick={() => {
+                const testOrderId = 'CF-20250001';
+                const testRequest = allocatedRequests.find(req => req.requestNumber === testOrderId);
+                if (testRequest) {
+                  console.log('🎯 测试：模拟完成订单', testOrderId, '的验收确认');
+                  setStageCompletionStatus(prev => ({
+                    ...prev,
+                    [testRequest.id]: {
+                      ...prev[testRequest.id],
+                      '定金支付': true,
+                      '安排生产': true,
+                      '纸卡提供': true,
+                      '包装生产': true,
+                      '尾款支付': true,
+                      '安排发货': true,
+                      '到货通知': true,
+                      '验收确认': true  // 🎯 关键：设置验收确认为已完成
+                    }
+                  }));
+                }
+              }}
+              className="px-3 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600"
+            >
+              🧪 测试验收确认完成
+            </button>
+          </div>
         </div>
         <div className="flex items-center space-x-4">
           {selectedOrders.length > 0 && (
@@ -1691,7 +1765,24 @@ export const PurchaseProgress: React.FC = () => {
               overallProgress: 0
             };
             
-            const currentProgress = progress || defaultProgress;
+            // 确保进度数据包含所有8个阶段，特别是验收确认节点
+            const currentProgress = progress ? {
+              ...progress,
+              stages: progress.stages.length < 8 ? [
+                ...progress.stages,
+                { 
+                  id: '8', 
+                  name: '验收确认', 
+                  status: getStageStatus(request.id, '验收确认'), 
+                  order: 8,
+                  completedDate: getStageStatus(request.id, '验收确认') === 'completed' ? new Date('2025/8/12') : undefined
+                }
+              ] : progress.stages
+            } : defaultProgress;
+            
+            // 🎯 调试：检查验收确认节点是否存在
+            console.log(`🔍 订单 ${request.id} 的stages数量:`, currentProgress.stages.length);
+            console.log(`🔍 验收确认节点:`, currentProgress.stages.find(s => s.name === '验收确认'));
             const completedStages = currentProgress.stages.filter(s => s.status === 'completed').length;
             const totalStages = currentProgress.stages.filter(s => s.status !== 'skipped').length;
             const progressPercentage = totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0;
@@ -1960,10 +2051,15 @@ export const PurchaseProgress: React.FC = () => {
                               </td>
 
                               {/* Stage Status Columns */}
-                              {currentProgress.stages.map((stage) => {
+                              {currentProgress.stages.map((stage, index) => {
                                 // 如果SKU已完成，所有阶段显示为已完成
                                 const effectiveStageStatus = skuCompleted ? 'completed' : stage.status;
                                 const effectiveCompletedDate = skuCompleted ? new Date() : stage.completedDate;
+                                
+                                // 🎯 调试：验收确认节点渲染
+                                if (stage.name === '验收确认') {
+                                  console.log(`🔍 渲染验收确认 - 订单: ${request.id}, 节点索引: ${index}, 状态: ${stage.status}, 有效状态: ${effectiveStageStatus}`);
+                                }
                                 
                                 return (
                                   <td key={stage.id} className="py-4 px-4 text-center">
@@ -1974,7 +2070,7 @@ export const PurchaseProgress: React.FC = () => {
                                         effectiveStageStatus === 'skipped' ? 'bg-blue-100 text-blue-800' :
                                         'bg-gray-100 text-gray-800'
                                       }`}>
-                                        {getStatusText(effectiveStageStatus)}
+                                        {getStatusText(effectiveStageStatus) || '未开始'}
                                       </div>
                                       
                                       {/* Completion Date */}

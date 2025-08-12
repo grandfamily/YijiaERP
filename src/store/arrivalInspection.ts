@@ -302,6 +302,36 @@ class ArrivalInspectionStore {
     return updatedInspections;
   }
 
+  // 根据订单ID更新到货状态
+  updateOrderArrivalStatus(orderId: string, hasArrived: boolean): ArrivalInspection[] {
+    const updatedInspections: ArrivalInspection[] = [];
+    
+    // 查找该订单的所有到货检验记录
+    const orderInspections = this.arrivalInspections.filter(
+      ai => ai.purchaseRequestId === orderId
+    );
+
+    orderInspections.forEach(inspection => {
+      const index = this.arrivalInspections.findIndex(ai => ai.id === inspection.id);
+      if (index !== -1) {
+        this.arrivalInspections[index] = {
+          ...this.arrivalInspections[index],
+          isArrived: hasArrived,
+          arrivalDate: hasArrived ? new Date() : undefined,
+          updatedAt: new Date()
+        };
+        updatedInspections.push(this.arrivalInspections[index]);
+      }
+    });
+
+    if (updatedInspections.length > 0) {
+      this.notify();
+      console.log(`🎯 订单 ${orderId} 的到货状态已更新为: ${hasArrived ? '已到货' : '未到货'}, 影响记录数: ${updatedInspections.length}`);
+    }
+
+    return updatedInspections;
+  }
+
   // 更新检验记录
   updateArrivalInspection(id: string, updates: Partial<ArrivalInspection>): ArrivalInspection | null {
     const index = this.arrivalInspections.findIndex(ai => ai.id === id);

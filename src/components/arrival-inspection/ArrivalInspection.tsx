@@ -70,12 +70,29 @@ export const ArrivalInspection: React.FC = () => {
       }
     };
 
+    // 🎯 监听单个订单到货状态更新事件
+    const handleUpdateArrivalStatus = (event: CustomEvent) => {
+      const { orderId, hasArrived, timestamp } = event.detail;
+      console.log(`🎯 到货检验页面收到到货状态更新事件:`, { orderId, hasArrived, timestamp });
+      
+      try {
+        // 更新对应订单的到货状态
+        import('../../store/arrivalInspection').then(({ arrivalInspectionStore }) => {
+          arrivalInspectionStore.updateOrderArrivalStatus(orderId, hasArrived);
+        });
+      } catch (error) {
+        console.error('处理到货状态更新事件失败:', error);
+      }
+    };
+
     // 添加事件监听器
     window.addEventListener('arrivalNotificationBatchComplete', handleArrivalNotificationBatchComplete as EventListener);
+    window.addEventListener('updateArrivalStatus', handleUpdateArrivalStatus as EventListener);
 
     // 清理事件监听器
     return () => {
       window.removeEventListener('arrivalNotificationBatchComplete', handleArrivalNotificationBatchComplete as EventListener);
+      window.removeEventListener('updateArrivalStatus', handleUpdateArrivalStatus as EventListener);
     };
   }, []);
 
@@ -217,6 +234,29 @@ export const ArrivalInspection: React.FC = () => {
       // 🎯 验收通过后立即执行流转逻辑
       if (qualityResult === 'passed' && inspection) {
         console.log(`开始执行流转逻辑: SKU ${inspection.sku.code}, 产品类型: ${inspection.productType}`);
+        
+        // 🎯 验收通过时，更新采购进度的验收确认状态为已完成
+        console.log(`🎯 验收通过：更新采购进度验收确认状态 - 订单 ${inspection.purchaseRequestNumber}, SKU ${inspection.sku.code}`);
+        
+        try {
+          // 通过全局事件总线通知采购进度模块更新验收确认状态
+          const event = new CustomEvent('update-acceptance-status', {
+            detail: {
+              purchaseRequestId: inspection.purchaseRequestId,
+              skuId: inspection.skuId,
+              productType: inspection.productType,
+              status: 'completed'
+            }
+          });
+          
+          // 发送事件
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(event);
+            console.log(`✅ 已发送验收确认状态更新事件：订单 ${inspection.purchaseRequestNumber}`);
+          }
+        } catch (error) {
+          console.error('发送验收确认状态更新事件失败:', error);
+        }
         
         if (inspection.productType === 'semi_finished') {
           // 半成品验收通过 → 生产排单
